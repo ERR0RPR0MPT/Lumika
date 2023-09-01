@@ -10,7 +10,7 @@
 
 > 按照算法存储，32x32 24fps 的视频一帧可存储 3KB 数据
 > 
-> 即此参数的长度为 10 小时的视频最大存储数据为 2531.25 MB
+> 即此参数的长度为 10 小时的视频最大存储数据为 105.46875 MB
 
 > 类似实现的项目：[Lumina](https://github.com/ERR0RPR0MPT/Lumina) [Labyrinth-go](https://github.com/ERR0RPR0MPT/Labyrinth-go), 但效率和可用性都不如 `Lumika`.
 > 
