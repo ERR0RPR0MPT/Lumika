@@ -384,14 +384,20 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encode
 
 	// 启动多个goroutine
 	var wg sync.WaitGroup
+	maxGoroutines := runtime.NumCPU() // 最大同时运行的协程数量
+	semaphore := make(chan struct{}, maxGoroutines)
 	allStartTime := time.Now()
 
 	// 遍历需要处理的文件列表
 	for fileIndexNum, filePath := range filePathList {
 		fmt.Println(en, "开始编码第", fileIndexNum+1, "个文件，路径:", filePath)
-		wg.Add(1) // 增加计数器
+		wg.Add(1)               // 增加计数器
+		semaphore <- struct{}{} // 协程获取信号量，若已满则阻塞
 		go func(fileIndexNum int, filePath string) {
-			defer wg.Done() // 减少计数器
+			defer func() {
+				<-semaphore // 协程释放信号量
+				wg.Done()
+			}()
 
 			// 读取文件
 			fileData, err := os.ReadFile(filePath)
@@ -597,13 +603,19 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string) {
 	}
 
 	var wg sync.WaitGroup
+	maxGoroutines := runtime.NumCPU() // 最大同时运行的协程数量
+	semaphore := make(chan struct{}, maxGoroutines)
 
 	// 遍历解码所有文件
 	allStartTime := time.Now()
 	for filePathIndex, filePath := range filePathList {
-		wg.Add(1) // 增加计数器
+		wg.Add(1)               // 增加计数器
+		semaphore <- struct{}{} // 协程获取信号量，若已满则阻塞
 		go func(filePathIndex int, filePath string) {
-			defer wg.Done() // 减少计数器
+			defer func() {
+				<-semaphore // 协程释放信号量
+				wg.Done()
+			}()
 			fmt.Println(de, "开始解码第", filePathIndex+1, "个编码文件:", filePath)
 
 			cmd := exec.Command("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", filePath)
