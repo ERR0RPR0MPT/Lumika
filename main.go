@@ -1098,6 +1098,22 @@ func Get(base64Config string) {
 		zunfecDuration := zunfecEndTime.Sub(zunfecStartTime)
 		fmt.Println(get, "zunfec 调用完成，耗时:", zunfecDuration)
 
+		fileDict, err = GenerateFileDxDictionary(fileDir, ".fec")
+		if err != nil {
+			fmt.Println(en, "无法生成文件列表:", err)
+			return
+		}
+		if len(fileDict) != 0 {
+			fmt.Println(add, "删除临时文件")
+			for _, filePath := range fileDict {
+				err = os.Remove(filePath)
+				if err != nil {
+					fmt.Println(add, "删除文件失败:", err)
+					return
+				}
+			}
+		}
+
 		// 检查最终生成的文件是否与原始文件一致
 		fmt.Println(get, "检查生成的文件是否与源文件一致")
 		targetHash := CalculateFileHash(filepath.Join(fileDir, fecFileConfig.Name), defaultHashLength)
