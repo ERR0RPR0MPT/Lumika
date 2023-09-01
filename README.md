@@ -55,7 +55,25 @@ pip install zfec
 ## 高级用法
 
 ```
+Usage: C:\Users\Weclont\Desktop\lumika\lumika_windows_amd64.exe [command] [options]
+Double-click to run: Start via automatic mode
 
+Commands:
+add     Using ffmpeg to encode zfec redundant files into .mp4 FEC video files that appear less harmful.
+get     Using ffmpeg to decode .mp4 FEC video files into the original files.
+ Options:
+ -b     The Base64 encoded JSON included message to provide decode
+encode  Encode a file
+ Options:
+ -i     The input fec file to encode
+ -s     The video size(default=32), 8-1024(must be a multiple of 8)
+ -p     The output video fps setting(default=24), 1-60
+ -l     The output video max segment length(seconds) setting(default=35990), 1-10^9
+ -m     FFmpeg mode(default=medium): ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow, placebo
+decode  Decode a file
+ Options:
+ -i     The input file to decode
+help    Show this help
 ```
 
 ## 许可证
