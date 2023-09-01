@@ -36,6 +36,7 @@ const (
 	addKLevel             = 7
 	encodeVideoSizeLevel  = 32
 	encodeOutputFPSLevel  = 24
+	encodeMaxSecondsLevel = 35990
 	encodeFFmpegModeLevel = "medium"
 )
 
@@ -295,7 +296,7 @@ func GenerateFileDxDictionary(root string, ex string) (map[int]string, error) {
 			return err
 		}
 		if !info.IsDir() && filepath.Ext(path) == ex {
-			if strings.Contains(path, "lumika") {
+			if strings.Contains(filepath.Base(path), "lumika") {
 				return nil
 			}
 			fileDict[index] = path
@@ -326,7 +327,7 @@ func GenerateFileDictionary(root string) (map[int]string, error) {
 			return err
 		}
 		if !info.IsDir() {
-			if strings.Contains(path, "lumika") {
+			if strings.Contains(filepath.Base(path), "lumika") {
 				return nil
 			}
 			fileDict[index] = path
@@ -349,7 +350,7 @@ func GenerateFileDictionary(root string) (map[int]string, error) {
 	return sortedFileDict, nil
 }
 
-func Encode(fileDir string, videoSize int, outputFPS int, encodeFFmpegMode string) map[string]FecFileListConfig {
+func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encodeFFmpegMode string) map[string]FecFileListConfig {
 	if videoSize%8 != 0 {
 		fmt.Println(en, "视频大小必须是8的倍数")
 		return nil
@@ -371,6 +372,8 @@ func Encode(fileDir string, videoSize int, outputFPS int, encodeFFmpegMode strin
 		fmt.Println(en, "输入文件夹不存在:", err)
 		return nil
 	}
+
+	fmt.Println(en, "当前目录:", fileDir)
 
 	fileDict, err := GenerateFileDxDictionary(fileDir, ".fec")
 	if err != nil {
@@ -432,6 +435,14 @@ func Encode(fileDir string, videoSize int, outputFPS int, encodeFFmpegMode strin
 			dataSliceLen := videoSize * videoSize / 8                                  // 每帧存储的有效数据
 			allFrameNum := int(math.Ceil(float64(fileLength) / float64(dataSliceLen))) // 生成总帧数
 			allSeconds := int(math.Ceil(float64(allFrameNum) / float64(outputFPS)))    // 总时长(秒)
+
+			// 检查时长是否超过限制
+			if allSeconds > maxSeconds {
+				fmt.Println(en, "警告：生成的段视频时长超过限制("+strconv.Itoa(allSeconds)+"s>"+strconv.Itoa(maxSeconds)+"s)")
+				fmt.Println(en, "请调整M值、K值、输出帧率、最大生成时长来满足要求")
+				GetUserInput("请按回车键继续...")
+				os.Exit(0)
+			}
 
 			fmt.Println(en, "开始运行")
 			fmt.Println(en, "使用配置：")
@@ -576,6 +587,8 @@ func Decode(videoFileDir string, dataLengthList []int64, filePathList []string) 
 		fmt.Println(de, "输入文件夹不存在:", err)
 		return
 	}
+
+	fmt.Println(de, "当前目录:", videoFileDir)
 
 	fileDict, err := GenerateFileDxDictionary(videoFileDir, ".mp4")
 	if err != nil {
@@ -800,6 +813,8 @@ func Add() {
 		return
 	}
 
+	fmt.Println(add, "当前目录:", fileDir)
+
 	fileDict, err := GenerateFileDxDictionary(fileDir, ".fec")
 	if err != nil {
 		fmt.Println(en, "无法生成文件列表:", err)
@@ -911,7 +926,7 @@ func Add() {
 	}
 
 	fmt.Println(add, "开始进行编码")
-	fecHashMap := Encode("", encodeVideoSizeLevel, encodeOutputFPSLevel, encodeFFmpegModeLevel)
+	fecHashMap := Encode("", encodeVideoSizeLevel, encodeOutputFPSLevel, encodeMaxSecondsLevel, encodeFFmpegModeLevel)
 
 	fmt.Println(add, "编码完成，开始生成配置")
 	fecFileListConfig := make([]FecFileListConfig, 0)
@@ -1158,8 +1173,8 @@ func AutoRun() {
 		var input string
 		_, err := fmt.Scanln(&input)
 		if err != nil {
-			fmt.Println("AutoRun: 错误: 读取输入失败:", err)
-			return
+			fmt.Println("AutoRun: 错误: 请重新输入")
+			continue
 		}
 		if input == "1" {
 			clearScreen()
@@ -1171,7 +1186,7 @@ func AutoRun() {
 			break
 		} else if input == "3" {
 			clearScreen()
-			Encode("", encodeVideoSizeLevel, encodeOutputFPSLevel, encodeFFmpegModeLevel)
+			Encode("", encodeVideoSizeLevel, encodeOutputFPSLevel, encodeMaxSecondsLevel, encodeFFmpegModeLevel)
 			break
 		} else if input == "4" {
 			clearScreen()
@@ -1201,6 +1216,7 @@ func main() {
 		fmt.Fprintln(os.Stdout, " -i\tThe input fec file to encode")
 		fmt.Fprintln(os.Stdout, " -s\tThe video size(default="+strconv.Itoa(encodeVideoSizeLevel)+"), 8-1024(must be a multiple of 8)")
 		fmt.Fprintln(os.Stdout, " -p\tThe output video fps setting(default="+strconv.Itoa(encodeOutputFPSLevel)+"), 1-60")
+		fmt.Fprintln(os.Stdout, " -l\tThe output video max segment length(seconds) setting(default="+strconv.Itoa(encodeMaxSecondsLevel)+"), 1-10^9")
 		fmt.Fprintln(os.Stdout, " -m\tFFmpeg mode(default="+encodeFFmpegModeLevel+"): ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow, placebo")
 		fmt.Fprintln(os.Stdout, "decode\tDecode a file")
 		fmt.Fprintln(os.Stdout, " Options:")
@@ -1212,6 +1228,7 @@ func main() {
 	encodeInput := encodeFlag.String("i", "", "The input fec file to encode")
 	encodeQrcodeSize := encodeFlag.Int("s", encodeVideoSizeLevel, "The video size(default="+strconv.Itoa(encodeVideoSizeLevel)+"), 8-1024(must be a multiple of 8)")
 	encodeOutputFPS := encodeFlag.Int("p", encodeOutputFPSLevel, "The output video fps setting(default="+strconv.Itoa(encodeOutputFPSLevel)+"), 1-60")
+	encodeMaxSeconds := encodeFlag.Int("l", encodeMaxSecondsLevel, "The output video max segment length(seconds) setting(default="+strconv.Itoa(encodeMaxSecondsLevel)+"), 1-10^9")
 	encodeFFmpegMode := encodeFlag.String("m", encodeFFmpegModeLevel, "FFmpeg mode(default="+encodeFFmpegModeLevel+"): ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow, placebo")
 
 	decodeFlag := flag.NewFlagSet("decode", flag.ExitOnError)
@@ -1248,7 +1265,7 @@ func main() {
 			fmt.Println(en, "参数解析错误")
 			return
 		}
-		Encode(*encodeInput, *encodeQrcodeSize, *encodeOutputFPS, *encodeFFmpegMode)
+		Encode(*encodeInput, *encodeQrcodeSize, *encodeOutputFPS, *encodeMaxSeconds, *encodeFFmpegMode)
 	case "decode":
 		err := decodeFlag.Parse(os.Args[2:])
 		if err != nil {
