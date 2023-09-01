@@ -4,17 +4,22 @@
 
 使用 `zfec` 为数据编码并提供冗余校验, 使用 `ffmpeg` 将编码后的数据转换为视频.
 
-可一键编解码文件、自定义分割编码视频长度.
+支持多线程，可一键编解码文件、自定义分割编码视频长度.
 
 适用于文件分享，文件加密、反审查、混淆等场景.
 
-> 类似实现的项目：[Lumina](https://github.com/ERR0RPR0MPT/Lumina), 但效率不如 `Lumika`.
+> 按照算法存储，32x32 24fps 的视频一帧可存储 3KB 数据
+> 
+> 即此参数的长度为 10 小时的视频最大存储数据为 2531.25 MB
+
+> 类似实现的项目：[Lumina](https://github.com/ERR0RPR0MPT/Lumina) [Labyrinth-go](https://github.com/ERR0RPR0MPT/Labyrinth-go), 但效率和可用性都不如 `Lumika`.
 > 
 > 两者在编解码上的效率对比：
 
 ```
-Lumina: 20KB/s ~ 40KB/s
-Lumika: 500KB/s ~ 1MB/s
+Labyrinth: 废弃项目，生成文件容错率低，多线程，有几率无法恢复文件
+Lumina: 20KB/s ~ 40KB/s，单线程，生成文件体积大，使用 QR Code 储存数据，编解码效率极低
+Lumika: 500KB/s ~ 1MB/s，多线程，生成文件体积较小，可调控分段视频文件大小，编解码效率高
 ```
 
 ## 安装

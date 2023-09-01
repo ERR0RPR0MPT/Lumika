@@ -32,8 +32,8 @@ const (
 	de                    = "Decode:"
 	add                   = "Add:"
 	get                   = "Get:"
-	addMLevel             = 10
-	addKLevel             = 7
+	addMLevel             = 25
+	addKLevel             = 19
 	encodeVideoSizeLevel  = 32
 	encodeOutputFPSLevel  = 24
 	encodeMaxSecondsLevel = 35990
@@ -96,23 +96,6 @@ func GetFileSize(filePath string) int64 {
 	}
 	return fileInfo.Size()
 }
-
-//// TrimTrailingZeros 删除切片末尾的连续零字节
-//func TrimTrailingZeros(data []byte) []byte {
-//	// 从切片末尾开始向前遍历，找到第一个非零字节的索引
-//	index := len(data) - 1
-//	for index >= 0 && data[index] == 0 {
-//		index--
-//	}
-//
-//	// 如果找到了非零字节，则返回删除末尾连续零字节后的切片
-//	if index >= 0 {
-//		return data[:index+1]
-//	}
-//
-//	// 如果切片中所有字节都是零，则返回空切片
-//	return []byte{}
-//}
 
 // RemoveTrailingZerosFromFile 从文件中删除末尾的连续零字节
 func RemoveTrailingZerosFromFile(filename string) error {
@@ -238,21 +221,6 @@ func Image2Data(img image.Image) []byte {
 	}
 	return data
 }
-
-//func CalculateFileHash(filePath string) (string, error) {
-//	file, err := os.Open(filePath)
-//	if err != nil {
-//		return "", err
-//	}
-//	defer file.Close()
-//	hash := sha256.New()
-//	if _, err := io.Copy(hash, file); err != nil {
-//		return "", err
-//	}
-//	hashValue := hash.Sum(nil)
-//	hashString := hex.EncodeToString(hashValue)
-//	return hashString, nil
-//}
 
 func RawDataToImage(rawData []byte, width, height int) image.Image {
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
@@ -1207,8 +1175,8 @@ func main() {
 		fmt.Fprintf(os.Stdout, "Usage: %s [command] [options]\n", os.Args[0])
 		fmt.Fprintln(os.Stdout, "Double-click to run: Start via automatic mode")
 		fmt.Fprintln(os.Stdout, "\nCommands:")
-		fmt.Fprintln(os.Stdout, "add\t使用 ffmpeg 将 zfec 冗余文件编码为看起来不那么有害的 .mp4 fec 视频文件")
-		fmt.Fprintln(os.Stdout, "get\t使用 ffmpeg 将 .mp4 fec 视频文件解码为原始文件")
+		fmt.Fprintln(os.Stdout, "add\tUsing ffmpeg to encode zfec redundant files into .mp4 FEC video files that appear less harmful.")
+		fmt.Fprintln(os.Stdout, "get\tUsing ffmpeg to decode .mp4 FEC video files into the original files.")
 		fmt.Fprintln(os.Stdout, " Options:")
 		fmt.Fprintln(os.Stdout, " -b\tThe Base64 encoded JSON included message to provide decode")
 		fmt.Fprintln(os.Stdout, "encode\tEncode a file")
