@@ -38,19 +38,15 @@ const (
 	encodeOutputFPSLevel  = 24
 	encodeMaxSecondsLevel = 35990
 	encodeFFmpegModeLevel = "medium"
+	defaultHashLength     = 10
 )
 
-type FecFileListConfig struct {
-	VideoHash     string `json:"vh"`
-	FecFileHash   string `json:"fh"`
-	FecFileLength int64  `json:"fl"`
-}
-
 type FecFileConfig struct {
-	Name        string              `json:"n"`
-	Summary     string              `json:"s"`
-	Hash        string              `json:"h"`
-	FecFileList []FecFileListConfig `json:"fc"`
+	Name          string `json:"n"`
+	Summary       string `json:"s"`
+	Hash          string `json:"h"`
+	SegmentLength int64  `json:"sl"`
+	SegmentNumber int64  `json:"sn"`
 }
 
 func PressEnterToContinue() {
@@ -74,7 +70,7 @@ func clearScreen() {
 	}
 }
 
-func CalculateFileHash(filePath string) string {
+func CalculateFileHash(filePath string, cut int) string {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return ""
@@ -86,7 +82,7 @@ func CalculateFileHash(filePath string) string {
 	}
 	hashValue := hash.Sum(nil)
 	hashString := hex.EncodeToString(hashValue)
-	return hashString[:7]
+	return hashString[:cut]
 }
 
 func GetFileSize(filePath string) int64 {
@@ -318,10 +314,10 @@ func GenerateFileDictionary(root string) (map[int]string, error) {
 	return sortedFileDict, nil
 }
 
-func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encodeFFmpegMode string) map[string]FecFileListConfig {
+func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encodeFFmpegMode string) (segmentLength int64) {
 	if videoSize%8 != 0 {
 		fmt.Println(en, "视频大小必须是8的倍数")
-		return nil
+		return 0
 	}
 
 	// 当没有检测到videoFileDir时，自动匹配
@@ -330,7 +326,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encode
 		fd, err := os.Executable()
 		if err != nil {
 			fmt.Println(en, "获取程序所在目录失败:", err)
-			return nil
+			return 0
 		}
 		fileDir = filepath.Dir(fd)
 	}
@@ -338,7 +334,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encode
 	// 检查输入文件夹是否存在
 	if _, err := os.Stat(fileDir); os.IsNotExist(err) {
 		fmt.Println(en, "输入文件夹不存在:", err)
-		return nil
+		return 0
 	}
 
 	fmt.Println(en, "当前目录:", fileDir)
@@ -346,13 +342,13 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encode
 	fileDict, err := GenerateFileDxDictionary(fileDir, ".fec")
 	if err != nil {
 		fmt.Println(en, "无法生成文件列表:", err)
-		return nil
+		return 0
 	}
 	filePathList := make([]string, 0)
 	for {
 		if len(fileDict) == 0 {
 			fmt.Println(en, "当前目录下没有.fec文件，请将需要编码的文件放到当前目录下")
-			return nil
+			return 0
 		}
 		fmt.Println(en, "请选择需要编码的.fec文件，输入索引并回车来选择")
 		fmt.Println(en, "如果需要编码当前目录下的所有.fec文件，请直接输入回车")
@@ -384,7 +380,6 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encode
 	// 启动多个goroutine
 	var wg sync.WaitGroup
 	allStartTime := time.Now()
-	fecHashMap := make(map[string]FecFileListConfig)
 
 	// 遍历需要处理的文件列表
 	for fileIndexNum, filePath := range filePathList {
@@ -392,6 +387,8 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encode
 		wg.Add(1) // 增加计数器
 		go func(fileIndexNum int, filePath string) {
 			defer wg.Done() // 减少计数器
+
+			// 读取文件
 			fileData, err := os.ReadFile(filePath)
 			if err != nil {
 				fmt.Println(en, "无法打开文件:", err)
@@ -399,7 +396,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encode
 			}
 
 			outputFilePath := AddOutputToFileName(filePath, ".mp4")                    // 输出文件路径
-			fileLength := len(fileData)                                                // 输入文件长度
+			fileLength := GetFileSize(filePath)                                        // 输入文件长度
 			dataSliceLen := videoSize * videoSize / 8                                  // 每帧存储的有效数据
 			allFrameNum := int(math.Ceil(float64(fileLength) / float64(dataSliceLen))) // 生成总帧数
 			allSeconds := int(math.Ceil(float64(allFrameNum) / float64(outputFPS)))    // 总时长(秒)
@@ -411,6 +408,8 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encode
 				GetUserInput("请按回车键继续...")
 				os.Exit(0)
 			}
+
+			segmentLength = fileLength
 
 			fmt.Println(en, "开始运行")
 			fmt.Println(en, "使用配置：")
@@ -453,7 +452,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encode
 
 			i := 0
 			// 启动进度条
-			bar := pb.StartNew(fileLength)
+			bar := pb.StartNew(int(fileLength))
 
 			fileNowLength := 0
 			for {
@@ -508,13 +507,6 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encode
 				return
 			}
 
-			// 添加Hash
-			fecHashMap[filePath] = FecFileListConfig{
-				FecFileLength: GetFileSize(filePath),
-				FecFileHash:   CalculateFileHash(filePath),
-				VideoHash:     CalculateFileHash(outputFilePath),
-			}
-
 			fmt.Println(en, "完成")
 			fmt.Println(en, "使用配置：")
 			fmt.Println(en, "  ---------------------------")
@@ -535,10 +527,10 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encode
 	allDuration := allEndTime.Sub(allStartTime)
 	fmt.Printf(en+" 总共耗时%f秒\n", allDuration.Seconds())
 	fmt.Println(en, "所有选择的.fec文件已编码完成，编码结束")
-	return fecHashMap
+	return segmentLength
 }
 
-func Decode(videoFileDir string, dataLengthList []int64, filePathList []string) {
+func Decode(videoFileDir string, segmentLength int64, filePathList []string) {
 	// 当没有检测到videoFileDir时，自动匹配
 	if videoFileDir == "" {
 		fmt.Println(de, "自动使用程序所在目录作为输入目录")
@@ -731,8 +723,8 @@ func Decode(videoFileDir string, dataLengthList []int64, filePathList []string) 
 			}
 			outputFile.Close()
 
-			if dataLengthList[filePathIndex] != 0 {
-				err := TruncateFile(dataLengthList[filePathIndex], outputFilePath)
+			if segmentLength != 0 {
+				err := TruncateFile(segmentLength, outputFilePath)
 				if err != nil {
 					fmt.Println(de, "截断解码文件失败:", err)
 					return
@@ -894,18 +886,14 @@ func Add() {
 	}
 
 	fmt.Println(add, "开始进行编码")
-	fecHashMap := Encode("", encodeVideoSizeLevel, encodeOutputFPSLevel, encodeMaxSecondsLevel, encodeFFmpegModeLevel)
+	segmentLength := Encode("", encodeVideoSizeLevel, encodeOutputFPSLevel, encodeMaxSecondsLevel, encodeFFmpegModeLevel)
 
 	fmt.Println(add, "编码完成，开始生成配置")
-	fecFileListConfig := make([]FecFileListConfig, 0)
-	for _, c := range fecHashMap {
-		fecFileListConfig = append(fecFileListConfig, c)
-	}
 	fecFileConfig := FecFileConfig{
-		Name:        defaultFileName,
-		Summary:     defaultSummary,
-		Hash:        CalculateFileHash(filePath),
-		FecFileList: fecFileListConfig,
+		Name:          defaultFileName,
+		Summary:       defaultSummary,
+		Hash:          CalculateFileHash(filePath, defaultHashLength),
+		SegmentLength: segmentLength,
 	}
 	fecFileConfigJson, err := json.Marshal(fecFileConfig)
 	if err != nil {
@@ -976,12 +964,12 @@ func Get(base64Config string) {
 	}
 
 	if base64Config == "" {
-		fmt.Println(get, "警告：将使用无配置模式进行解析，这可能会导致解析失败")
+		fmt.Println(get, "警告：将使用无配置模式进行解析，由于不知道原始文件的长度，这可能会导致解析失败")
 		fmt.Println(get, "请输入要生成的文件名")
 		fileName := GetUserInput("")
 		fmt.Println(get, "即将进入解码程序，请在目录下放置要解码的 .mp4 fec 文件，然后回车确定")
 		GetUserInput("请按回车键继续...")
-		Decode("", nil, nil)
+		Decode("", 0, nil)
 		fmt.Println(get, "解码完成")
 		// 查找生成的 .fec 文件
 		fileDict, err := GenerateFileDxDictionary(fileDir, ".fec")
@@ -1030,40 +1018,37 @@ func Get(base64Config string) {
 			return
 		}
 
-		type VideoHashListMap struct {
-			FilePath string            `json:"filePath"`
-			HashList FecFileListConfig `json:"hashList"`
-		}
-
-		videoHashMap := make(map[string]VideoHashListMap, 0)
-		for _, filePathF := range fileDict {
-			hash := CalculateFileHash(filePathF)
-			// 检查hash是否在配置中
-			for _, fecFile := range fecFileConfig.FecFileList {
-				if fecFile.VideoHash == hash {
-					videoHashMap[hash] = VideoHashListMap{
-						FilePath: filePathF,
-						HashList: fecFile,
-					}
-					break
-				}
-			}
-		}
+		//type VideoHashListMap struct {
+		//	FilePath string            `json:"filePath"`
+		//	HashList FecFileListConfig `json:"hashList"`
+		//}
+		//
+		//videoHashMap := make(map[string]VideoHashListMap, 0)
+		//for _, filePathF := range fileDict {
+		//	hash := CalculateFileHash(filePathF)
+		//	// 检查hash是否在配置中
+		//	for _, fecFile := range fecFileConfig.FecFileList {
+		//		if fecFile.VideoHash == hash {
+		//			videoHashMap[hash] = VideoHashListMap{
+		//				FilePath: filePathF,
+		//				HashList: fecFile,
+		//			}
+		//			break
+		//		}
+		//	}
+		//}
 
 		// 修改文件名加上output前缀
 		fecFileConfig.Name = "output_" + fecFileConfig.Name
 
 		fmt.Println(get, "文件名:", fecFileConfig.Name)
 		fmt.Println(get, "摘要:", fecFileConfig.Summary)
-		fmt.Println(get, "冗余文件数量:", len(fecFileConfig.FecFileList))
+		fmt.Println(get, "分段长度:", fecFileConfig.SegmentLength)
+		fmt.Println(get, "分段数量:", fecFileConfig.SegmentNumber)
 		fmt.Println(get, "Hash:", fecFileConfig.Hash)
-		fmt.Println(get, "在目录下找到以下匹配的文件:")
-		filePathList := make([]string, 0)
-		fileLengthList := make([]int64, 0)
-		for h, v := range videoHashMap {
-			filePathList = append(filePathList, v.FilePath)
-			fileLengthList = append(fileLengthList, v.HashList.FecFileLength)
-			fmt.Println(get, "Hash:", h, "文件路径:", v.FilePath, "文件大小:", v.HashList.FecFileLength)
+		fmt.Println(get, "在目录下找到以下匹配的 .mp4 文件:")
+		for h, v := range fileDict {
+			fmt.Println(get, strconv.Itoa(h)+":", "文件路径:", v)
 		}
 
 		fmt.Println(get, "是否使用配置默认的文件名:", fecFileConfig.Name, "？ [Y/n]")
@@ -1079,9 +1064,13 @@ func Get(base64Config string) {
 			}
 		}
 
-		fmt.Println(get, "即将进入解码程序，请在目录下放置要解码的 .mp4 fec 文件，然后回车确定")
-		GetUserInput("请按回车键继续...")
-		Decode("", fileLengthList, filePathList)
+		// 转换map[int]string 到 []string
+		var fileDictList []string
+		for _, v := range fileDict {
+			fileDictList = append(fileDictList, v)
+		}
+
+		Decode("", fecFileConfig.SegmentLength, fileDictList)
 		fmt.Println(get, "解码完成")
 		// 查找生成的 .fec 文件
 		fileDict, err = GenerateFileDxDictionary(fileDir, ".fec")
@@ -1111,7 +1100,7 @@ func Get(base64Config string) {
 
 		// 检查最终生成的文件是否与原始文件一致
 		fmt.Println(get, "检查生成的文件是否与源文件一致")
-		targetHash := CalculateFileHash(filepath.Join(fileDir, fecFileConfig.Name))
+		targetHash := CalculateFileHash(filepath.Join(fileDir, fecFileConfig.Name), defaultHashLength)
 		if targetHash != fecFileConfig.Hash {
 			fmt.Println(get, "警告: 生成的文件与源文件不一致:")
 			fmt.Println(get, "源文件 Hash:", fecFileConfig.Hash)
@@ -1158,7 +1147,7 @@ func AutoRun() {
 			break
 		} else if input == "4" {
 			clearScreen()
-			Decode("", nil, nil)
+			Decode("", 0, nil)
 			break
 		} else if input == "5" {
 			os.Exit(0)
@@ -1240,7 +1229,7 @@ func main() {
 			fmt.Println(de, "参数解析错误")
 			return
 		}
-		Decode(*decodeInputDir, nil, nil)
+		Decode(*decodeInputDir, 0, nil)
 	case "help":
 		flag.Usage()
 		return
