@@ -894,7 +894,9 @@ func Add() {
 			fmt.Println("Failed to calculate relative path:", err)
 			return
 		}
-		zfecCmd := exec.Command("zfec", "-m", strconv.Itoa(defaultM), "-k", strconv.Itoa(defaultK), "-f", "-q", "-d", defaultOutputDir, relPath)
+		zfecCmd := exec.Command("zfec", "-m", strconv.Itoa(defaultM), "-k", strconv.Itoa(defaultK), "-f", "-d", defaultOutputDir, relPath)
+		zfecCmd.Stdout = os.Stdout
+		zfecCmd.Stderr = os.Stderr
 		err = zfecCmd.Run()
 		if err != nil {
 			fmt.Println("zfecCmd 命令执行出错:", err)
@@ -1015,7 +1017,8 @@ func Get(base64Config string) {
 		fmt.Println(get, "开始调用 zunfec")
 		zunfecStartTime := time.Now()
 		zunfecCmd := exec.Command("zunfec", cmdElement...)
-		zunfecCmd.Dir = fileDir
+		zunfecCmd.Stdout = os.Stdout
+		zunfecCmd.Stderr = os.Stderr
 		err = zunfecCmd.Run()
 		if err != nil {
 			fmt.Println("zunfecCmd 命令执行出错:", err)
