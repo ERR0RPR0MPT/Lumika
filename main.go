@@ -39,6 +39,9 @@ const (
 	encodeMaxSecondsLevel = 35990
 	encodeFFmpegModeLevel = "medium"
 	defaultHashLength     = 7
+	defaultBlankSeconds   = 3
+	defaultBlankByte      = 85
+	defaultDeleteFecFiles = false
 )
 
 type FecFileConfig struct {
@@ -206,6 +209,8 @@ func Image2Data(img image.Image) []byte {
 	data := make([]byte, dataLength)
 
 	// 遍历图像像素并提取数据
+	// 检查是否为空白帧
+	isBlank := true
 	for i := 0; i < dataLength; i++ {
 		b := byte(0)
 		for j := 0; j < 8; j++ {
@@ -216,7 +221,13 @@ func Image2Data(img image.Image) []byte {
 				b |= 1 << uint(7-j)
 			}
 		}
+		if b != defaultBlankByte {
+			isBlank = false
+		}
 		data[i] = b
+	}
+	if isBlank {
+		return nil
 	}
 	return data
 }
@@ -464,6 +475,31 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encode
 				return
 			}
 
+			// 为规避某些编码器会自动在视频的前后删除某些帧，导致解码失败，这里在视频的前后各添加defaultBlankSeconds秒的空白帧
+			// 由于视频的前后各添加了defaultBlankSeconds秒的空白帧，所以总时长需要加上4秒
+			fmt.Println(en, "构建前", defaultBlankSeconds, "秒的空白帧")
+			for i := 0; i < outputFPS*defaultBlankSeconds; i++ {
+				data := make([]byte, dataSliceLen)
+				for j := 0; j < dataSliceLen; j++ {
+					data[j] = defaultBlankByte
+				}
+				// 生成带空白数据的图像
+				img := Data2Image(data, videoSize)
+				imageBuffer := new(bytes.Buffer)
+				err = png.Encode(imageBuffer, img)
+				if err != nil {
+					return
+				}
+				imageData := imageBuffer.Bytes()
+				_, err = stdin.Write(imageData)
+				if err != nil {
+					fmt.Println(en, "无法写入帧数据到 ffmpeg:", err)
+					return
+				}
+				imageBuffer = nil
+				imageData = nil
+			}
+
 			i := 0
 			// 启动进度条
 			bar := pb.StartNew(int(fileLength))
@@ -509,6 +545,30 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encode
 				imageData = nil
 			}
 			bar.Finish()
+
+			// 为规避某些编码器会自动在视频的前后删除某些帧，导致解码失败，这里在视频的前后各添加defaultBlankSeconds秒的空白帧
+			fmt.Println(en, "构建后", defaultBlankSeconds, "秒的空白帧")
+			for i := 0; i < outputFPS*defaultBlankSeconds; i++ {
+				data := make([]byte, dataSliceLen)
+				for j := 0; j < dataSliceLen; j++ {
+					data[j] = defaultBlankByte
+				}
+				// 生成带空白数据的图像
+				img := Data2Image(data, videoSize)
+				imageBuffer := new(bytes.Buffer)
+				err = png.Encode(imageBuffer, img)
+				if err != nil {
+					return
+				}
+				imageData := imageBuffer.Bytes()
+				_, err = stdin.Write(imageData)
+				if err != nil {
+					fmt.Println(en, "无法写入帧数据到 ffmpeg:", err)
+					return
+				}
+				imageBuffer = nil
+				imageData = nil
+			}
 
 			// 关闭 ffmpeg 的标准输入管道，等待子进程完成
 			err = stdin.Close()
@@ -712,16 +772,16 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string) {
 				if exitFlag {
 					break
 				}
-				img := RawDataToImage(rawData, videoWidth, videoHeight)
-				data := Image2Data(img)
-
-				if data == nil {
-					fmt.Println(de, "还原原始数据失败")
-					return
-				}
 				bar.SetCurrent(int64(i + 1))
 				if i%1000 == 0 {
 					fmt.Printf("\nDecode: 写入帧 %d 总帧 %d\n", i, frameCount)
+				}
+				img := RawDataToImage(rawData, videoWidth, videoHeight)
+				data := Image2Data(img)
+				if data == nil {
+					fmt.Println(de, "检测到第", i, "帧为空白帧，跳过")
+					i++
+					continue
 				}
 				_, err = outputFile.Write(data)
 				if err != nil {
@@ -952,22 +1012,24 @@ func Add() {
 		}
 		fmt.Println(add, "写入配置成功")
 
-		// // 暂时不删除.fec临时文件
-		//fileDict, err = GenerateFileDxDictionary(defaultOutputDir, ".fec")
-		//if err != nil {
-		//	fmt.Println(en, "无法生成文件列表:", err)
-		//	return
-		//}
-		//if len(fileDict) != 0 {
-		//	fmt.Println(add, "删除临时文件")
-		//	for _, filePath := range fileDict {
-		//		err = os.Remove(filePath)
-		//		if err != nil {
-		//			fmt.Println(add, "删除文件失败:", err)
-		//			return
-		//		}
-		//	}
-		//}
+		// 暂时不删除.fec临时文件
+		if defaultDeleteFecFiles {
+			fileDict, err = GenerateFileDxDictionary(fileDir, ".fec")
+			if err != nil {
+				fmt.Println(en, "无法生成文件列表:", err)
+				return
+			}
+			if len(fileDict) != 0 {
+				fmt.Println(add, "删除临时文件")
+				for _, filePath := range fileDict {
+					err = os.Remove(filePath)
+					if err != nil {
+						fmt.Println(add, "删除文件失败:", err)
+						return
+					}
+				}
+			}
+		}
 
 		fmt.Println(add, "Base64 配置文件已生成，路径:", fecFileConfigFilePath)
 		fmt.Println(add, "Base64:", fecFileConfigBase64)
@@ -1177,22 +1239,24 @@ func Get(base64Config string) {
 		zunfecDuration := zunfecEndTime.Sub(zunfecStartTime)
 		fmt.Println(get, "zunfec 调用完成，耗时:", zunfecDuration)
 
-		// // 暂时不删除.fec临时文件
-		//fileDict, err = GenerateFileDxDictionary(fileDir, ".fec")
-		//if err != nil {
-		//	fmt.Println(en, "无法生成文件列表:", err)
-		//	return
-		//}
-		//if len(fileDict) != 0 {
-		//	fmt.Println(add, "删除临时文件")
-		//	for _, filePath := range fileDict {
-		//		err = os.Remove(filePath)
-		//		if err != nil {
-		//			fmt.Println(add, "删除文件失败:", err)
-		//			return
-		//		}
-		//	}
-		//}
+		// 暂时不删除.fec临时文件
+		if defaultDeleteFecFiles {
+			fileDict, err = GenerateFileDxDictionary(fileDir, ".fec")
+			if err != nil {
+				fmt.Println(en, "无法生成文件列表:", err)
+				return
+			}
+			if len(fileDict) != 0 {
+				fmt.Println(add, "删除临时文件")
+				for _, filePath := range fileDict {
+					err = os.Remove(filePath)
+					if err != nil {
+						fmt.Println(add, "删除文件失败:", err)
+						return
+					}
+				}
+			}
+		}
 
 		// 检查最终生成的文件是否与原始文件一致
 		fmt.Println(get, "检查生成的文件是否与源文件一致")
