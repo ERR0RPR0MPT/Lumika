@@ -41,7 +41,7 @@ const (
 	defaultHashLength     = 7
 	defaultBlankSeconds   = 3
 	defaultBlankByte      = 85
-	defaultDeleteFecFiles = false
+	defaultDeleteFecFiles = true
 )
 
 type FecFileConfig struct {
