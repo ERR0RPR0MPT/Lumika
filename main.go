@@ -38,15 +38,17 @@ const (
 	encodeOutputFPSLevel  = 24
 	encodeMaxSecondsLevel = 35990
 	encodeFFmpegModeLevel = "medium"
-	defaultHashLength     = 10
+	defaultHashLength     = 7
 )
 
 type FecFileConfig struct {
-	Name          string `json:"n"`
-	Summary       string `json:"s"`
-	Hash          string `json:"h"`
-	SegmentLength int64  `json:"sl"`
-	SegmentNumber int64  `json:"sn"`
+	Name          string   `json:"n"`
+	Summary       string   `json:"s"`
+	Hash          string   `json:"h"`
+	M             int      `json:"m"`
+	K             int      `json:"k"`
+	SegmentLength int64    `json:"sl"`
+	FecHashList   []string `json:"fhl"`
 }
 
 func PressEnterToContinue() {
@@ -165,6 +167,7 @@ func Data2Image(data []byte, size int) image.Image {
 	maxDataLength := size * size / 8
 	// 检查数据长度是否匹配，如果不匹配则进行填充
 	if len(data) < maxDataLength {
+		fmt.Println("Data2Image: 警告: 数据过短，将进行零填充")
 		paddingLength := maxDataLength - len(data)
 		padding := make([]byte, paddingLength)
 		data = append(data, padding...)
@@ -913,6 +916,13 @@ func Add() {
 			return
 		}
 
+		// 遍历 .fec 文件，生成 fecHashList
+		var fecHashList []string
+		for _, filePath := range fileDict {
+			fileHash := CalculateFileHash(filePath, defaultHashLength)
+			fecHashList = append(fecHashList, fileHash)
+		}
+
 		fmt.Println(add, "开始进行编码")
 		segmentLength := Encode(defaultOutputDir, encodeVideoSizeLevel, encodeOutputFPSLevel, encodeMaxSecondsLevel, encodeFFmpegModeLevel, true)
 
@@ -921,7 +931,10 @@ func Add() {
 			Name:          defaultFileName,
 			Summary:       defaultSummary,
 			Hash:          CalculateFileHash(filePath, defaultHashLength),
+			M:             defaultM,
+			K:             defaultK,
 			SegmentLength: segmentLength,
+			FecHashList:   fecHashList,
 		}
 		fecFileConfigJson, err := json.Marshal(fecFileConfig)
 		if err != nil {
@@ -1075,7 +1088,7 @@ func Get(base64Config string) {
 		fmt.Println(get, "文件名:", fecFileConfig.Name)
 		fmt.Println(get, "摘要:", fecFileConfig.Summary)
 		fmt.Println(get, "分段长度:", fecFileConfig.SegmentLength)
-		fmt.Println(get, "分段数量:", fecFileConfig.SegmentNumber)
+		fmt.Println(get, "分段数量:", fecFileConfig.M)
 		fmt.Println(get, "Hash:", fecFileConfig.Hash)
 		fmt.Println(get, "在目录下找到以下匹配的 .mp4 文件:")
 		for h, v := range fileDict {
@@ -1101,19 +1114,54 @@ func Get(base64Config string) {
 			fileDictList = append(fileDictList, v)
 		}
 
+		fmt.Println(get, "开始解码")
 		Decode("", fecFileConfig.SegmentLength, fileDictList)
 		fmt.Println(get, "解码完成")
+
 		// 查找生成的 .fec 文件
 		fileDict, err = GenerateFileDxDictionary(fileDir, ".fec")
 		if err != nil {
 			fmt.Println(en, "无法生成文件列表:", err)
 			return
 		}
+
+		// 遍历索引的 FecHashList
+		findNum := 0
+		var fecFindFileList []string
+		for _, fecHash := range fecFileConfig.FecHashList {
+			// 遍历生成的 .fec 文件
+			isFind := false
+			for _, fecFile := range fileDict {
+				// 检查hash是否在配置中
+				if fecHash == CalculateFileHash(fecFile, defaultHashLength) {
+					fecFindFileList = append(fecFindFileList, fecFile)
+					isFind = true
+					break
+				}
+			}
+			if !isFind {
+				fmt.Println(get, "警告：未找到匹配的 .fec 文件，Hash:", fecHash)
+			} else {
+				fmt.Println(get, "找到匹配的 .fec 文件，Hash:", fecHash)
+				findNum++
+			}
+		}
+		fmt.Println(get, "找到完整的 .fec 文件数量:", findNum)
+		fmt.Println(get, "未找到的文件数量:", len(fileDict)-findNum)
+		fmt.Println(get, "编码时生成的 .fec 文件数量(M):", fecFileConfig.M)
+		fmt.Println(get, "恢复所需最少的 .fec 文件数量(K):", fecFileConfig.K)
+		if findNum >= fecFileConfig.K {
+			fmt.Println(get, "提示：可以成功恢复数据")
+		} else {
+			fmt.Println(get, "警告：无法成功恢复数据，请按下回车键来确定")
+			GetUserInput("请按回车键继续...")
+		}
+
 		var cmdElement []string
 		cmdElement = append(cmdElement, "-o")
 		cmdElement = append(cmdElement, fecFileConfig.Name)
 		cmdElement = append(cmdElement, "-f")
-		for _, fp := range fileDict {
+		for _, fp := range fecFindFileList {
 			cmdElement = append(cmdElement, fp)
 		}
 		fmt.Println(get, "开始调用 zunfec")
