@@ -32,11 +32,11 @@ const (
 	de                    = "Decode:"
 	add                   = "Add:"
 	get                   = "Get:"
-	addMLevel             = 25
-	addKLevel             = 19
+	addMLevel             = 100
+	addKLevel             = 90
 	encodeVideoSizeLevel  = 32
 	encodeOutputFPSLevel  = 24
-	encodeMaxSecondsLevel = 35990
+	encodeMaxSecondsLevel = 86400
 	encodeFFmpegModeLevel = "medium"
 	defaultHashLength     = 7
 	defaultBlankSeconds   = 3
@@ -326,6 +326,49 @@ func GenerateFileDictionary(root string) (map[int]string, error) {
 		sortedFileDict[key] = fileDict[key]
 	}
 	return sortedFileDict, nil
+}
+
+func GetSubDirectories(path string) ([]string, error) {
+	var subdirectories []string
+	files, err := os.ReadDir(path)
+	if err != nil {
+		return subdirectories, err
+	}
+	for _, file := range files {
+		if file.IsDir() {
+			subdirectoryPath := filepath.Join(path, file.Name())
+			subdirectories = append(subdirectories, subdirectoryPath)
+		}
+	}
+	return subdirectories, nil
+}
+
+func IsFileExistsInDir(directory, filename string) bool {
+	files, err := os.ReadDir(directory)
+	if err != nil {
+		fmt.Println("IsFileExistsInDir: 无法读取目录:", err)
+		return false
+	}
+	for _, file := range files {
+		if strings.Contains(file.Name(), filename) {
+			return true
+		}
+	}
+	return false
+}
+
+func SearchFileNameInDir(directory, filename string) string {
+	files, err := os.ReadDir(directory)
+	if err != nil {
+		fmt.Println("SearchFileNameInDir: 无法读取目录:", err)
+		return ""
+	}
+	for _, file := range files {
+		if strings.Contains(file.Name(), filename) {
+			return filepath.Join(directory, file.Name())
+		}
+	}
+	return ""
 }
 
 func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encodeFFmpegMode string, auto bool) (segmentLength int64) {
@@ -1003,7 +1046,7 @@ func Add() {
 		}
 		// 转换为 Base64
 		fecFileConfigBase64 := base64.StdEncoding.EncodeToString(fecFileConfigJson)
-		fecFileConfigFilePath := filepath.Join(defaultOutputDir, "config_base64.txt")
+		fecFileConfigFilePath := filepath.Join(fileDir, "config_base64_"+strings.ReplaceAll(defaultFileName, ".", "_")+".txt")
 		fmt.Println(add, "Base64 配置生成完成，开始写入文件:", fecFileConfigFilePath)
 		err = os.WriteFile(fecFileConfigFilePath, []byte(fecFileConfigBase64), 0644)
 		if err != nil {
@@ -1012,7 +1055,7 @@ func Add() {
 		}
 		fmt.Println(add, "写入配置成功")
 
-		// 暂时不删除.fec临时文件
+		// 是否删除.fec临时文件
 		if defaultDeleteFecFiles {
 			fileDict, err = GenerateFileDxDictionary(fileDir, ".fec")
 			if err != nil {
@@ -1038,73 +1081,66 @@ func Add() {
 	}
 }
 
-func Get(base64Config string) {
-	ep, _ := os.Executable()
-	fileDir := filepath.Dir(ep)
-	// 获取配置
-	// 从运行目录检测是否存在配置文件
-	configBase64FilePath := filepath.Join(fileDir, "config_base64.txt")
-	if base64Config == "" {
-		if _, err := os.Stat(configBase64FilePath); err == nil {
-			fmt.Println(get, "检测到配置文件，是否使用该配置？ [Y/n]")
-			result := GetUserInput("")
-			if result == "y" || result == "Y" || result == "" {
-				fmt.Println(get, "读取配置文件")
-				// 读取文件
-				configBase64Bytes, err := os.ReadFile(configBase64FilePath)
-				if err != nil {
-					fmt.Println(get, "读取文件失败:", err)
-					return
-				}
-				base64Config = string(configBase64Bytes)
+func Get() {
+	base64Config := ""
+	ep, err := os.Executable()
+	if err != nil {
+		fmt.Println(get, "无法获取运行目录:", err)
+		return
+	}
+	epPath := filepath.Dir(ep)
+
+	// 选择执行模式
+	var fecDirList []string
+	fmt.Println(get, "请选择执行模式:")
+	fmt.Println(get, "1. 读取本目录下所有的子目录并从子目录读取 Base64 配置文件(适用于解码多个文件)")
+	fmt.Println(get, "2. 从本目录下读取 Base64 配置文件(适用于解码单个文件)")
+	result := GetUserInput("")
+	if result == "1" {
+		// 读取本目录下所有的子目录
+		dirList, err := GetSubDirectories(epPath)
+		if err != nil {
+			fmt.Println(get, "无法获取子目录:", err)
+			return
+		}
+		if len(dirList) == 0 {
+			fmt.Println(get, "没有找到子目录，请添加存放编码文件的目录")
+			return
+		}
+		// 从子目录读取 Base64 配置文件，有配置文件的目录就放入 fecDirList
+		for i, d := range dirList {
+			if IsFileExistsInDir(d, "config_base64") {
+				fecDirList = append(fecDirList, d)
+				fmt.Println(get, strconv.Itoa(i+1)+":", d)
 			}
 		}
-		if base64Config == "" {
-			fmt.Println(get, "请输入 Base64 配置")
-			base64Config = GetUserInput("")
-			if base64Config == "" {
-				fmt.Println(get, "错误: 未输入 Base64 配置")
-			}
+		fmt.Println(get, "找到存有索引配置的目录:")
+		for i, d := range fecDirList {
+			fmt.Println(get, strconv.Itoa(i+1)+":", d)
+		}
+	} else {
+		// 从本目录读取 Base64 配置文件
+		if IsFileExistsInDir(epPath, "config_base64") {
+			fecDirList = append(fecDirList, epPath)
+		} else {
+			fmt.Println(get, "没有找到本目录下的索引配置，请添加索引来解码")
+			return
 		}
 	}
 
-	if base64Config == "" {
-		fmt.Println(get, "警告：将使用无配置模式进行解析，由于不知道原始文件的长度，这可能会导致解析失败")
-		fmt.Println(get, "请输入要生成的文件名")
-		fileName := GetUserInput("")
-		fmt.Println(get, "即将进入解码程序，请在目录下放置要解码的 .mp4 fec 文件，然后回车确定")
-		GetUserInput("请按回车键继续...")
-		Decode("", 0, nil)
-		fmt.Println(get, "解码完成")
-		// 查找生成的 .fec 文件
-		fileDict, err := GenerateFileDxDictionary(fileDir, ".fec")
+	// 遍历每一个子目录并运行
+	for _, fileDir := range fecDirList {
+		// 搜索子目录的 Base64 配置文件
+		configBase64FilePath := SearchFileNameInDir(fileDir, "config_base64")
+		fmt.Println(get, "读取配置文件")
+		// 读取文件
+		configBase64Bytes, err := os.ReadFile(configBase64FilePath)
 		if err != nil {
-			fmt.Println(en, "无法生成文件列表:", err)
+			fmt.Println(get, "读取文件失败:", err)
 			return
 		}
-		var cmdElement []string
-		cmdElement = append(cmdElement, "-o")
-		cmdElement = append(cmdElement, fileName)
-		cmdElement = append(cmdElement, "-f")
-		for _, fp := range fileDict {
-			cmdElement = append(cmdElement, fp)
-		}
-		fmt.Println(get, "开始调用 zunfec")
-		zunfecStartTime := time.Now()
-		zunfecCmd := exec.Command("zunfec", cmdElement...)
-		zunfecCmd.Stdout = os.Stdout
-		zunfecCmd.Stderr = os.Stderr
-		err = zunfecCmd.Run()
-		if err != nil {
-			fmt.Println("zunfecCmd 命令执行出错:", err)
-			return
-		}
-		zunfecEndTime := time.Now()
-		zunfecDuration := zunfecEndTime.Sub(zunfecStartTime)
-		fmt.Println(get, "zunfec 调用完成，耗时:", zunfecDuration)
-		fmt.Println(get, "获取完成")
-		return
-	} else {
+		base64Config = string(configBase64Bytes)
+
 		var fecFileConfig FecFileConfig
 		fecFileConfigJson, err := base64.StdEncoding.DecodeString(base64Config)
 		if err != nil {
@@ -1124,26 +1160,6 @@ func Get(base64Config string) {
 			return
 		}
 
-		//type VideoHashListMap struct {
-		//	FilePath string            `json:"filePath"`
-		//	HashList FecFileListConfig `json:"hashList"`
-		//}
-		//
-		//videoHashMap := make(map[string]VideoHashListMap, 0)
-		//for _, filePathF := range fileDict {
-		//	hash := CalculateFileHash(filePathF)
-		//	// 检查hash是否在配置中
-		//	for _, fecFile := range fecFileConfig.FecFileList {
-		//		if fecFile.VideoHash == hash {
-		//			videoHashMap[hash] = VideoHashListMap{
-		//				FilePath: filePathF,
-		//				HashList: fecFile,
-		//			}
-		//			break
-		//		}
-		//	}
-		//}
-
 		// 修改文件名加上output前缀
 		fecFileConfig.Name = "output_" + fecFileConfig.Name
 
@@ -1157,18 +1173,18 @@ func Get(base64Config string) {
 			fmt.Println(get, strconv.Itoa(h)+":", "文件路径:", v)
 		}
 
-		fmt.Println(get, "是否使用配置默认的文件名:", fecFileConfig.Name, "？ [Y/n]")
-		fileName := GetUserInput("")
-		if fileName == "N" || fileName == "n" {
-			fmt.Println(get, "请输入要生成的文件名")
-			fileName = GetUserInput("")
-			if fileName == "" {
-				fmt.Println(get, "警告：您未输入任何内容，将使用默认文件名:", fecFileConfig.Name)
-			} else {
-				fecFileConfig.Name = fileName
-				fmt.Println(get, "输出文件名修改为:", fileName)
-			}
-		}
+		//fmt.Println(get, "是否使用配置默认的文件名:", fecFileConfig.Name, "？ [Y/n]")
+		//fileName := GetUserInput("")
+		//if fileName == "N" || fileName == "n" {
+		//	fmt.Println(get, "请输入要生成的文件名")
+		//	fileName = GetUserInput("")
+		//	if fileName == "" {
+		//		fmt.Println(get, "警告：您未输入任何内容，将使用默认文件名:", fecFileConfig.Name)
+		//	} else {
+		//		fecFileConfig.Name = fileName
+		//		fmt.Println(get, "输出文件名修改为:", fileName)
+		//	}
+		//}
 
 		// 转换map[int]string 到 []string
 		var fileDictList []string
@@ -1229,7 +1245,6 @@ func Get(base64Config string) {
 		fmt.Println(get, "开始调用 zunfec")
 		zunfecStartTime := time.Now()
 		zunfecCmd := exec.Command("zunfec", cmdElement...)
-		zunfecCmd.Dir = fileDir
 		err = zunfecCmd.Run()
 		if err != nil {
 			fmt.Println("zunfecCmd 命令执行出错:", err)
@@ -1239,7 +1254,7 @@ func Get(base64Config string) {
 		zunfecDuration := zunfecEndTime.Sub(zunfecStartTime)
 		fmt.Println(get, "zunfec 调用完成，耗时:", zunfecDuration)
 
-		// 暂时不删除.fec临时文件
+		// 是否删除.fec临时文件
 		if defaultDeleteFecFiles {
 			fileDict, err = GenerateFileDxDictionary(fileDir, ".fec")
 			if err != nil {
@@ -1299,7 +1314,7 @@ func AutoRun() {
 			break
 		} else if input == "2" {
 			clearScreen()
-			Get("")
+			Get()
 			break
 		} else if input == "3" {
 			clearScreen()
@@ -1354,7 +1369,6 @@ func main() {
 	addFlag := flag.NewFlagSet("add", flag.ExitOnError)
 
 	getFlag := flag.NewFlagSet("get", flag.ExitOnError)
-	getBase64Config := getFlag.String("b", "", "The Base64 encoded JSON included message to provide decode")
 
 	if len(os.Args) < 2 {
 		AutoRun()
@@ -1375,7 +1389,7 @@ func main() {
 			fmt.Println(get, "参数解析错误")
 			return
 		}
-		Get(*getBase64Config)
+		Get()
 	case "encode":
 		err := encodeFlag.Parse(os.Args[2:])
 		if err != nil {
