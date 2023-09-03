@@ -1008,27 +1008,6 @@ func Add() {
 		fmt.Println(add, "使用默认文件名:", defaultFileName)
 		fmt.Println(add, "使用默认输出目录:", defaultOutputDir)
 
-		//// 调用 zfec
-		//fmt.Println(add, "开始调用 zfec")
-		//zfecStartTime := time.Now()
-		//// zfec 的一个奇怪的Bug: 传入的文件必须是相对路径，否则 -d 指定的输出目录会无效
-		//relPath, err := filepath.Rel(fileDir, filePath)
-		//if err != nil {
-		//	fmt.Println("Failed to calculate relative path:", err)
-		//	return
-		//}
-		//zfecCmd := exec.Command("zfec", "-m", strconv.Itoa(defaultM), "-k", strconv.Itoa(defaultK), "-f", "-d", defaultOutputDir, relPath)
-		//zfecCmd.Stdout = os.Stdout
-		//zfecCmd.Stderr = os.Stderr
-		//err = zfecCmd.Run()
-		//if err != nil {
-		//	fmt.Println("zfecCmd 命令执行出错:", err)
-		//	return
-		//}
-		//zfecEndTime := time.Now()
-		//zfecDuration := zfecEndTime.Sub(zfecStartTime)
-		//fmt.Println(add, "zfec 调用完成，耗时:", zfecDuration)
-
 		// 计算文件长度
 		fileInfo, err := os.Stat(filePath)
 		if err != nil {
