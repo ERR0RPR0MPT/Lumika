@@ -1,42 +1,29 @@
 # Lumika
 
-本工具基于 `zfec` `ffmpeg`, 用于将任意数据转换为以 **视频** 形式存储数据的编解码转换工具.
+本工具基于 `FFmpeg`, 用于将任意数据转换为以 **视频** 形式存储数据的编解码转换工具.
 
-使用 `zfec` 为数据编码并提供冗余校验, 使用 `ffmpeg` 将编码后的数据转换为视频.
+使用里德所罗门码为数据编码并提供冗余校验、恢复丢失数据能力, 使用 `FFmpeg` 将编码后的数据转换为视频.
 
 支持多线程，可一键编解码文件、自定义分割编码视频长度.
 
 适用于文件分享，文件加密、反审查、混淆等场景.
 
-> 按照算法存储，32x32 24fps 的视频一帧可存储 3KB 数据
-> 
-> 即此参数的长度为 10 小时的视频最大存储数据为 105.46875 MB
-
-> 类似实现的项目：[Lumina](https://github.com/ERR0RPR0MPT/Lumina) [Labyrinth-go](https://github.com/ERR0RPR0MPT/Labyrinth-go), 但效率和可用性都不如 `Lumika`.
-> 
-> 两者在编解码上的效率对比：
-
-```
-Labyrinth: 废弃项目，生成文件容错率低，多线程，有几率无法恢复文件
-Lumina: 20KB/s ~ 40KB/s，单线程，生成文件体积大，使用 QR Code 储存数据，编解码效率极低
-Lumika: 500KB/s ~ 1MB/s，多线程，生成文件体积较小，可调控分段视频文件大小，编解码效率高
-```
+经测试，使用程序默认配置生成的编码视频经过B站压制后仍然能够正常解码，并且能够恢复编码视频的原始文件数据.
 
 ## 安装
 
-需要安装依赖 `ffmpeg` `ffprobe` `zfec`.
+需要安装依赖 `FFmpeg` `FFprobe`.
 
 ### Linux
 
 ```bash
 apt update
 apt install ffmpeg
-pip install zfec
 ```
 
 ### Windows
 
-> Enter the [ffmpeg](https://ffmpeg.org/download.html) website to download the installation package and install it
+> Enter the [FFmpeg](https://ffmpeg.org/download.html) website to download the installation package and install it
 
 ## 使用
 
@@ -51,6 +38,10 @@ pip install zfec
 编码视频的大小通常在原视频大小的 5 ~ 10 倍之间(使用优化的参数)
 
 具体取决于视频的帧率和分辨率大小，FFmpeg 的 `-preset` 等参数。
+
+> 按照算法存储，32x32 24fps 的视频一帧可存储 3KB 数据
+>
+> 即此参数的长度为 10 小时的视频最大存储数据为 105.46875 MB
 
 ## 一些问题
 
@@ -72,6 +63,18 @@ pip install zfec
 > 那么分100个切片(m=100, k=100)的话，编码的文件大小不应该超过 230MB ，这样才能保证在上传到B站后不会出现丢帧的问题。
 > 
 
+## 类似项目
+
+> 类似实现的项目：[Lumina](https://github.com/ERR0RPR0MPT/Lumina) [Labyrinth-go](https://github.com/ERR0RPR0MPT/Labyrinth-go), 但效率和可用性都不如 `Lumika`.
+>
+> 两者在编解码上的效率对比：
+
+```
+Labyrinth: 废弃项目，生成文件容错率低，多线程，有几率无法恢复文件
+Lumina: 20KB/s ~ 40KB/s，单线程，生成文件体积大，使用 QR Code 储存数据，编解码效率极低
+Lumika: 500KB/s ~ 1MB/s，多线程，生成文件体积较小，可调控分段视频文件大小，编解码效率高
+```
+
 ## 高级用法
 
 ```
@@ -79,8 +82,8 @@ Usage: C:\Users\Weclont\Desktop\lumika\lumika_windows_amd64.exe [command] [optio
 Double-click to run: Start via automatic mode
 
 Commands:
-add     Using ffmpeg to encode zfec redundant files into .mp4 FEC video files that appear less harmful.
-get     Using ffmpeg to decode .mp4 FEC video files into the original files.
+add     Using FFmpeg to encode zfec redundant files into .mp4 FEC video files that appear less harmful.
+get     Using FFmpeg to decode .mp4 FEC video files into the original files.
  Options:
  -b     The Base64 encoded JSON included message to provide decode
 encode  Encode a file
