@@ -540,7 +540,6 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encode
 
 			// 为规避某些编码器会自动在视频的前后删除某些帧，导致解码失败，这里在视频的前后各添加defaultBlankSeconds秒的空白帧
 			// 由于视频的前后各添加了defaultBlankSeconds秒的空白帧，所以总时长需要加上4秒
-			fmt.Println(en, "构建前", defaultBlankSeconds, "秒的空白帧")
 			for i := 0; i < outputFPS*defaultBlankSeconds; i++ {
 				data := make([]byte, dataSliceLen)
 				for j := 0; j < dataSliceLen; j++ {
@@ -610,7 +609,6 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encode
 			bar.Finish()
 
 			// 为规避某些编码器会自动在视频的前后删除某些帧，导致解码失败，这里在视频的前后各添加defaultBlankSeconds秒的空白帧
-			fmt.Println(en, "构建后", defaultBlankSeconds, "秒的空白帧")
 			for i := 0; i < outputFPS*defaultBlankSeconds; i++ {
 				data := make([]byte, dataSliceLen)
 				for j := 0; j < dataSliceLen; j++ {
