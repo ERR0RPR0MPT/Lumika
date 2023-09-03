@@ -1143,10 +1143,9 @@ func Get() {
 				return
 			}
 			// 从子目录读取 Base64 配置文件，有配置文件的目录就放入 fecDirList
-			for i, d := range dirList {
+			for _, d := range dirList {
 				if IsFileExistsInDir(d, "lumika_config") {
 					fecDirList = append(fecDirList, d)
-					fmt.Println(get, strconv.Itoa(i+1)+":", d)
 				}
 			}
 			if len(fecDirList) == 0 {
@@ -1267,25 +1266,6 @@ func Get() {
 			GetUserInput("请按回车键继续...")
 		}
 
-		//var cmdElement []string
-		//cmdElement = append(cmdElement, "-o")
-		//cmdElement = append(cmdElement, fecFileConfig.Name)
-		//cmdElement = append(cmdElement, "-f")
-		//for _, fp := range fecFindFileList {
-		//	cmdElement = append(cmdElement, fp)
-		//}
-		//fmt.Println(get, "开始调用 zunfec")
-		//zunfecStartTime := time.Now()
-		//zunfecCmd := exec.Command("zunfec", cmdElement...)
-		//err = zunfecCmd.Run()
-		//if err != nil {
-		//	fmt.Println("zunfecCmd 命令执行出错:", err)
-		//	return
-		//}
-		//zunfecEndTime := time.Now()
-		//zunfecDuration := zunfecEndTime.Sub(zunfecStartTime)
-		//fmt.Println(get, "zunfec 调用完成，耗时:", zunfecDuration)
-
 		// 生成原始文件
 		fmt.Println(get, "开始生成原始文件")
 		zunfecStartTime := time.Now()
@@ -1355,9 +1335,7 @@ func Get() {
 		zunfecEndTime := time.Now()
 		zunfecDuration := zunfecEndTime.Sub(zunfecStartTime)
 		fmt.Println(get, "生成原始文件成功，耗时:", zunfecDuration)
-
 		DeleteFecFiles(fileDir)
-
 		// 检查最终生成的文件是否与原始文件一致
 		fmt.Println(get, "检查生成的文件是否与源文件一致")
 		targetHash := CalculateFileHash(filepath.Join(epPath, fecFileConfig.Name), defaultHashLength)
@@ -1373,7 +1351,6 @@ func Get() {
 			fmt.Println(get, "文件成功解码")
 		}
 		fmt.Println(get, "获取完成")
-		return
 	}
 }
 
