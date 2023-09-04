@@ -294,7 +294,7 @@ func GenerateFileDxDictionary(root string, ex string) (map[int]string, error) {
 			return err
 		}
 		if !info.IsDir() && filepath.Ext(path) == ex {
-			if strings.Contains(filepath.Base(path), "lumika") {
+			if strings.Contains(filepath.Base(path), "lumika") || strings.Contains(filepath.Base(path), "ffmpeg") || strings.Contains(filepath.Base(path), "ffprobe") {
 				return nil
 			}
 			fileDict[index] = path
@@ -325,7 +325,7 @@ func GenerateFileDictionary(root string) (map[int]string, error) {
 			return err
 		}
 		if !info.IsDir() {
-			if strings.Contains(filepath.Base(path), "lumika") {
+			if strings.Contains(filepath.Base(path), "lumika") || strings.Contains(filepath.Base(path), "ffmpeg") || strings.Contains(filepath.Base(path), "ffprobe") {
 				return nil
 			}
 			fileDict[index] = path
@@ -392,6 +392,13 @@ func SearchFileNameInDir(directory, filename string) string {
 }
 
 func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encodeFFmpegMode string, auto bool) (segmentLength int64) {
+	ep, err := os.Executable()
+	if err != nil {
+		fmt.Println(get, "无法获取运行目录:", err)
+		return
+	}
+	epPath := filepath.Dir(ep)
+
 	if videoSize%8 != 0 {
 		fmt.Println(en, "视频大小必须是8的倍数")
 		return 0
@@ -526,7 +533,16 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encode
 				outputFilePath,
 			}
 
-			FFmpegProcess := exec.Command("ffmpeg", FFmpegCmd...)
+			// 检查是否有 FFmpeg 在程序目录下
+			FFmpegPath := SearchFileNameInDir(epPath, "ffmpeg")
+			if FFmpegPath == "" || FFmpegPath != "" && !strings.Contains(filepath.Base(FFmpegPath), "ffmpeg") {
+				fmt.Println(en, "无法在程序目录下找到 FFmpeg 程序，将使用系统环境变量中的 FFmpeg")
+				FFmpegPath = "ffmpeg"
+			} else {
+				fmt.Println(en, "使用找到 FFmpeg 程序:", FFmpegPath)
+			}
+
+			FFmpegProcess := exec.Command(FFmpegPath, FFmpegCmd...)
 			stdin, err := FFmpegProcess.StdinPipe()
 			if err != nil {
 				fmt.Println(en, "无法创建 FFmpeg 的标准输入管道:", err)
@@ -666,6 +682,13 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encode
 }
 
 func Decode(videoFileDir string, segmentLength int64, filePathList []string) {
+	ep, err := os.Executable()
+	if err != nil {
+		fmt.Println(get, "无法获取运行目录:", err)
+		return
+	}
+	epPath := filepath.Dir(ep)
+
 	// 当没有检测到videoFileDir时，自动匹配
 	if videoFileDir == "" {
 		fmt.Println(de, "自动使用程序所在目录作为输入目录")
@@ -742,7 +765,16 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string) {
 			}()
 			fmt.Println(de, "开始解码第", filePathIndex+1, "个编码文件:", filePath)
 
-			cmd := exec.Command("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", filePath)
+			// 检查是否有 FFprobe 在程序目录下
+			FFprobePath := SearchFileNameInDir(epPath, "ffprobe")
+			if FFprobePath == "" || FFprobePath != "" && !strings.Contains(filepath.Base(FFprobePath), "ffprobe") {
+				fmt.Println(en, "无法在程序目录下找到 FFprobe 程序，将使用系统环境变量中的 FFprobe")
+				FFprobePath = "ffprobe"
+			} else {
+				fmt.Println(en, "使用找到 FFprobe 程序:", FFprobePath)
+			}
+
+			cmd := exec.Command(FFprobePath, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", filePath)
 			output, err := cmd.Output()
 			if err != nil {
 				fmt.Println(de, "FFprobe 启动失败，请检查文件是否存在:", err)
@@ -763,10 +795,10 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string) {
 				fmt.Println(de, "无法读取视频宽高，请检查视频文件是否正确:", err)
 				return
 			}
-			cmd = exec.Command("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=nb_frames", "-of", "default=nokey=1:noprint_wrappers=1", filePath)
+			cmd = exec.Command(FFprobePath, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=nb_frames", "-of", "default=nokey=1:noprint_wrappers=1", filePath)
 			output, err = cmd.Output()
 			if err != nil {
-				fmt.Println(de, "执行 ffprobe 命令时出错:", err)
+				fmt.Println(de, "执行 FFprobe 命令时出错:", err)
 				return
 			}
 			frameCount, err := strconv.Atoi(regexp.MustCompile(`\d+`).FindString(string(output)))
@@ -796,8 +828,17 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string) {
 				return
 			}
 
+			// 检查是否有 FFmpeg 在程序目录下
+			FFmpegPath := SearchFileNameInDir(epPath, "ffmpeg")
+			if FFmpegPath == "" || FFmpegPath != "" && !strings.Contains(filepath.Base(FFmpegPath), "ffmpeg") {
+				fmt.Println(en, "无法在程序目录下找到 FFmpeg 程序，将使用系统环境变量中的 FFmpeg")
+				FFmpegPath = "ffmpeg"
+			} else {
+				fmt.Println(en, "使用找到 FFmpeg 程序:", FFmpegPath)
+			}
+
 			FFmpegCmd := []string{
-				"ffmpeg",
+				FFmpegPath,
 				"-i", filePath,
 				"-f", "image2pipe",
 				"-pix_fmt", "rgb24",
