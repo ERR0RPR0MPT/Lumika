@@ -40,10 +40,12 @@ const (
 	encodeOutputFPSLevel  = 24
 	encodeMaxSecondsLevel = 86400
 	encodeFFmpegModeLevel = "medium"
+	encodeBiliModeLevel   = true
 	defaultHashLength     = 7
 	defaultBlankSeconds   = 3
 	defaultBlankByte      = 85
-	defaultDeleteFecFiles = true
+	defaultBlankFrames    = 4
+	defaultDeleteFecFiles = false
 )
 
 type FecFileConfig struct {
@@ -391,7 +393,7 @@ func SearchFileNameInDir(directory, filename string) string {
 	return ""
 }
 
-func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encodeFFmpegMode string, auto bool) (segmentLength int64) {
+func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encodeFFmpegMode string, biliMode bool, auto bool) (segmentLength int64) {
 	ep, err := os.Executable()
 	if err != nil {
 		fmt.Println(get, "无法获取运行目录:", err)
@@ -554,36 +556,179 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encode
 				return
 			}
 
-			// 为规避某些编码器会自动在视频的前后删除某些帧，导致解码失败，这里在视频的前后各添加defaultBlankSeconds秒的空白帧
-			// 由于视频的前后各添加了defaultBlankSeconds秒的空白帧，所以总时长需要加上4秒
-			for i := 0; i < outputFPS*defaultBlankSeconds; i++ {
-				data := make([]byte, dataSliceLen)
-				for j := 0; j < dataSliceLen; j++ {
-					data[j] = defaultBlankByte
-				}
-				// 生成带空白数据的图像
-				img := Data2Image(data, videoSize)
-				imageBuffer := new(bytes.Buffer)
-				err = png.Encode(imageBuffer, img)
-				if err != nil {
-					return
-				}
-				imageData := imageBuffer.Bytes()
-				_, err = stdin.Write(imageData)
-				if err != nil {
-					fmt.Println(en, "无法写入帧数据到 FFmpeg:", err)
-					return
-				}
-				imageBuffer = nil
-				imageData = nil
+			// 生成空白帧
+			blankData := make([]byte, dataSliceLen)
+			for j := 0; j < dataSliceLen; j++ {
+				blankData[j] = defaultBlankByte
 			}
+			imgBlank := Data2Image(blankData, videoSize)
+			allBlankFrameNum := 0
 
 			i := 0
 			// 启动进度条
 			bar := pb.StartNew(int(fileLength))
 
+			if biliMode {
+				// 为规避某些编码器会自动在视频的前后删除某些帧，导致解码失败，这里在视频的前后各添加defaultBlankSeconds秒的空白帧
+				// 由于视频的前后各添加了defaultBlankSeconds秒的空白帧，所以总时长需要加上4秒
+				for k := 0; k < outputFPS*defaultBlankSeconds; k++ {
+					// 生成带空白数据的图像
+					imageBuffer := new(bytes.Buffer)
+					err = png.Encode(imageBuffer, imgBlank)
+					if err != nil {
+						return
+					}
+					imageData := imageBuffer.Bytes()
+					_, err = stdin.Write(imageData)
+					if err != nil {
+						fmt.Println(en, "无法写入帧数据到 FFmpeg:", err)
+						return
+					}
+					imageBuffer = nil
+					imageData = nil
+					allBlankFrameNum++
+					i++
+				}
+			}
+
 			fileNowLength := 0
 			for {
+				if biliMode {
+					// 在中间生成空白帧，防止丢失或重复数据帧
+					isOpposite := false
+					if !isOpposite {
+						for k := 0; k < defaultBlankFrames; k++ {
+							// 生成带空白数据的图像
+							imageBuffer := new(bytes.Buffer)
+							err = png.Encode(imageBuffer, imgBlank)
+							if err != nil {
+								return
+							}
+							imageData := imageBuffer.Bytes()
+							_, err = stdin.Write(imageData)
+							if err != nil {
+								fmt.Println(en, "无法写入帧数据到 FFmpeg:", err)
+								return
+							}
+							imageBuffer = nil
+							imageData = nil
+							allBlankFrameNum++
+							i++
+						}
+						if len(fileData) == 0 {
+							break
+						}
+						data := make([]byte, dataSliceLen)
+						if len(fileData) >= dataSliceLen {
+							data = fileData[:dataSliceLen]
+							fileData = fileData[dataSliceLen:]
+						} else {
+							data = fileData
+							fileData = nil
+						}
+
+						i++
+						fileNowLength += len(data)
+
+						bar.SetCurrent(int64(fileNowLength))
+						if i%30000 == 0 {
+							fmt.Printf("\nEncode: 构建帧 %d, 已构建数据 %d, 总数据 %d\n", i, fileNowLength, fileLength)
+						}
+
+						// 生成带数据的图像
+						img := Data2Image(data, videoSize)
+
+						imageBuffer := new(bytes.Buffer)
+						err = png.Encode(imageBuffer, img)
+						if err != nil {
+							return
+						}
+						imageData := imageBuffer.Bytes()
+
+						_, err = stdin.Write(imageData)
+						if err != nil {
+							fmt.Println(en, "无法写入帧数据到 FFmpeg:", err)
+							return
+						}
+						imageBuffer = nil
+						imageData = nil
+					} else {
+						for k := 0; k < defaultBlankFrames*2; k++ {
+							// 生成带空白数据的图像
+							imageBuffer := new(bytes.Buffer)
+							err = png.Encode(imageBuffer, imgBlank)
+							if err != nil {
+								return
+							}
+							imageData := imageBuffer.Bytes()
+							_, err = stdin.Write(imageData)
+							if err != nil {
+								fmt.Println(en, "无法写入帧数据到 FFmpeg:", err)
+								return
+							}
+							imageBuffer = nil
+							imageData = nil
+							allBlankFrameNum++
+							i++
+						}
+						if len(fileData) == 0 {
+							break
+						}
+						data := make([]byte, dataSliceLen)
+						if len(fileData) >= dataSliceLen {
+							data = fileData[:dataSliceLen]
+							fileData = fileData[dataSliceLen:]
+						} else {
+							data = fileData
+							fileData = nil
+						}
+
+						i++
+						fileNowLength += len(data)
+
+						bar.SetCurrent(int64(fileNowLength))
+						if i%30000 == 0 {
+							fmt.Printf("\nEncode: 构建帧 %d, 已构建数据 %d, 总数据 %d\n", i, fileNowLength, fileLength)
+						}
+
+						// 生成带数据的图像
+						img := Data2Image(data, videoSize)
+
+						imageBuffer := new(bytes.Buffer)
+						err = png.Encode(imageBuffer, img)
+						if err != nil {
+							return
+						}
+						imageData := imageBuffer.Bytes()
+
+						_, err = stdin.Write(imageData)
+						if err != nil {
+							fmt.Println(en, "无法写入帧数据到 FFmpeg:", err)
+							return
+						}
+						imageBuffer = nil
+						imageData = nil
+						for k := 0; k < defaultBlankFrames; k++ {
+							// 生成带空白数据的图像
+							imageBuffer := new(bytes.Buffer)
+							err = png.Encode(imageBuffer, imgBlank)
+							if err != nil {
+								return
+							}
+							imageData := imageBuffer.Bytes()
+							_, err = stdin.Write(imageData)
+							if err != nil {
+								fmt.Println(en, "无法写入帧数据到 FFmpeg:", err)
+								return
+							}
+							imageBuffer = nil
+							imageData = nil
+							allBlankFrameNum++
+							i++
+						}
+					}
+					continue
+				}
 				if len(fileData) == 0 {
 					break
 				}
@@ -624,27 +769,28 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encode
 			}
 			bar.Finish()
 
-			// 为规避某些编码器会自动在视频的前后删除某些帧，导致解码失败，这里在视频的前后各添加defaultBlankSeconds秒的空白帧
-			for i := 0; i < outputFPS*defaultBlankSeconds; i++ {
-				data := make([]byte, dataSliceLen)
-				for j := 0; j < dataSliceLen; j++ {
-					data[j] = defaultBlankByte
+			if biliMode {
+				fmt.Println(en, "警告：使用了B站模式，将在视频后添加共", outputFPS*defaultBlankSeconds, "帧的空白帧")
+				// 为规避某些编码器会自动在视频的前后删除某些帧，导致解码失败，这里在视频的前后各添加defaultBlankSeconds秒的空白帧
+				// 或者直接生成后一半的空白视频来阻止编码器删除数据帧
+				//for k := 0; k < i; k++ {
+				for k := 0; k < outputFPS*defaultBlankSeconds; k++ {
+					imageBuffer := new(bytes.Buffer)
+					err = png.Encode(imageBuffer, imgBlank)
+					if err != nil {
+						return
+					}
+					imageData := imageBuffer.Bytes()
+					_, err = stdin.Write(imageData)
+					if err != nil {
+						fmt.Println(en, "无法写入帧数据到 FFmpeg:", err)
+						return
+					}
+					imageBuffer = nil
+					imageData = nil
+					allBlankFrameNum++
 				}
-				// 生成带空白数据的图像
-				img := Data2Image(data, videoSize)
-				imageBuffer := new(bytes.Buffer)
-				err = png.Encode(imageBuffer, img)
-				if err != nil {
-					return
-				}
-				imageData := imageBuffer.Bytes()
-				_, err = stdin.Write(imageData)
-				if err != nil {
-					fmt.Println(en, "无法写入帧数据到 FFmpeg:", err)
-					return
-				}
-				imageBuffer = nil
-				imageData = nil
+				fmt.Println(en, "添加完成，总共添加", allBlankFrameNum, "帧空白帧")
 			}
 
 			// 关闭 FFmpeg 的标准输入管道，等待子进程完成
@@ -1034,6 +1180,14 @@ func Add() {
 		defaultK = addKLevel
 	}
 
+	// 设置 BiliMode
+	biliMode := true
+	fmt.Println(add, "是否启用 BiliMode? [Y/n] (B站转码器处理视频会删除一些数据帧，开启此选项后将插入空白帧以避免删除数据帧)")
+	result := GetUserInput("")
+	if result == "n" || result == "N" {
+		biliMode = false
+	}
+
 	for ai, filePath := range filePathList {
 		fmt.Println(add, "开始编码第"+strconv.Itoa(ai)+"个文件:", filePath)
 		// 设置默认文件名
@@ -1099,7 +1253,7 @@ func Add() {
 		fmt.Println(add, ".fec 文件生成完成，耗时:", zfecDuration)
 
 		fmt.Println(add, "开始进行编码")
-		segmentLength := Encode(defaultOutputDir, encodeVideoSizeLevel, encodeOutputFPSLevel, encodeMaxSecondsLevel, encodeFFmpegModeLevel, true)
+		segmentLength := Encode(defaultOutputDir, encodeVideoSizeLevel, encodeOutputFPSLevel, encodeMaxSecondsLevel, encodeFFmpegModeLevel, biliMode, true)
 
 		fmt.Println(add, "编码完成，开始生成配置")
 		fecFileConfig := FecFileConfig{
@@ -1400,7 +1554,7 @@ func AutoRun() {
 			break
 		} else if input == "3" {
 			clearScreen()
-			Encode("", encodeVideoSizeLevel, encodeOutputFPSLevel, encodeMaxSecondsLevel, encodeFFmpegModeLevel, false)
+			Encode("", encodeVideoSizeLevel, encodeOutputFPSLevel, encodeMaxSecondsLevel, encodeFFmpegModeLevel, encodeBiliModeLevel, false)
 			break
 		} else if input == "4" {
 			clearScreen()
@@ -1432,6 +1586,7 @@ func main() {
 		fmt.Fprintln(os.Stdout, " -p\tThe output video fps setting(default="+strconv.Itoa(encodeOutputFPSLevel)+"), 1-60")
 		fmt.Fprintln(os.Stdout, " -l\tThe output video max segment length(seconds) setting(default="+strconv.Itoa(encodeMaxSecondsLevel)+"), 1-10^9")
 		fmt.Fprintln(os.Stdout, " -m\tFFmpeg mode(default="+encodeFFmpegModeLevel+"): ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow, placebo")
+		fmt.Fprintln(os.Stdout, " -b\tBiliMode(default="+strconv.FormatBool(encodeBiliModeLevel)+"): true, false")
 		fmt.Fprintln(os.Stdout, "decode\tDecode a file")
 		fmt.Fprintln(os.Stdout, " Options:")
 		fmt.Fprintln(os.Stdout, " -i\tThe input file to decode")
@@ -1444,6 +1599,7 @@ func main() {
 	encodeOutputFPS := encodeFlag.Int("p", encodeOutputFPSLevel, "The output video fps setting(default="+strconv.Itoa(encodeOutputFPSLevel)+"), 1-60")
 	encodeMaxSeconds := encodeFlag.Int("l", encodeMaxSecondsLevel, "The output video max segment length(seconds) setting(default="+strconv.Itoa(encodeMaxSecondsLevel)+"), 1-10^9")
 	encodeFFmpegMode := encodeFlag.String("m", encodeFFmpegModeLevel, "FFmpeg mode(default="+encodeFFmpegModeLevel+"): ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow, placebo")
+	encodeBiliMode := encodeFlag.Bool("b", encodeBiliModeLevel, "BiliMode(default="+strconv.FormatBool(encodeBiliModeLevel)+"): true, false")
 
 	decodeFlag := flag.NewFlagSet("decode", flag.ExitOnError)
 	decodeInputDir := decodeFlag.String("i", "", "The input dir include video segments to decode")
@@ -1478,7 +1634,7 @@ func main() {
 			fmt.Println(en, "参数解析错误")
 			return
 		}
-		Encode(*encodeInput, *encodeQrcodeSize, *encodeOutputFPS, *encodeMaxSeconds, *encodeFFmpegMode, false)
+		Encode(*encodeInput, *encodeQrcodeSize, *encodeOutputFPS, *encodeMaxSeconds, *encodeFFmpegMode, *encodeBiliMode, false)
 	case "decode":
 		err := decodeFlag.Parse(os.Args[2:])
 		if err != nil {
