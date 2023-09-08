@@ -40,12 +40,13 @@ const (
 	encodeOutputFPSLevel  = 24
 	encodeMaxSecondsLevel = 86400
 	encodeFFmpegModeLevel = "medium"
-	encodeBiliModeLevel   = true
 	defaultHashLength     = 7
 	defaultBlankSeconds   = 3
 	defaultBlankByte      = 85
-	defaultBlankFrames    = 4
-	defaultDeleteFecFiles = false
+	defaultBlankStartByte = 86
+	defaultBlankEndByte   = 87
+	defaultFrameShards    = 10
+	defaultDeleteFecFiles = true
 )
 
 type FecFileConfig struct {
@@ -54,6 +55,7 @@ type FecFileConfig struct {
 	Hash          string   `json:"h"`
 	M             int      `json:"m"`
 	K             int      `json:"k"`
+	G             int      `json:"g"`
 	Length        int64    `json:"l"`
 	SegmentLength int64    `json:"sl"`
 	FecHashList   []string `json:"fhl"`
@@ -78,6 +80,123 @@ func clearScreen() {
 		fmt.Println("clearScreen: 清屏失败:", err)
 		return
 	}
+}
+
+func ExtractForwardElements(slice [][]byte, t int) [][]byte {
+	var result [][]byte
+	for _, row := range slice {
+		var newRow []byte
+		for i, element := range row {
+			if i >= t {
+				newRow = append(newRow, element)
+			}
+		}
+		result = append(result, newRow)
+	}
+	return result
+}
+
+func countNilElements(slice [][]byte) int {
+	count := 0
+	for _, row := range slice {
+		if row == nil {
+			count++
+		}
+	}
+	return count
+}
+
+func MakeMaxByteSlice(data []byte) []byte {
+	newSlice := make([]byte, len(data))
+	copy(newSlice, data)
+	return newSlice
+}
+
+func MakeMax2ByteSlice(data [][]byte, dataLength, GValue int) [][]byte {
+	// 创建新切片并设置最大长度
+	newSlice := make([][]byte, GValue)
+	for i := range newSlice {
+		newSlice[i] = make([]byte, dataLength)
+	}
+	// 将数据遍历赋值给新切片
+	for i, row := range data {
+		if row == nil {
+			newSlice[i] = nil
+			continue
+		}
+		for j, element := range row {
+			newSlice[i][j] = element
+		}
+	}
+	return newSlice
+}
+
+func IntToByteArray(n uint32) []byte {
+	result := make([]byte, 4)
+	result[0] = byte(n >> 24 & 0xFF)
+	result[1] = byte(n >> 16 & 0xFF)
+	result[2] = byte(n >> 8 & 0xFF)
+	result[3] = byte(n & 0xFF)
+	return result
+}
+
+func ByteArrayToInt(data []byte) uint32 {
+	if len(data) > 4 {
+		data = data[:4]
+	}
+	result := uint32(data[0])<<24 | uint32(data[1])<<16 | uint32(data[2])<<8 | uint32(data[3])
+	return result
+}
+
+func RemoveDuplicates(slices [][]byte) [][]byte {
+	seen := make(map[string]struct{}) // 用于记录已经出现过的元素
+	// 遍历输入切片
+	for _, slice := range slices {
+		str := string(slice) // 将切片转换为字符串作为键
+
+		// 如果元素不重复，则将其记录到 seen 中，并添加到结果切片中
+		if _, ok := seen[str]; !ok {
+			seen[str] = struct{}{}
+		}
+	}
+	// 构建结果切片
+	result := make([][]byte, 0, len(seen))
+	for str := range seen {
+		result = append(result, []byte(str))
+	}
+	return result
+}
+
+func ProcessSlices(slices [][]byte, GValue int) [][]byte {
+	slices = RemoveDuplicates(slices) // 去重
+	// 自定义排序函数
+	sort.Slice(slices, func(i, j int) bool {
+		num1 := ByteArrayToInt(slices[i][:4]) // 获取第一个切片的前四个字节的 256 进制数
+		num2 := ByteArrayToInt(slices[j][:4]) // 获取第二个切片的前四个字节的 256 进制数
+		return num1 < num2
+	})
+	result := make([][]byte, GValue) // 创建一个新切片来存储结果
+	// 遍历输入切片
+	for i := 0; i < len(slices); i++ {
+		if len(slices[i]) < 4 {
+			// 没有读取到索引数据，跳过
+			continue
+		}
+		// 获取真实数据的索引
+		dataIndex := ByteArrayToInt(slices[i][:4])
+		result[dataIndex] = slices[i]
+	}
+	return result
+}
+
+// IsConsecutive 检查两个切片是否连续
+func IsConsecutive(slice1, slice2 []byte) bool {
+	if len(slice1) < 4 || len(slice2) < 4 {
+		return false
+	}
+	num1 := ByteArrayToInt(slice1[:4]) // 获取第一个切片的前四个字节的 256 进制数
+	num2 := ByteArrayToInt(slice2[:4]) // 获取第二个切片的前四个字节的 256 进制数
+	return num2 == num1+1
 }
 
 func DeleteFecFiles(fileDir string) {
@@ -225,7 +344,12 @@ func Data2Image(data []byte, size int) image.Image {
 }
 
 // Image2Data 从图像中恢复数据
-func Image2Data(img image.Image) []byte {
+// 类型：
+// 0: 数据帧
+// 1: 空白帧
+// 2: 空白起始帧
+// 3: 空白终止帧
+func Image2Data(img image.Image) (dataR []byte, t int) {
 	bounds := img.Bounds()
 	size := bounds.Size().X
 	dataLength := size * size / 8
@@ -233,6 +357,10 @@ func Image2Data(img image.Image) []byte {
 	// 遍历图像像素并提取数据
 	// 检查是否为空白帧
 	isBlank := true
+	// 检查是否为空白起始帧
+	isBlankStart := true
+	// 检查是否为空白终止帧
+	isBlankEnd := true
 	for i := 0; i < dataLength; i++ {
 		b := byte(0)
 		for j := 0; j < 8; j++ {
@@ -246,12 +374,24 @@ func Image2Data(img image.Image) []byte {
 		if b != defaultBlankByte {
 			isBlank = false
 		}
+		if b != defaultBlankStartByte {
+			isBlankStart = false
+		}
+		if b != defaultBlankEndByte {
+			isBlankEnd = false
+		}
 		data[i] = b
 	}
 	if isBlank {
-		return nil
+		return nil, 1
 	}
-	return data
+	if isBlankStart {
+		return nil, 2
+	}
+	if isBlankEnd {
+		return nil, 3
+	}
+	return data, 0
 }
 
 func RawDataToImage(rawData []byte, width, height int) image.Image {
@@ -393,7 +533,7 @@ func SearchFileNameInDir(directory, filename string) string {
 	return ""
 }
 
-func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encodeFFmpegMode string, biliMode bool, auto bool) (segmentLength int64) {
+func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, gValue int, encodeFFmpegMode string, auto bool) (segmentLength int64) {
 	ep, err := os.Executable()
 	if err != nil {
 		fmt.Println(get, "无法获取运行目录:", err)
@@ -515,6 +655,8 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encode
 			fmt.Println(en, "  输出文件:", outputFilePath)
 			fmt.Println(en, "  输入文件长度:", fileLength)
 			fmt.Println(en, "  每帧数据长度:", dataSliceLen)
+			fmt.Println(en, "  每帧索引数据长度:", 4)
+			fmt.Println(en, "  每帧真实数据长度:", dataSliceLen-4)
 			fmt.Println(en, "  帧大小:", videoSize)
 			fmt.Println(en, "  输出帧率:", outputFPS)
 			fmt.Println(en, "  生成总帧数:", allFrameNum)
@@ -538,7 +680,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encode
 			// 检查是否有 FFmpeg 在程序目录下
 			FFmpegPath := SearchFileNameInDir(epPath, "ffmpeg")
 			if FFmpegPath == "" || FFmpegPath != "" && !strings.Contains(filepath.Base(FFmpegPath), "ffmpeg") {
-				fmt.Println(en, "无法在程序目录下找到 FFmpeg 程序，将使用系统环境变量中的 FFmpeg")
+				fmt.Println(en, "使用系统环境变量中的 FFmpeg")
 				FFmpegPath = "ffmpeg"
 			} else {
 				fmt.Println(en, "使用找到 FFmpeg 程序:", FFmpegPath)
@@ -564,17 +706,201 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encode
 			imgBlank := Data2Image(blankData, videoSize)
 			allBlankFrameNum := 0
 
+			// 生成起始帧
+			blankStartData := make([]byte, dataSliceLen)
+			for j := 0; j < dataSliceLen; j++ {
+				blankStartData[j] = defaultBlankStartByte
+			}
+			imgBlankStart := Data2Image(blankStartData, videoSize)
+
+			// 生成终止帧
+			blankEndData := make([]byte, dataSliceLen)
+			for j := 0; j < dataSliceLen; j++ {
+				blankEndData[j] = defaultBlankEndByte
+			}
+			imgBlankEnd := Data2Image(blankEndData, videoSize)
+
 			i := 0
 			// 启动进度条
 			bar := pb.StartNew(int(fileLength))
 
-			if biliMode {
-				// 为规避某些编码器会自动在视频的前后删除某些帧，导致解码失败，这里在视频的前后各添加defaultBlankSeconds秒的空白帧
-				// 由于视频的前后各添加了defaultBlankSeconds秒的空白帧，所以总时长需要加上4秒
-				for k := 0; k < outputFPS*defaultBlankSeconds; k++ {
-					// 生成带空白数据的图像
+			// 创建一个shards
+			shardsInsideNum := 0
+			shards := make([][]byte, gValue+1)
+			for ig := range shards {
+				shards[ig] = make([]byte, dataSliceLen-4)
+			}
+			enc, err := reedsolomon.New(gValue, 1)
+			if err != nil {
+				fmt.Println(en, "无法创建冗余数据:", err)
+				return
+			}
+
+			// 为规避某些编码器会自动在视频的前后删除某些帧，导致解码失败，这里在视频的前后各添加defaultBlankSeconds秒的空白帧
+			// 由于视频的前后各添加了defaultBlankSeconds秒的空白帧，所以总时长需要加上4秒
+			for k := 0; k < outputFPS*defaultBlankSeconds; k++ {
+				// 生成带空白数据的图像
+				imageBuffer := new(bytes.Buffer)
+				err = png.Encode(imageBuffer, imgBlank)
+				if err != nil {
+					return
+				}
+				imageData := imageBuffer.Bytes()
+				_, err = stdin.Write(imageData)
+				if err != nil {
+					fmt.Println(en, "无法写入帧数据到 FFmpeg:", err)
+					return
+				}
+				imageBuffer = nil
+				imageData = nil
+				allBlankFrameNum++
+				i++
+			}
+
+			fileNowLength := 0
+			for {
+				// 从文件读取数据
+				if len(fileData) == 0 {
+					if shardsInsideNum != 0 {
+						// 生成空数据帧
+						blankData2 := make([]byte, dataSliceLen-4)
+						for j := 0; j < dataSliceLen-4; j++ {
+							blankData2[j] = 0
+						}
+
+						for l := shardsInsideNum; l < gValue; l++ {
+							dataPackage := make([]byte, dataSliceLen-4)
+							// 写入数据
+							for p := range blankData2 {
+								dataPackage[p] = blankData2[p]
+							}
+							// 填入 shards 中
+							shards[shardsInsideNum] = dataPackage
+						}
+
+						shardsInsideNum = 0
+						// 创建冗余数据
+						err = enc.Encode(shards)
+						if err != nil {
+							fmt.Println(en, "无法创建冗余数据:", err)
+							//fmt.Println(len(shards))
+							return
+						}
+						// 创建完整数据
+						allShards := make([][]byte, gValue+1)
+						for ig := range allShards {
+							allShards[ig] = make([]byte, dataSliceLen)
+						}
+						// 给数据写入索引信息
+						for iu := range shards {
+							ikp := IntToByteArray(uint32(iu))
+							for p := range ikp {
+								allShards[iu][p] = ikp[p]
+							}
+						}
+						// 写入数据
+						for iu := range shards {
+							for p := range shards[iu] {
+								allShards[iu][p+4] = shards[iu][p]
+							}
+						}
+						// 输入开始帧
+						imageBuffer := new(bytes.Buffer)
+						err = png.Encode(imageBuffer, imgBlankStart)
+						if err != nil {
+							return
+						}
+						imageData := imageBuffer.Bytes()
+						_, err = stdin.Write(imageData)
+						if err != nil {
+							fmt.Println(en, "无法写入帧数据到 FFmpeg:", err)
+							return
+						}
+						imageBuffer = nil
+						imageData = nil
+						// 遍历 allShards
+						for _, shardData := range allShards {
+							// 生成带数据的图像
+							img := Data2Image(shardData, videoSize)
+							imageBuffer := new(bytes.Buffer)
+							err = png.Encode(imageBuffer, img)
+							if err != nil {
+								return
+							}
+							imageData := imageBuffer.Bytes()
+							_, err = stdin.Write(imageData)
+							if err != nil {
+								fmt.Println(en, "无法写入帧数据到 FFmpeg:", err)
+								return
+							}
+							imageBuffer = nil
+							imageData = nil
+						}
+						// 输入终止帧
+						imageBuffer = new(bytes.Buffer)
+						err = png.Encode(imageBuffer, imgBlankEnd)
+						if err != nil {
+							return
+						}
+						imageData = imageBuffer.Bytes()
+						_, err = stdin.Write(imageData)
+						if err != nil {
+							fmt.Println(en, "无法写入帧数据到 FFmpeg:", err)
+							return
+						}
+						imageBuffer = nil
+						imageData = nil
+					}
+					break
+				}
+				data := make([]byte, dataSliceLen-4)
+				if len(fileData) >= dataSliceLen-4 {
+					data = fileData[:dataSliceLen-4]
+					fileData = fileData[dataSliceLen-4:]
+				} else {
+					data = fileData
+					fileData = nil
+				}
+
+				dataPackage := make([]byte, dataSliceLen-4)
+				// 写入数据
+				for p := range data {
+					dataPackage[p] = data[p]
+				}
+				// 填入 shards 中
+				shards[shardsInsideNum] = dataPackage
+				//fmt.Println(en, "填入 shards 中:", shardsInsideNum, "索引:", dataNowNum)
+
+				// 判断shards是否被填满(0-9填满，还有10去填冗余数据，总长11)
+				if shardsInsideNum == gValue-1 {
+					shardsInsideNum = 0
+					// 创建冗余数据
+					err = enc.Encode(shards)
+					if err != nil {
+						fmt.Println(en, "无法创建冗余数据:", err)
+						return
+					}
+					// 创建完整数据
+					allShards := make([][]byte, gValue+1)
+					for ig := range allShards {
+						allShards[ig] = make([]byte, dataSliceLen)
+					}
+					// 给数据写入索引信息
+					for iu := range shards {
+						ikp := IntToByteArray(uint32(iu))
+						for p := range ikp {
+							allShards[iu][p] = ikp[p]
+						}
+					}
+					// 写入数据
+					for iu := range shards {
+						for p := range shards[iu] {
+							allShards[iu][p+4] = shards[iu][p]
+						}
+					}
+					// 输入开始帧
 					imageBuffer := new(bytes.Buffer)
-					err = png.Encode(imageBuffer, imgBlank)
+					err = png.Encode(imageBuffer, imgBlankStart)
 					if err != nil {
 						return
 					}
@@ -586,65 +912,16 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encode
 					}
 					imageBuffer = nil
 					imageData = nil
-					allBlankFrameNum++
-					i++
-				}
-			}
-
-			fileNowLength := 0
-			for {
-				if biliMode {
-					// 在中间生成空白帧，防止丢失或重复数据帧
-					isOpposite := false
-					if !isOpposite {
-						for k := 0; k < defaultBlankFrames; k++ {
-							// 生成带空白数据的图像
-							imageBuffer := new(bytes.Buffer)
-							err = png.Encode(imageBuffer, imgBlank)
-							if err != nil {
-								return
-							}
-							imageData := imageBuffer.Bytes()
-							_, err = stdin.Write(imageData)
-							if err != nil {
-								fmt.Println(en, "无法写入帧数据到 FFmpeg:", err)
-								return
-							}
-							imageBuffer = nil
-							imageData = nil
-							allBlankFrameNum++
-							i++
-						}
-						if len(fileData) == 0 {
-							break
-						}
-						data := make([]byte, dataSliceLen)
-						if len(fileData) >= dataSliceLen {
-							data = fileData[:dataSliceLen]
-							fileData = fileData[dataSliceLen:]
-						} else {
-							data = fileData
-							fileData = nil
-						}
-
-						i++
-						fileNowLength += len(data)
-
-						bar.SetCurrent(int64(fileNowLength))
-						if i%30000 == 0 {
-							fmt.Printf("\nEncode: 构建帧 %d, 已构建数据 %d, 总数据 %d\n", i, fileNowLength, fileLength)
-						}
-
+					// 遍历 allShards
+					for _, shardData := range allShards {
 						// 生成带数据的图像
-						img := Data2Image(data, videoSize)
-
+						img := Data2Image(shardData, videoSize)
 						imageBuffer := new(bytes.Buffer)
 						err = png.Encode(imageBuffer, img)
 						if err != nil {
 							return
 						}
 						imageData := imageBuffer.Bytes()
-
 						_, err = stdin.Write(imageData)
 						if err != nil {
 							fmt.Println(en, "无法写入帧数据到 FFmpeg:", err)
@@ -652,93 +929,23 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encode
 						}
 						imageBuffer = nil
 						imageData = nil
-					} else {
-						for k := 0; k < defaultBlankFrames*2; k++ {
-							// 生成带空白数据的图像
-							imageBuffer := new(bytes.Buffer)
-							err = png.Encode(imageBuffer, imgBlank)
-							if err != nil {
-								return
-							}
-							imageData := imageBuffer.Bytes()
-							_, err = stdin.Write(imageData)
-							if err != nil {
-								fmt.Println(en, "无法写入帧数据到 FFmpeg:", err)
-								return
-							}
-							imageBuffer = nil
-							imageData = nil
-							allBlankFrameNum++
-							i++
-						}
-						if len(fileData) == 0 {
-							break
-						}
-						data := make([]byte, dataSliceLen)
-						if len(fileData) >= dataSliceLen {
-							data = fileData[:dataSliceLen]
-							fileData = fileData[dataSliceLen:]
-						} else {
-							data = fileData
-							fileData = nil
-						}
-
-						i++
-						fileNowLength += len(data)
-
-						bar.SetCurrent(int64(fileNowLength))
-						if i%30000 == 0 {
-							fmt.Printf("\nEncode: 构建帧 %d, 已构建数据 %d, 总数据 %d\n", i, fileNowLength, fileLength)
-						}
-
-						// 生成带数据的图像
-						img := Data2Image(data, videoSize)
-
-						imageBuffer := new(bytes.Buffer)
-						err = png.Encode(imageBuffer, img)
-						if err != nil {
-							return
-						}
-						imageData := imageBuffer.Bytes()
-
-						_, err = stdin.Write(imageData)
-						if err != nil {
-							fmt.Println(en, "无法写入帧数据到 FFmpeg:", err)
-							return
-						}
-						imageBuffer = nil
-						imageData = nil
-						for k := 0; k < defaultBlankFrames; k++ {
-							// 生成带空白数据的图像
-							imageBuffer := new(bytes.Buffer)
-							err = png.Encode(imageBuffer, imgBlank)
-							if err != nil {
-								return
-							}
-							imageData := imageBuffer.Bytes()
-							_, err = stdin.Write(imageData)
-							if err != nil {
-								fmt.Println(en, "无法写入帧数据到 FFmpeg:", err)
-								return
-							}
-							imageBuffer = nil
-							imageData = nil
-							allBlankFrameNum++
-							i++
-						}
 					}
-					continue
-				}
-				if len(fileData) == 0 {
-					break
-				}
-				data := make([]byte, dataSliceLen)
-				if len(fileData) >= dataSliceLen {
-					data = fileData[:dataSliceLen]
-					fileData = fileData[dataSliceLen:]
+					// 输入终止帧
+					imageBuffer = new(bytes.Buffer)
+					err = png.Encode(imageBuffer, imgBlankEnd)
+					if err != nil {
+						return
+					}
+					imageData = imageBuffer.Bytes()
+					_, err = stdin.Write(imageData)
+					if err != nil {
+						fmt.Println(en, "无法写入帧数据到 FFmpeg:", err)
+						return
+					}
+					imageBuffer = nil
+					imageData = nil
 				} else {
-					data = fileData
-					fileData = nil
+					shardsInsideNum++
 				}
 
 				i++
@@ -748,17 +955,19 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encode
 				if i%30000 == 0 {
 					fmt.Printf("\nEncode: 构建帧 %d, 已构建数据 %d, 总数据 %d\n", i, fileNowLength, fileLength)
 				}
+			}
+			bar.Finish()
 
-				// 生成带数据的图像
-				img := Data2Image(data, videoSize)
-
+			// 为规避某些编码器会自动在视频的前后删除某些帧，导致解码失败，这里在视频的前后各添加defaultBlankSeconds秒的空白帧
+			// 或者直接生成后一半的空白视频来阻止编码器删除数据帧
+			//for k := 0; k < i; k++ {
+			for k := 0; k < outputFPS*defaultBlankSeconds; k++ {
 				imageBuffer := new(bytes.Buffer)
-				err = png.Encode(imageBuffer, img)
+				err = png.Encode(imageBuffer, imgBlank)
 				if err != nil {
 					return
 				}
 				imageData := imageBuffer.Bytes()
-
 				_, err = stdin.Write(imageData)
 				if err != nil {
 					fmt.Println(en, "无法写入帧数据到 FFmpeg:", err)
@@ -766,32 +975,9 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encode
 				}
 				imageBuffer = nil
 				imageData = nil
+				allBlankFrameNum++
 			}
-			bar.Finish()
-
-			if biliMode {
-				fmt.Println(en, "警告：使用了B站模式，将在视频后添加共", outputFPS*defaultBlankSeconds, "帧的空白帧")
-				// 为规避某些编码器会自动在视频的前后删除某些帧，导致解码失败，这里在视频的前后各添加defaultBlankSeconds秒的空白帧
-				// 或者直接生成后一半的空白视频来阻止编码器删除数据帧
-				//for k := 0; k < i; k++ {
-				for k := 0; k < outputFPS*defaultBlankSeconds; k++ {
-					imageBuffer := new(bytes.Buffer)
-					err = png.Encode(imageBuffer, imgBlank)
-					if err != nil {
-						return
-					}
-					imageData := imageBuffer.Bytes()
-					_, err = stdin.Write(imageData)
-					if err != nil {
-						fmt.Println(en, "无法写入帧数据到 FFmpeg:", err)
-						return
-					}
-					imageBuffer = nil
-					imageData = nil
-					allBlankFrameNum++
-				}
-				fmt.Println(en, "添加完成，总共添加", allBlankFrameNum, "帧空白帧")
-			}
+			fmt.Println(en, "添加完成，总共添加", allBlankFrameNum, "帧空白帧")
 
 			// 关闭 FFmpeg 的标准输入管道，等待子进程完成
 			err = stdin.Close()
@@ -811,6 +997,8 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encode
 			fmt.Println(en, "  输出文件:", outputFilePath)
 			fmt.Println(en, "  输入文件长度:", fileLength)
 			fmt.Println(en, "  每帧数据长度:", dataSliceLen)
+			fmt.Println(en, "  每帧索引数据长度:", 4)
+			fmt.Println(en, "  每帧真实数据长度:", dataSliceLen-4)
 			fmt.Println(en, "  帧大小:", videoSize)
 			fmt.Println(en, "  输出帧率:", outputFPS)
 			fmt.Println(en, "  生成总帧数:", allFrameNum)
@@ -827,7 +1015,8 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, encode
 	return segmentLength
 }
 
-func Decode(videoFileDir string, segmentLength int64, filePathList []string) {
+func Decode(videoFileDir string, segmentLength int64, filePathList []string, GValue int) {
+	GValue += 1
 	ep, err := os.Executable()
 	if err != nil {
 		fmt.Println(get, "无法获取运行目录:", err)
@@ -914,7 +1103,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string) {
 			// 检查是否有 FFprobe 在程序目录下
 			FFprobePath := SearchFileNameInDir(epPath, "ffprobe")
 			if FFprobePath == "" || FFprobePath != "" && !strings.Contains(filepath.Base(FFprobePath), "ffprobe") {
-				fmt.Println(en, "无法在程序目录下找到 FFprobe 程序，将使用系统环境变量中的 FFprobe")
+				fmt.Println(en, "使用系统环境变量中的 FFprobe")
 				FFprobePath = "ffprobe"
 			} else {
 				fmt.Println(en, "使用找到 FFprobe 程序:", FFprobePath)
@@ -977,7 +1166,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string) {
 			// 检查是否有 FFmpeg 在程序目录下
 			FFmpegPath := SearchFileNameInDir(epPath, "ffmpeg")
 			if FFmpegPath == "" || FFmpegPath != "" && !strings.Contains(filepath.Base(FFmpegPath), "ffmpeg") {
-				fmt.Println(en, "无法在程序目录下找到 FFmpeg 程序，将使用系统环境变量中的 FFmpeg")
+				fmt.Println(en, "使用系统环境变量中的 FFmpeg")
 				FFmpegPath = "ffmpeg"
 			} else {
 				fmt.Println(en, "使用找到 FFmpeg 程序:", FFmpegPath)
@@ -1003,8 +1192,19 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string) {
 				return
 			}
 
+			// 记录数据
+			isRecord := false
+			var recordData [][]byte
+
+			enc, err := reedsolomon.New(GValue-1, 1)
+			if err != nil {
+				fmt.Println(de, "无法创建RS解码器:", err)
+				return
+			}
+
 			bar := pb.StartNew(frameCount)
 			i := 0
+			allDataNum := 0
 			for {
 				rawData := make([]byte, videoWidth*videoHeight*3)
 				readBytes := 0
@@ -1020,24 +1220,212 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string) {
 				if exitFlag {
 					break
 				}
+				img := RawDataToImage(rawData, videoWidth, videoHeight)
+				// 类型：
+				// 0: 数据帧
+				// 1: 空白帧
+				// 2: 空白起始帧
+				// 3: 空白终止帧
+				data, t := Image2Data(img)
+				if t == 1 {
+					//fmt.Println(de, "检测到空白帧，跳过")
+					i++
+					continue
+				}
+
+				// 检查是否是空白起始帧
+				if t == 2 {
+					//fmt.Println(de, "检测到空白起始帧")
+					// 检查是否没有找到终止帧
+					if isRecord {
+						for {
+							isRecord = false
+							//fmt.Println(de, "本轮检测到", len(recordData), "帧数据")
+							if len(recordData) == 0 {
+								// 没有检查到数据，直接退出即可
+								fmt.Println(de, "检测到空白终止帧，但是没有检测到存储有帧数据，跳过操作")
+								break
+							}
+							// 对数据进行排序等操作
+							sortShards := ProcessSlices(recordData, GValue)
+							// 删除记录数据
+							recordData = make([][]byte, 0)
+							var dataShards [][]byte
+							// 检查整理后的长度是否为预期长度且nil元素数量小于等于1
+							if len(sortShards) == GValue && countNilElements(sortShards) <= 1 {
+								// 修改 sortShards 的空白数据为 nil
+								for oiu := range sortShards {
+									if len(sortShards[oiu]) >= 4 {
+										continue
+									}
+									sortShards[oiu] = nil
+								}
+								// 删除索引，复制数据到新切片
+								dataShards = MakeMax2ByteSlice(ExtractForwardElements(sortShards, 4), videoHeight*videoWidth/8-4, GValue)
+								// 数据将开始重建
+								ok, err := enc.Verify(dataShards)
+								if !ok {
+									fmt.Println(de, "检测到数据出现损坏，开始重建数据")
+									//fmt.Println("输出一些详细的信息供参考：")
+									//fmt.Println("数据帧数量:", len(sortShards))
+									//fmt.Println("数据帧长度:", len(sortShards[0]))
+									//for oiu := range sortShards {
+									//	if len(sortShards[oiu]) >= 4 {
+									//		fmt.Println("数据帧索引", oiu, ":", sortShards[oiu][:4])
+									//		if oiu == 0 {
+									//			fmt.Println(sortShards[oiu])
+									//		}
+									//		continue
+									//	}
+									//	sortShards[oiu] = nil
+									//	fmt.Println("数据帧索引(u)", oiu, ":", sortShards[oiu])
+									//}
+									for {
+										err = enc.Reconstruct(dataShards)
+										if err != nil {
+											fmt.Println("数据重建失败 -", err)
+											break
+										}
+										ok, err = enc.Verify(dataShards)
+										if !ok {
+											fmt.Println("数据重建失败并且已经损坏")
+											break
+										}
+										if err != nil {
+											fmt.Println("数据重建失败并且已经损坏 -", err)
+											break
+										}
+										fmt.Println(de, "数据重建成功")
+										break
+									}
+								}
+							} else {
+								// 数据出现无法修复的错误
+								fmt.Println("警告：数据出现无法修复的错误，停止输出数据到分片文件")
+								return
+							}
+
+							dataOrigin := dataShards[:len(dataShards)-1]
+							// 写入到文件
+							for _, dataW := range dataOrigin {
+								_, err := outputFile.Write(dataW)
+								if err != nil {
+									fmt.Println(de, "写入文件失败:", err)
+									break
+								}
+							}
+							break
+						}
+					}
+					isRecord = true
+					i++
+					continue
+				}
+
+				// 检查是否是空白终止帧
+				if t == 3 {
+					//fmt.Println(de, "检测到空白终止帧")
+
+					// 检查是否没有找到起始帧
+					if !isRecord {
+						isRecord = true
+					}
+
+					for {
+						isRecord = false
+						//fmt.Println(de, "本轮检测到", len(recordData), "帧数据")
+						if len(recordData) == 0 {
+							// 没有检查到数据，直接退出即可
+							fmt.Println(de, "检测到空白终止帧，但是没有检测到存储有帧数据，跳过操作")
+							break
+						}
+						// 对数据进行排序等操作
+						sortShards := ProcessSlices(recordData, GValue)
+						// 删除记录数据
+						recordData = make([][]byte, 0)
+						var dataShards [][]byte
+						// 检查整理后的长度是否为预期长度且nil元素数量小于等于1
+						if len(sortShards) == GValue && countNilElements(sortShards) <= 1 {
+							// 修改 sortShards 的空白数据为 nil
+							for oiu := range sortShards {
+								if len(sortShards[oiu]) >= 4 {
+									continue
+								}
+								sortShards[oiu] = nil
+							}
+							// 删除索引，复制数据到新切片
+							dataShards = MakeMax2ByteSlice(ExtractForwardElements(sortShards, 4), videoHeight*videoWidth/8-4, GValue)
+							// 数据将开始重建
+							ok, err := enc.Verify(dataShards)
+							if !ok {
+								fmt.Println(de, "检测到数据出现损坏，开始重建数据")
+								//fmt.Println("输出一些详细的信息供参考：")
+								//fmt.Println("数据帧数量:", len(sortShards))
+								//fmt.Println("数据帧长度:", len(sortShards[0]))
+								//for oiu := range sortShards {
+								//	if len(sortShards[oiu]) >= 4 {
+								//		fmt.Println("数据帧索引", oiu, ":", sortShards[oiu][:4])
+								//		if oiu == 0 {
+								//			fmt.Println(sortShards[oiu])
+								//		}
+								//		continue
+								//	}
+								//	sortShards[oiu] = nil
+								//	fmt.Println("数据帧索引(u)", oiu, ":", sortShards[oiu])
+								//}
+								for {
+									err = enc.Reconstruct(dataShards)
+									if err != nil {
+										fmt.Println("数据重建失败 -", err)
+										break
+									}
+									ok, err = enc.Verify(dataShards)
+									if !ok {
+										fmt.Println("数据重建失败并且已经损坏")
+										break
+									}
+									if err != nil {
+										fmt.Println("数据重建失败并且已经损坏 -", err)
+										break
+									}
+									fmt.Println(de, "数据重建成功")
+									break
+								}
+							}
+						} else {
+							// 数据出现无法修复的错误
+							fmt.Println("警告：数据出现无法修复的错误，停止输出数据到分片文件")
+							return
+						}
+
+						dataOrigin := dataShards[:len(dataShards)-1]
+						// 写入到文件
+						for _, dataW := range dataOrigin {
+							_, err := outputFile.Write(dataW)
+							if err != nil {
+								fmt.Println(de, "写入文件失败:", err)
+								break
+							}
+						}
+						break
+					}
+
+					i++
+					continue
+				}
+
+				// 直接向 recordData 添加数据帧
+				recordData = append(recordData, data)
+				allDataNum++
+				i++
+
 				bar.SetCurrent(int64(i + 1))
 				if i%30000 == 0 {
 					fmt.Printf("\nDecode: 写入帧 %d 总帧 %d\n", i, frameCount)
 				}
-				img := RawDataToImage(rawData, videoWidth, videoHeight)
-				data := Image2Data(img)
-				if data == nil {
-					i++
-					continue
-				}
-				_, err = outputFile.Write(data)
-				if err != nil {
-					fmt.Println(de, "写入文件失败:", err)
-					break
-				}
-				i++
 			}
 			bar.Finish()
+
 			err = FFmpegStdout.Close()
 			if err != nil {
 				fmt.Println(de, "无法关闭 FFmpeg 标准输出管道:", err)
@@ -1180,12 +1568,16 @@ func Add() {
 		defaultK = addKLevel
 	}
 
-	// 设置 BiliMode
-	biliMode := true
-	fmt.Println(add, "是否启用 BiliMode? [Y/n] (B站转码器处理视频会删除一些数据帧，开启此选项后将插入空白帧以避免删除数据帧)")
-	result := GetUserInput("")
-	if result == "n" || result == "N" {
-		biliMode = false
+	// 设置G的值
+	fmt.Println(add, "请输入 G 的值(0<=G<=256)，G 为帧数据的切片数量。默认：\""+strconv.Itoa(defaultFrameShards)+"\"")
+	gValue, err := strconv.Atoi(GetUserInput(""))
+	if err != nil {
+		fmt.Println(add, "自动设置 G = "+strconv.Itoa(defaultFrameShards))
+		gValue = defaultFrameShards
+	}
+	if gValue == 0 {
+		fmt.Println(add, "错误: G 的值不能为 0，自动设置 G = "+strconv.Itoa(defaultFrameShards))
+		gValue = defaultFrameShards
 	}
 
 	for ai, filePath := range filePathList {
@@ -1253,7 +1645,7 @@ func Add() {
 		fmt.Println(add, ".fec 文件生成完成，耗时:", zfecDuration)
 
 		fmt.Println(add, "开始进行编码")
-		segmentLength := Encode(defaultOutputDir, encodeVideoSizeLevel, encodeOutputFPSLevel, encodeMaxSecondsLevel, encodeFFmpegModeLevel, biliMode, true)
+		segmentLength := Encode(defaultOutputDir, encodeVideoSizeLevel, encodeOutputFPSLevel, encodeMaxSecondsLevel, gValue, encodeFFmpegModeLevel, true)
 
 		fmt.Println(add, "编码完成，开始生成配置")
 		fecFileConfig := FecFileConfig{
@@ -1262,6 +1654,7 @@ func Add() {
 			Hash:          CalculateFileHash(filePath, defaultHashLength),
 			M:             defaultM,
 			K:             defaultK,
+			G:             gValue,
 			Length:        fileSize,
 			SegmentLength: segmentLength,
 			FecHashList:   fecHashList,
@@ -1398,7 +1791,7 @@ func Get() {
 		}
 
 		fmt.Println(get, "开始解码")
-		Decode(fileDir, fecFileConfig.SegmentLength, fileDictList)
+		Decode(fileDir, fecFileConfig.SegmentLength, fileDictList, fecFileConfig.G)
 		fmt.Println(get, "解码完成")
 
 		// 查找生成的 .fec 文件
@@ -1554,11 +1947,11 @@ func AutoRun() {
 			break
 		} else if input == "3" {
 			clearScreen()
-			Encode("", encodeVideoSizeLevel, encodeOutputFPSLevel, encodeMaxSecondsLevel, encodeFFmpegModeLevel, encodeBiliModeLevel, false)
+			Encode("", encodeVideoSizeLevel, encodeOutputFPSLevel, encodeMaxSecondsLevel, defaultFrameShards, encodeFFmpegModeLevel, false)
 			break
 		} else if input == "4" {
 			clearScreen()
-			Decode("", 0, nil)
+			Decode("", 0, nil, defaultFrameShards)
 			break
 		} else if input == "5" {
 			os.Exit(0)
@@ -1586,10 +1979,10 @@ func main() {
 		fmt.Fprintln(os.Stdout, " -p\tThe output video fps setting(default="+strconv.Itoa(encodeOutputFPSLevel)+"), 1-60")
 		fmt.Fprintln(os.Stdout, " -l\tThe output video max segment length(seconds) setting(default="+strconv.Itoa(encodeMaxSecondsLevel)+"), 1-10^9")
 		fmt.Fprintln(os.Stdout, " -m\tFFmpeg mode(default="+encodeFFmpegModeLevel+"): ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow, placebo")
-		fmt.Fprintln(os.Stdout, " -b\tBiliMode(default="+strconv.FormatBool(encodeBiliModeLevel)+"): true, false")
 		fmt.Fprintln(os.Stdout, "decode\tDecode a file")
 		fmt.Fprintln(os.Stdout, " Options:")
 		fmt.Fprintln(os.Stdout, " -i\tThe input file to decode")
+		fmt.Fprintln(os.Stdout, " -g\tThe output video frame shards(default="+strconv.Itoa(defaultFrameShards)+"), 2-256")
 		fmt.Fprintln(os.Stdout, "help\tShow this help")
 		flag.PrintDefaults()
 	}
@@ -1598,11 +1991,12 @@ func main() {
 	encodeQrcodeSize := encodeFlag.Int("s", encodeVideoSizeLevel, "The video size(default="+strconv.Itoa(encodeVideoSizeLevel)+"), 8-1024(must be a multiple of 8)")
 	encodeOutputFPS := encodeFlag.Int("p", encodeOutputFPSLevel, "The output video fps setting(default="+strconv.Itoa(encodeOutputFPSLevel)+"), 1-60")
 	encodeMaxSeconds := encodeFlag.Int("l", encodeMaxSecondsLevel, "The output video max segment length(seconds) setting(default="+strconv.Itoa(encodeMaxSecondsLevel)+"), 1-10^9")
+	encodeGValue := encodeFlag.Int("g", defaultFrameShards, "The output video frame shards(default="+strconv.Itoa(defaultFrameShards)+"), 2-256")
 	encodeFFmpegMode := encodeFlag.String("m", encodeFFmpegModeLevel, "FFmpeg mode(default="+encodeFFmpegModeLevel+"): ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow, placebo")
-	encodeBiliMode := encodeFlag.Bool("b", encodeBiliModeLevel, "BiliMode(default="+strconv.FormatBool(encodeBiliModeLevel)+"): true, false")
 
 	decodeFlag := flag.NewFlagSet("decode", flag.ExitOnError)
 	decodeInputDir := decodeFlag.String("i", "", "The input dir include video segments to decode")
+	decodeGValue := decodeFlag.Int("g", defaultFrameShards, "The output video frame shards(default="+strconv.Itoa(defaultFrameShards)+"), 2-256")
 
 	addFlag := flag.NewFlagSet("add", flag.ExitOnError)
 
@@ -1634,14 +2028,14 @@ func main() {
 			fmt.Println(en, "参数解析错误")
 			return
 		}
-		Encode(*encodeInput, *encodeQrcodeSize, *encodeOutputFPS, *encodeMaxSeconds, *encodeFFmpegMode, *encodeBiliMode, false)
+		Encode(*encodeInput, *encodeQrcodeSize, *encodeOutputFPS, *encodeMaxSeconds, *encodeGValue, *encodeFFmpegMode, false)
 	case "decode":
 		err := decodeFlag.Parse(os.Args[2:])
 		if err != nil {
 			fmt.Println(de, "参数解析错误")
 			return
 		}
-		Decode(*decodeInputDir, 0, nil)
+		Decode(*decodeInputDir, 0, nil, *decodeGValue)
 	case "help":
 		flag.Usage()
 		return
