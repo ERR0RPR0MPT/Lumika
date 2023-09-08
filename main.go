@@ -37,7 +37,7 @@ const (
 	addMLevel             = 100
 	addKLevel             = 90
 	addGLevel             = 10
-	encodeVideoSizeLevel  = 40
+	encodeVideoSizeLevel  = 32
 	encodeOutputFPSLevel  = 24
 	encodeMaxSecondsLevel = 86400
 	encodeFFmpegModeLevel = "medium"
@@ -1302,6 +1302,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, GVa
 							} else {
 								// 数据出现无法修复的错误
 								fmt.Println("警告：数据出现无法修复的错误，停止输出数据到分片文件")
+								bar.Finish()
 								return
 							}
 
