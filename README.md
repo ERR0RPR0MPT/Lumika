@@ -71,7 +71,7 @@ apt install ffmpeg
 ## 高级用法
 
 ```
-Usage: C:\Users\Weclont\Desktop\lumika\lumika_windows_amd64.exe [command] [options]
+Usage: ./lumika.exe [command] [options]
 Double-click to run: Start via automatic mode
 
 Commands:
@@ -84,11 +84,12 @@ encode  Encode a file
  -i     The input fec file to encode
  -s     The video size(default=32), 8-1024(must be a multiple of 8)
  -p     The output video fps setting(default=24), 1-60
- -l     The output video max segment length(seconds) setting(default=35990), 1-10^9
+ -l     The output video max segment length(seconds) setting(default=86400), 1-10^9
  -m     FFmpeg mode(default=medium): ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow, placebo
 decode  Decode a file
  Options:
  -i     The input file to decode
+ -g     The output video frame shards(default=10), 2-256
 help    Show this help
 ```
 
