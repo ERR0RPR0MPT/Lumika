@@ -36,7 +36,8 @@ const (
 	ar                    = "AutoRun:"
 	addMLevel             = 100
 	addKLevel             = 90
-	encodeVideoSizeLevel  = 32
+	addGLevel             = 10
+	encodeVideoSizeLevel  = 40
 	encodeOutputFPSLevel  = 24
 	encodeMaxSecondsLevel = 86400
 	encodeFFmpegModeLevel = "medium"
@@ -45,7 +46,6 @@ const (
 	defaultBlankByte      = 85
 	defaultBlankStartByte = 86
 	defaultBlankEndByte   = 87
-	defaultFrameShards    = 10
 	defaultDeleteFecFiles = true
 )
 
@@ -1569,15 +1569,15 @@ func Add() {
 	}
 
 	// 设置G的值
-	fmt.Println(add, "请输入 G 的值(0<=G<=256)，G 为帧数据的切片数量。默认：\""+strconv.Itoa(defaultFrameShards)+"\"")
+	fmt.Println(add, "请输入 G 的值(0<=G<=256)，G 为帧数据的切片数量。默认：\""+strconv.Itoa(addGLevel)+"\"")
 	gValue, err := strconv.Atoi(GetUserInput(""))
 	if err != nil {
-		fmt.Println(add, "自动设置 G = "+strconv.Itoa(defaultFrameShards))
-		gValue = defaultFrameShards
+		fmt.Println(add, "自动设置 G = "+strconv.Itoa(addGLevel))
+		gValue = addGLevel
 	}
 	if gValue == 0 {
-		fmt.Println(add, "错误: G 的值不能为 0，自动设置 G = "+strconv.Itoa(defaultFrameShards))
-		gValue = defaultFrameShards
+		fmt.Println(add, "错误: G 的值不能为 0，自动设置 G = "+strconv.Itoa(addGLevel))
+		gValue = addGLevel
 	}
 
 	// 设置默认的分辨率大小
@@ -1991,11 +1991,11 @@ func AutoRun() {
 			break
 		} else if input == "3" {
 			clearScreen()
-			Encode("", encodeVideoSizeLevel, encodeOutputFPSLevel, encodeMaxSecondsLevel, defaultFrameShards, encodeFFmpegModeLevel, false)
+			Encode("", encodeVideoSizeLevel, encodeOutputFPSLevel, encodeMaxSecondsLevel, addGLevel, encodeFFmpegModeLevel, false)
 			break
 		} else if input == "4" {
 			clearScreen()
-			Decode("", 0, nil, defaultFrameShards)
+			Decode("", 0, nil, addGLevel)
 			break
 		} else if input == "5" {
 			os.Exit(0)
@@ -2026,7 +2026,7 @@ func main() {
 		fmt.Fprintln(os.Stdout, "decode\tDecode a file")
 		fmt.Fprintln(os.Stdout, " Options:")
 		fmt.Fprintln(os.Stdout, " -i\tThe input file to decode")
-		fmt.Fprintln(os.Stdout, " -g\tThe output video frame shards(default="+strconv.Itoa(defaultFrameShards)+"), 2-256")
+		fmt.Fprintln(os.Stdout, " -g\tThe output video frame shards(default="+strconv.Itoa(addGLevel)+"), 2-256")
 		fmt.Fprintln(os.Stdout, "help\tShow this help")
 		flag.PrintDefaults()
 	}
@@ -2035,12 +2035,12 @@ func main() {
 	encodeQrcodeSize := encodeFlag.Int("s", encodeVideoSizeLevel, "The video size(default="+strconv.Itoa(encodeVideoSizeLevel)+"), 8-1024(must be a multiple of 8)")
 	encodeOutputFPS := encodeFlag.Int("p", encodeOutputFPSLevel, "The output video fps setting(default="+strconv.Itoa(encodeOutputFPSLevel)+"), 1-60")
 	encodeMaxSeconds := encodeFlag.Int("l", encodeMaxSecondsLevel, "The output video max segment length(seconds) setting(default="+strconv.Itoa(encodeMaxSecondsLevel)+"), 1-10^9")
-	encodeGValue := encodeFlag.Int("g", defaultFrameShards, "The output video frame shards(default="+strconv.Itoa(defaultFrameShards)+"), 2-256")
+	encodeGValue := encodeFlag.Int("g", addGLevel, "The output video frame shards(default="+strconv.Itoa(addGLevel)+"), 2-256")
 	encodeFFmpegMode := encodeFlag.String("m", encodeFFmpegModeLevel, "FFmpeg mode(default="+encodeFFmpegModeLevel+"): ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow, placebo")
 
 	decodeFlag := flag.NewFlagSet("decode", flag.ExitOnError)
 	decodeInputDir := decodeFlag.String("i", "", "The input dir include video segments to decode")
-	decodeGValue := decodeFlag.Int("g", defaultFrameShards, "The output video frame shards(default="+strconv.Itoa(defaultFrameShards)+"), 2-256")
+	decodeGValue := decodeFlag.Int("g", addGLevel, "The output video frame shards(default="+strconv.Itoa(addGLevel)+"), 2-256")
 
 	addFlag := flag.NewFlagSet("add", flag.ExitOnError)
 
