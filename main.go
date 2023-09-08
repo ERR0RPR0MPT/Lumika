@@ -1580,6 +1580,50 @@ func Add() {
 		gValue = defaultFrameShards
 	}
 
+	// 设置默认的分辨率大小
+	fmt.Println(add, "请输入分辨率大小，例如输入32则分辨率为32x32。默认：\""+strconv.Itoa(encodeVideoSizeLevel)+"\"")
+	videoSize, err := strconv.Atoi(GetUserInput(""))
+	if err != nil {
+		fmt.Println(add, "自动设置分辨率大小为", encodeVideoSizeLevel)
+		videoSize = encodeVideoSizeLevel
+	}
+	if videoSize <= 0 {
+		fmt.Println(add, "错误: 分辨率大小不能小于等于 0，自动设置分辨率大小为", encodeVideoSizeLevel)
+		videoSize = encodeVideoSizeLevel
+	}
+
+	// 设置默认的帧率大小
+	fmt.Println(add, "请输入帧率大小。默认：\""+strconv.Itoa(encodeOutputFPSLevel)+"\"")
+	outputFPS, err := strconv.Atoi(GetUserInput(""))
+	if err != nil {
+		fmt.Println(add, "自动设置帧率大小为", encodeOutputFPSLevel)
+		outputFPS = encodeOutputFPSLevel
+	}
+	if outputFPS <= 0 {
+		fmt.Println(add, "错误: 帧率大小不能小于等于 0，自动设置帧率大小为", encodeOutputFPSLevel)
+		outputFPS = encodeOutputFPSLevel
+	}
+
+	// 设置默认最大生成的视频长度限制
+	fmt.Println(add, "请输入最大生成的视频长度限制(单位:秒)，默认：\""+strconv.Itoa(encodeMaxSecondsLevel)+"\"")
+	encodeMaxSeconds, err := strconv.Atoi(GetUserInput(""))
+	if err != nil {
+		fmt.Println(add, "自动设置最大生成的视频长度限制为", encodeMaxSecondsLevel, "秒")
+		encodeMaxSeconds = encodeMaxSecondsLevel
+	}
+	if encodeMaxSeconds <= 0 {
+		fmt.Println(add, "错误: 最大生成的视频长度限制不能小于等于 0，自动设置最大生成的视频长度限制为", encodeMaxSecondsLevel)
+		encodeMaxSeconds = encodeMaxSecondsLevel
+	}
+
+	// 设置默认使用的 FFmpeg 预设模式
+	fmt.Println(add, "请输入使用的 FFmpeg 预设模式，例如：\"ultrafast\"。默认：\""+encodeFFmpegModeLevel+"\"")
+	encodeFFmpegMode := GetUserInput("")
+	if encodeFFmpegMode == "" {
+		fmt.Println(add, "自动设置使用的 FFmpeg 预设模式为", encodeFFmpegModeLevel)
+		encodeFFmpegMode = encodeFFmpegModeLevel
+	}
+
 	for ai, filePath := range filePathList {
 		fmt.Println(add, "开始编码第"+strconv.Itoa(ai)+"个文件:", filePath)
 		// 设置默认文件名
@@ -1645,7 +1689,7 @@ func Add() {
 		fmt.Println(add, ".fec 文件生成完成，耗时:", zfecDuration)
 
 		fmt.Println(add, "开始进行编码")
-		segmentLength := Encode(defaultOutputDir, encodeVideoSizeLevel, encodeOutputFPSLevel, encodeMaxSecondsLevel, gValue, encodeFFmpegModeLevel, true)
+		segmentLength := Encode(defaultOutputDir, videoSize, outputFPS, encodeMaxSeconds, gValue, encodeFFmpegMode, true)
 
 		fmt.Println(add, "编码完成，开始生成配置")
 		fecFileConfig := FecFileConfig{
