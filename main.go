@@ -535,7 +535,7 @@ func SearchFileNameInDir(directory, filename string) string {
 	return ""
 }
 
-func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValue int, KGValue int, encodeFFmpegMode string, auto bool) (segmentLength int64) {
+func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValue int, KGValue int, encodeThread int, encodeFFmpegMode string, auto bool) (segmentLength int64) {
 	ep, err := os.Executable()
 	if err != nil {
 		fmt.Println(get, "无法获取运行目录:", err)
@@ -612,7 +612,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 
 	// 启动多个goroutine
 	var wg sync.WaitGroup
-	maxGoroutines := runtime.NumCPU() // 最大同时运行的协程数量
+	maxGoroutines := encodeThread // 最大同时运行的协程数量
 	semaphore := make(chan struct{}, maxGoroutines)
 	allStartTime := time.Now()
 
@@ -1016,7 +1016,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 	return segmentLength
 }
 
-func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGValue int, KGValue int) {
+func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGValue int, KGValue int, decodeThread int) {
 	ep, err := os.Executable()
 	if err != nil {
 		fmt.Println(get, "无法获取运行目录:", err)
@@ -1085,7 +1085,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 	}
 
 	var wg sync.WaitGroup
-	maxGoroutines := runtime.NumCPU() // 最大同时运行的协程数量
+	maxGoroutines := decodeThread // 最大同时运行的协程数量
 	semaphore := make(chan struct{}, maxGoroutines)
 
 	// 遍历解码所有文件
@@ -1541,10 +1541,6 @@ func Add() {
 		}
 	}
 
-	// 设置默认的摘要
-	fmt.Println(add, "请输入摘要，可以作为文件内容的简介。例如：\"这是一个相册的压缩包\"")
-	defaultSummary := GetUserInput("")
-
 	// 设置M的值
 	fmt.Println(add, "请输入 M 的值(0<=M<=256)，M 为最终生成的切片文件数量。默认：\""+strconv.Itoa(addMLevel)+"\"")
 	defaultM, err := strconv.Atoi(GetUserInput(""))
@@ -1637,6 +1633,22 @@ func Add() {
 		encodeFFmpegMode = encodeFFmpegModeLevel
 	}
 
+	// 设置处理使用的线程数量
+	fmt.Println(add, "请输入处理使用的线程数量。默认(CPU核心数量)：\""+strconv.Itoa(runtime.NumCPU())+"\"")
+	encodeThread, err := strconv.Atoi(GetUserInput(""))
+	if err != nil {
+		fmt.Println(add, "自动设置处理使用的线程数量为", runtime.NumCPU())
+		encodeThread = runtime.NumCPU()
+	}
+	if encodeThread <= 0 {
+		fmt.Println(add, "错误: 处理使用的线程数量不能小于等于 0，自动设置处理使用的线程数量为", runtime.NumCPU())
+		encodeThread = runtime.NumCPU()
+	}
+
+	// 设置默认的摘要
+	fmt.Println(add, "请输入摘要，可以作为文件内容的简介。例如：\"这是一个相册的压缩包\"")
+	defaultSummary := GetUserInput("")
+
 	for ai, filePath := range filePathList {
 		fmt.Println(add, "开始编码第"+strconv.Itoa(ai)+"个文件:", filePath)
 		// 设置默认文件名
@@ -1702,7 +1714,7 @@ func Add() {
 		fmt.Println(add, ".fec 文件生成完成，耗时:", zfecDuration)
 
 		fmt.Println(add, "开始进行编码")
-		segmentLength := Encode(defaultOutputDir, videoSize, outputFPS, encodeMaxSeconds, MGValue, KGValue, encodeFFmpegMode, true)
+		segmentLength := Encode(defaultOutputDir, videoSize, outputFPS, encodeMaxSeconds, MGValue, KGValue, encodeThread, encodeFFmpegMode, true)
 
 		fmt.Println(add, "编码完成，开始生成配置")
 		fecFileConfig := FecFileConfig{
@@ -1797,6 +1809,18 @@ func Get() {
 		}
 	}
 
+	// 设置处理使用的线程数量
+	fmt.Println(add, "请输入处理使用的线程数量。默认(CPU核心数量)：\""+strconv.Itoa(runtime.NumCPU())+"\"")
+	decodeThread, err := strconv.Atoi(GetUserInput(""))
+	if err != nil {
+		fmt.Println(add, "自动设置处理使用的线程数量为", runtime.NumCPU())
+		decodeThread = runtime.NumCPU()
+	}
+	if decodeThread <= 0 {
+		fmt.Println(add, "错误: 处理使用的线程数量不能小于等于 0，自动设置处理使用的线程数量为", runtime.NumCPU())
+		decodeThread = runtime.NumCPU()
+	}
+
 	// 遍历每一个子目录并运行
 	for _, fileDir := range fecDirList {
 		// 搜索子目录的 Base64 配置文件
@@ -1849,7 +1873,7 @@ func Get() {
 		}
 
 		fmt.Println(get, "开始解码")
-		Decode(fileDir, fecFileConfig.SegmentLength, fileDictList, fecFileConfig.MG, fecFileConfig.KG)
+		Decode(fileDir, fecFileConfig.SegmentLength, fileDictList, fecFileConfig.MG, fecFileConfig.KG, decodeThread)
 		fmt.Println(get, "解码完成")
 
 		// 查找生成的 .fec 文件
@@ -2005,11 +2029,11 @@ func AutoRun() {
 			break
 		} else if input == "3" {
 			clearScreen()
-			Encode("", encodeVideoSizeLevel, encodeOutputFPSLevel, encodeMaxSecondsLevel, addMGLevel, addKGLevel, encodeFFmpegModeLevel, false)
+			Encode("", encodeVideoSizeLevel, encodeOutputFPSLevel, encodeMaxSecondsLevel, addMGLevel, addKGLevel, runtime.NumCPU(), encodeFFmpegModeLevel, false)
 			break
 		} else if input == "4" {
 			clearScreen()
-			Decode("", 0, nil, addMGLevel, addKGLevel)
+			Decode("", 0, nil, addMGLevel, addKGLevel, runtime.NumCPU())
 			break
 		} else if input == "5" {
 			os.Exit(0)
@@ -2054,12 +2078,14 @@ func main() {
 	encodeMaxSeconds := encodeFlag.Int("l", encodeMaxSecondsLevel, "The output video max segment length(seconds) setting(default="+strconv.Itoa(encodeMaxSecondsLevel)+"), 1-10^9")
 	encodeMGValue := encodeFlag.Int("g", addMGLevel, "The output video frame all shards(default="+strconv.Itoa(addMGLevel)+"), 2-256")
 	encodeKGValue := encodeFlag.Int("k", addKGLevel, "The output video frame data shards(default="+strconv.Itoa(addKGLevel)+"), 2-256")
+	encodeThread := encodeFlag.Int("t", runtime.NumCPU(), "Set Runtime Go routines number to process the task(default="+strconv.Itoa(runtime.NumCPU())+"), 1-128")
 	encodeFFmpegMode := encodeFlag.String("m", encodeFFmpegModeLevel, "FFmpeg mode(default="+encodeFFmpegModeLevel+"): ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow, placebo")
 
 	decodeFlag := flag.NewFlagSet("decode", flag.ExitOnError)
 	decodeInputDir := decodeFlag.String("i", "", "The input dir include video segments to decode")
 	decodeMGValue := decodeFlag.Int("m", addMGLevel, "The output video frame all shards(default="+strconv.Itoa(addMGLevel)+"), 2-256")
 	decodeKGValue := decodeFlag.Int("k", addKGLevel, "The output video frame data shards(default="+strconv.Itoa(addKGLevel)+"), 2-256")
+	decodeThread := decodeFlag.Int("t", runtime.NumCPU(), "Set Runtime Go routines number to process the task(default="+strconv.Itoa(runtime.NumCPU())+"), 1-128")
 
 	addFlag := flag.NewFlagSet("add", flag.ExitOnError)
 
@@ -2091,14 +2117,14 @@ func main() {
 			fmt.Println(en, "参数解析错误")
 			return
 		}
-		Encode(*encodeInput, *encodeQrcodeSize, *encodeOutputFPS, *encodeMaxSeconds, *encodeMGValue, *encodeKGValue, *encodeFFmpegMode, false)
+		Encode(*encodeInput, *encodeQrcodeSize, *encodeOutputFPS, *encodeMaxSeconds, *encodeMGValue, *encodeKGValue, *encodeThread, *encodeFFmpegMode, false)
 	case "decode":
 		err := decodeFlag.Parse(os.Args[2:])
 		if err != nil {
 			fmt.Println(de, "参数解析错误")
 			return
 		}
-		Decode(*decodeInputDir, 0, nil, *decodeMGValue, *decodeKGValue)
+		Decode(*decodeInputDir, 0, nil, *decodeMGValue, *decodeKGValue, *decodeThread)
 	case "help":
 		flag.Usage()
 		return
