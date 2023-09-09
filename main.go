@@ -34,6 +34,7 @@ const (
 	add                   = "Add:"
 	get                   = "Get:"
 	ar                    = "AutoRun:"
+	er                    = "Error:"
 	addMLevel             = 100
 	addKLevel             = 90
 	addMGLevel            = 10
@@ -206,15 +207,15 @@ func DeleteFecFiles(fileDir string) {
 	if defaultDeleteFecFiles {
 		fileDict, err := GenerateFileDxDictionary(fileDir, ".fec")
 		if err != nil {
-			fmt.Println("DeleteFecFiles: 无法生成文件列表:", err)
+			fmt.Println("DeleteFecFiles:", er, "无法生成文件列表:", err)
 			return
 		}
 		if len(fileDict) != 0 {
-			fmt.Println("DeleteFecFiles: 删除临时文件")
+			fmt.Println("DeleteFecFiles:", er, "删除临时文件")
 			for _, filePath := range fileDict {
 				err = os.Remove(filePath)
 				if err != nil {
-					fmt.Println("DeleteFecFiles: 删除文件失败:", err)
+					fmt.Println("DeleteFecFiles:", er, "删除文件失败:", err)
 					return
 				}
 			}
@@ -321,7 +322,7 @@ func Data2Image(data []byte, size int) image.Image {
 		padding := make([]byte, paddingLength)
 		data = append(data, padding...)
 	} else if len(data) > maxDataLength {
-		fmt.Println("Data2Image: 警告: 数据过长，将进行截断")
+		fmt.Println("Data2Image:", er, "警告: 数据过长，将进行截断")
 		data = data[:maxDataLength]
 	}
 	// 创建新的RGBA图像对象
@@ -415,7 +416,7 @@ func GetUserInput(s string) string {
 	fmt.Print(s)
 	input, err := reader.ReadString('\n')
 	if err != nil {
-		fmt.Println("GetUserInput: 获取用户输入失败:", err)
+		fmt.Println("GetUserInput:", er, "获取用户输入失败:", err)
 		return ""
 	}
 	return strings.TrimSpace(input)
@@ -510,7 +511,7 @@ func GetSubDirectories(path string) ([]string, error) {
 func IsFileExistsInDir(directory, filename string) bool {
 	files, err := os.ReadDir(directory)
 	if err != nil {
-		fmt.Println("IsFileExistsInDir: 无法读取目录:", err)
+		fmt.Println("IsFileExistsInDir:", er, "无法读取目录:", err)
 		return false
 	}
 	for _, file := range files {
@@ -524,7 +525,7 @@ func IsFileExistsInDir(directory, filename string) bool {
 func SearchFileNameInDir(directory, filename string) string {
 	files, err := os.ReadDir(directory)
 	if err != nil {
-		fmt.Println("SearchFileNameInDir: 无法读取目录:", err)
+		fmt.Println("SearchFileNameInDir:", er, "无法读取目录:", err)
 		return ""
 	}
 	for _, file := range files {
@@ -538,13 +539,13 @@ func SearchFileNameInDir(directory, filename string) string {
 func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValue int, KGValue int, encodeThread int, encodeFFmpegMode string, auto bool) (segmentLength int64) {
 	ep, err := os.Executable()
 	if err != nil {
-		fmt.Println(get, "无法获取运行目录:", err)
+		fmt.Println(en, er, "无法获取运行目录:", err)
 		return
 	}
 	epPath := filepath.Dir(ep)
 
 	if videoSize%8 != 0 {
-		fmt.Println(en, "视频大小必须是8的倍数")
+		fmt.Println(en, er, "视频大小必须是8的倍数")
 		return 0
 	}
 
@@ -553,7 +554,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 		fmt.Println(en, "自动使用程序所在目录作为输入目录")
 		fd, err := os.Executable()
 		if err != nil {
-			fmt.Println(en, "获取程序所在目录失败:", err)
+			fmt.Println(en, er, "获取程序所在目录失败:", err)
 			return 0
 		}
 		fileDir = filepath.Dir(fd)
@@ -561,7 +562,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 
 	// 检查输入文件夹是否存在
 	if _, err := os.Stat(fileDir); os.IsNotExist(err) {
-		fmt.Println(en, "输入文件夹不存在:", err)
+		fmt.Println(en, er, "输入文件夹不存在:", err)
 		return 0
 	}
 
@@ -569,13 +570,13 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 
 	fileDict, err := GenerateFileDxDictionary(fileDir, ".fec")
 	if err != nil {
-		fmt.Println(en, "无法生成文件列表:", err)
+		fmt.Println(en, er, "无法生成文件列表:", err)
 		return 0
 	}
 	filePathList := make([]string, 0)
 	for {
 		if len(fileDict) == 0 {
-			fmt.Println(en, "当前目录下没有.fec文件，请将需要编码的文件放到当前目录下")
+			fmt.Println(en, er, "当前目录下没有.fec文件，请将需要编码的文件放到当前目录下")
 			return 0
 		}
 		fmt.Println(en, "请选择需要编码的.fec文件，输入索引并回车来选择")
@@ -598,11 +599,11 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 		} else {
 			index, err := strconv.Atoi(result)
 			if err != nil {
-				fmt.Println(en, "输入索引不是数字，请重新输入")
+				fmt.Println(en, er, "输入索引不是数字，请重新输入")
 				continue
 			}
 			if index < 0 || index >= len(fileDict) {
-				fmt.Println(en, "输入索引超出范围，请重新输入")
+				fmt.Println(en, er, "输入索引超出范围，请重新输入")
 				continue
 			}
 			filePathList = append(filePathList, fileDict[index])
@@ -630,7 +631,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 			// 读取文件
 			fileData, err := os.ReadFile(filePath)
 			if err != nil {
-				fmt.Println(en, "无法打开文件:", err)
+				fmt.Println(en, er, "无法打开文件:", err)
 				return
 			}
 
@@ -642,8 +643,8 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 
 			// 检查时长是否超过限制
 			if allSeconds > maxSeconds {
-				fmt.Println(en, "警告：生成的段视频时长超过限制("+strconv.Itoa(allSeconds)+"s>"+strconv.Itoa(maxSeconds)+"s)")
-				fmt.Println(en, "请调整M值、K值、输出帧率、最大生成时长来满足要求")
+				fmt.Println(en, er, "警告：生成的段视频时长超过限制("+strconv.Itoa(allSeconds)+"s>"+strconv.Itoa(maxSeconds)+"s)")
+				fmt.Println(en, er, "请调整M值、K值、输出帧率、最大生成时长来满足要求")
 				GetUserInput("请按回车键继续...")
 				os.Exit(0)
 			}
@@ -691,12 +692,12 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 			FFmpegProcess := exec.Command(FFmpegPath, FFmpegCmd...)
 			stdin, err := FFmpegProcess.StdinPipe()
 			if err != nil {
-				fmt.Println(en, "无法创建 FFmpeg 的标准输入管道:", err)
+				fmt.Println(en, er, "无法创建 FFmpeg 的标准输入管道:", err)
 				return
 			}
 			err = FFmpegProcess.Start()
 			if err != nil {
-				fmt.Println(en, "无法启动 FFmpeg 子进程:", err)
+				fmt.Println(en, er, "无法启动 FFmpeg 子进程:", err)
 				return
 			}
 
@@ -734,7 +735,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 			}
 			enc, err := reedsolomon.New(KGValue, MGValue-KGValue)
 			if err != nil {
-				fmt.Println(en, "无法创建RS编码器:", err)
+				fmt.Println(en, er, "无法创建RS编码器:", err)
 				return
 			}
 
@@ -750,7 +751,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 				imageData := imageBuffer.Bytes()
 				_, err = stdin.Write(imageData)
 				if err != nil {
-					fmt.Println(en, "无法写入帧数据到 FFmpeg:", err)
+					fmt.Println(en, er, "无法写入帧数据到 FFmpeg:", err)
 					return
 				}
 				imageBuffer = nil
@@ -784,7 +785,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 						// 创建冗余数据
 						err = enc.Encode(shards)
 						if err != nil {
-							fmt.Println(en, "无法创建冗余数据:", err)
+							fmt.Println(en, er, "无法创建冗余数据:", err)
 							//fmt.Println(len(shards))
 							return
 						}
@@ -815,7 +816,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 						imageData := imageBuffer.Bytes()
 						_, err = stdin.Write(imageData)
 						if err != nil {
-							fmt.Println(en, "无法写入帧数据到 FFmpeg:", err)
+							fmt.Println(en, er, "无法写入帧数据到 FFmpeg:", err)
 							return
 						}
 						imageBuffer = nil
@@ -832,7 +833,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 							imageData := imageBuffer.Bytes()
 							_, err = stdin.Write(imageData)
 							if err != nil {
-								fmt.Println(en, "无法写入帧数据到 FFmpeg:", err)
+								fmt.Println(en, er, "无法写入帧数据到 FFmpeg:", err)
 								return
 							}
 							imageBuffer = nil
@@ -847,7 +848,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 						imageData = imageBuffer.Bytes()
 						_, err = stdin.Write(imageData)
 						if err != nil {
-							fmt.Println(en, "无法写入帧数据到 FFmpeg:", err)
+							fmt.Println(en, er, "无法写入帧数据到 FFmpeg:", err)
 							return
 						}
 						imageBuffer = nil
@@ -878,7 +879,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 					// 创建冗余数据
 					err = enc.Encode(shards)
 					if err != nil {
-						fmt.Println(en, "无法创建冗余数据:", err)
+						fmt.Println(en, er, "无法创建冗余数据:", err)
 						return
 					}
 					// 创建完整数据
@@ -908,7 +909,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 					imageData := imageBuffer.Bytes()
 					_, err = stdin.Write(imageData)
 					if err != nil {
-						fmt.Println(en, "无法写入帧数据到 FFmpeg:", err)
+						fmt.Println(en, er, "无法写入帧数据到 FFmpeg:", err)
 						return
 					}
 					imageBuffer = nil
@@ -925,7 +926,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 						imageData := imageBuffer.Bytes()
 						_, err = stdin.Write(imageData)
 						if err != nil {
-							fmt.Println(en, "无法写入帧数据到 FFmpeg:", err)
+							fmt.Println(en, er, "无法写入帧数据到 FFmpeg:", err)
 							return
 						}
 						imageBuffer = nil
@@ -940,7 +941,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 					imageData = imageBuffer.Bytes()
 					_, err = stdin.Write(imageData)
 					if err != nil {
-						fmt.Println(en, "无法写入帧数据到 FFmpeg:", err)
+						fmt.Println(en, er, "无法写入帧数据到 FFmpeg:", err)
 						return
 					}
 					imageBuffer = nil
@@ -971,7 +972,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 				imageData := imageBuffer.Bytes()
 				_, err = stdin.Write(imageData)
 				if err != nil {
-					fmt.Println(en, "无法写入帧数据到 FFmpeg:", err)
+					fmt.Println(en, er, "无法写入帧数据到 FFmpeg:", err)
 					return
 				}
 				imageBuffer = nil
@@ -983,11 +984,11 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 			// 关闭 FFmpeg 的标准输入管道，等待子进程完成
 			err = stdin.Close()
 			if err != nil {
-				fmt.Println(en, "无法关闭 FFmpeg 的标准输入管道:", err)
+				fmt.Println(en, er, "无法关闭 FFmpeg 的标准输入管道:", err)
 				return
 			}
 			if err := FFmpegProcess.Wait(); err != nil {
-				fmt.Println(en, "FFmpeg 子进程执行失败:", err)
+				fmt.Println(en, er, "FFmpeg 子进程执行失败:", err)
 				return
 			}
 
@@ -1019,7 +1020,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGValue int, KGValue int, decodeThread int) {
 	ep, err := os.Executable()
 	if err != nil {
-		fmt.Println(get, "无法获取运行目录:", err)
+		fmt.Println(de, er, "无法获取运行目录:", err)
 		return
 	}
 	epPath := filepath.Dir(ep)
@@ -1029,7 +1030,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 		fmt.Println(de, "自动使用程序所在目录作为输入目录")
 		fd, err := os.Executable()
 		if err != nil {
-			fmt.Println(de, "获取程序所在目录失败:", err)
+			fmt.Println(de, er, "获取程序所在目录失败:", err)
 			return
 		}
 		videoFileDir = filepath.Dir(fd)
@@ -1037,7 +1038,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 
 	// 检查输入文件夹是否存在
 	if _, err := os.Stat(videoFileDir); os.IsNotExist(err) {
-		fmt.Println(de, "输入文件夹不存在:", err)
+		fmt.Println(de, er, "输入文件夹不存在:", err)
 		return
 	}
 
@@ -1045,7 +1046,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 
 	fileDict, err := GenerateFileDxDictionary(videoFileDir, ".mp4")
 	if err != nil {
-		fmt.Println(de, "无法生成视频列表:", err)
+		fmt.Println(de, er, "无法生成视频列表:", err)
 		return
 	}
 
@@ -1053,7 +1054,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 		filePathList = make([]string, 0)
 		for {
 			if len(fileDict) == 0 {
-				fmt.Println(de, "当前目录下没有.mp4文件，请将需要解码的视频文件放到当前目录下")
+				fmt.Println(de, er, "当前目录下没有.mp4文件，请将需要解码的视频文件放到当前目录下")
 				return
 			}
 			fmt.Println(de, "请选择需要编码的.mp4文件，输入索引并回车来选择")
@@ -1071,11 +1072,11 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 			} else {
 				index, err := strconv.Atoi(result)
 				if err != nil {
-					fmt.Println(de, "输入索引不是数字，请重新输入")
+					fmt.Println(de, er, "输入索引不是数字，请重新输入")
 					continue
 				}
 				if index < 0 || index >= len(fileDict) {
-					fmt.Println(de, "输入索引超出范围，请重新输入")
+					fmt.Println(de, er, "输入索引超出范围，请重新输入")
 					continue
 				}
 				filePathList = append(filePathList, fileDict[index])
@@ -1083,6 +1084,9 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 			}
 		}
 	}
+
+	// 错误数据数量
+	errorDataNum := 0
 
 	var wg sync.WaitGroup
 	maxGoroutines := decodeThread // 最大同时运行的协程数量
@@ -1103,42 +1107,42 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 			// 检查是否有 FFprobe 在程序目录下
 			FFprobePath := SearchFileNameInDir(epPath, "ffprobe")
 			if FFprobePath == "" || FFprobePath != "" && !strings.Contains(filepath.Base(FFprobePath), "ffprobe") {
-				fmt.Println(en, "使用系统环境变量中的 FFprobe")
+				fmt.Println(de, "使用系统环境变量中的 FFprobe")
 				FFprobePath = "ffprobe"
 			} else {
-				fmt.Println(en, "使用找到 FFprobe 程序:", FFprobePath)
+				fmt.Println(de, "使用找到 FFprobe 程序:", FFprobePath)
 			}
 
 			cmd := exec.Command(FFprobePath, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", filePath)
 			output, err := cmd.Output()
 			if err != nil {
-				fmt.Println(de, "FFprobe 启动失败，请检查文件是否存在:", err)
+				fmt.Println(de, er, "FFprobe 启动失败，请检查文件是否存在:", err)
 				return
 			}
 			result := strings.Split(string(output), ",")
 			if len(result) != 2 {
-				fmt.Println(de, "无法读取视频宽高，请检查视频文件是否正确")
+				fmt.Println(de, er, "无法读取视频宽高，请检查视频文件是否正确")
 				return
 			}
 			videoWidth, err := strconv.Atoi(strings.TrimSpace(result[0]))
 			if err != nil {
-				fmt.Println(de, "无法读取视频宽高，请检查视频文件是否正确:", err)
+				fmt.Println(de, er, "无法读取视频宽高，请检查视频文件是否正确:", err)
 				return
 			}
 			videoHeight, err := strconv.Atoi(strings.TrimSpace(result[1]))
 			if err != nil {
-				fmt.Println(de, "无法读取视频宽高，请检查视频文件是否正确:", err)
+				fmt.Println(de, er, "无法读取视频宽高，请检查视频文件是否正确:", err)
 				return
 			}
 			cmd = exec.Command(FFprobePath, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=nb_frames", "-of", "default=nokey=1:noprint_wrappers=1", filePath)
 			output, err = cmd.Output()
 			if err != nil {
-				fmt.Println(de, "执行 FFprobe 命令时出错:", err)
+				fmt.Println(de, er, "执行 FFprobe 命令时出错:", err)
 				return
 			}
 			frameCount, err := strconv.Atoi(regexp.MustCompile(`\d+`).FindString(string(output)))
 			if err != nil {
-				fmt.Println(de, "解析视频帧数时出错:", err)
+				fmt.Println(de, er, "解析视频帧数时出错:", err)
 				return
 			}
 
@@ -1159,17 +1163,17 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 			fmt.Println(de, "创建输出文件:", outputFilePath)
 			outputFile, err := os.Create(outputFilePath)
 			if err != nil {
-				fmt.Println(de, "无法创建输出文件:", err)
+				fmt.Println(de, er, "无法创建输出文件:", err)
 				return
 			}
 
 			// 检查是否有 FFmpeg 在程序目录下
 			FFmpegPath := SearchFileNameInDir(epPath, "ffmpeg")
 			if FFmpegPath == "" || FFmpegPath != "" && !strings.Contains(filepath.Base(FFmpegPath), "ffmpeg") {
-				fmt.Println(en, "使用系统环境变量中的 FFmpeg")
+				fmt.Println(de, "使用系统环境变量中的 FFmpeg")
 				FFmpegPath = "ffmpeg"
 			} else {
-				fmt.Println(en, "使用找到 FFmpeg 程序:", FFmpegPath)
+				fmt.Println(de, "使用找到 FFmpeg 程序:", FFmpegPath)
 			}
 
 			FFmpegCmd := []string{
@@ -1183,12 +1187,12 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 			FFmpegProcess := exec.Command(FFmpegCmd[0], FFmpegCmd[1:]...)
 			FFmpegStdout, err := FFmpegProcess.StdoutPipe()
 			if err != nil {
-				fmt.Println(de, "无法创建 FFmpeg 标准输出管道:", err)
+				fmt.Println(de, er, "无法创建 FFmpeg 标准输出管道:", err)
 				return
 			}
 			err = FFmpegProcess.Start()
 			if err != nil {
-				fmt.Println(de, "无法启动 FFmpeg 进程:", err)
+				fmt.Println(de, er, "无法启动 FFmpeg 进程:", err)
 				return
 			}
 
@@ -1198,7 +1202,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 
 			enc, err := reedsolomon.New(KGValue, MGValue-KGValue)
 			if err != nil {
-				fmt.Println(de, "无法创建RS解码器:", err)
+				fmt.Println(de, er, "无法创建RS解码器:", err)
 				return
 			}
 
@@ -1243,7 +1247,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 							//fmt.Println(de, "本轮检测到", len(recordData), "帧数据")
 							if len(recordData) == 0 {
 								// 没有检查到数据，直接退出即可
-								fmt.Println(de, "检测到空白终止帧，但是没有检测到存储有帧数据，跳过操作")
+								fmt.Println(de, "检测到终止帧重复，跳过操作")
 								break
 							}
 							// 对数据进行排序等操作
@@ -1283,16 +1287,16 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 									for {
 										err = enc.Reconstruct(dataShards)
 										if err != nil {
-											fmt.Println("数据重建失败 -", err)
+											fmt.Println(de, er, "数据重建失败 -", err)
 											break
 										}
 										ok, err = enc.Verify(dataShards)
 										if !ok {
-											fmt.Println("数据重建失败并且已经损坏")
+											fmt.Println(de, er, "数据重建失败并且已经损坏")
 											break
 										}
 										if err != nil {
-											fmt.Println("数据重建失败并且已经损坏 -", err)
+											fmt.Println(de, er, "数据重建失败并且已经损坏 -", err)
 											break
 										}
 										fmt.Println(de, "数据重建成功")
@@ -1301,8 +1305,22 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 								}
 							} else {
 								// 数据出现无法修复的错误
-								fmt.Println("警告：数据出现无法修复的错误，停止输出数据到分片文件")
+								errorDataNum++
+								fmt.Println(de, er, "\n\n————————————————————————————————————————————")
+								fmt.Println(de, er, "警告：数据出现无法修复的错误，停止输出数据到分片文件")
+								fmt.Println(de, er, "当前无法恢复的切片文件数量:", errorDataNum)
+								fmt.Println(de, er, "最大可丢失的切片文件数量:", MGValue-KGValue)
+								fmt.Printf(de, er, "————————————————————————————————————————————\n\n")
 								bar.Finish()
+								if errorDataNum > MGValue-KGValue {
+									fmt.Println(de, er, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
+									return
+								}
+								return
+							}
+
+							if errorDataNum > MGValue-KGValue {
+								fmt.Println(de, er, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
 								return
 							}
 
@@ -1311,7 +1329,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 							for _, dataW := range dataOrigin {
 								_, err := outputFile.Write(dataW)
 								if err != nil {
-									fmt.Println(de, "写入文件失败:", err)
+									fmt.Println(de, er, "写入文件失败:", err)
 									break
 								}
 							}
@@ -1337,7 +1355,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 						//fmt.Println(de, "本轮检测到", len(recordData), "帧数据")
 						if len(recordData) == 0 {
 							// 没有检查到数据，直接退出即可
-							fmt.Println(de, "检测到空白终止帧，但是没有检测到存储有帧数据，跳过操作")
+							fmt.Println(de, "检测到终止帧重复，跳过操作")
 							break
 						}
 						// 对数据进行排序等操作
@@ -1377,16 +1395,16 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 								for {
 									err = enc.Reconstruct(dataShards)
 									if err != nil {
-										fmt.Println("数据重建失败 -", err)
+										fmt.Println(de, er, "数据重建失败 -", err)
 										break
 									}
 									ok, err = enc.Verify(dataShards)
 									if !ok {
-										fmt.Println("数据重建失败并且已经损坏")
+										fmt.Println(de, er, "数据重建失败并且已经损坏")
 										break
 									}
 									if err != nil {
-										fmt.Println("数据重建失败并且已经损坏 -", err)
+										fmt.Println(de, er, "数据重建失败并且已经损坏 -", err)
 										break
 									}
 									fmt.Println(de, "数据重建成功")
@@ -1395,7 +1413,22 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 							}
 						} else {
 							// 数据出现无法修复的错误
-							fmt.Println("警告：数据出现无法修复的错误，停止输出数据到分片文件")
+							errorDataNum++
+							fmt.Println(de, er, "\n\n————————————————————————————————————————————")
+							fmt.Println(de, er, "警告：数据出现无法修复的错误，停止输出数据到分片文件")
+							fmt.Println(de, er, "当前无法恢复的切片文件数量:", errorDataNum)
+							fmt.Println(de, er, "最大可丢失的切片文件数量:", MGValue-KGValue)
+							fmt.Printf(de, er, "————————————————————————————————————————————\n\n")
+							bar.Finish()
+							if errorDataNum > MGValue-KGValue {
+								fmt.Println(de, er, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
+								return
+							}
+							return
+						}
+
+						if errorDataNum > MGValue-KGValue {
+							fmt.Println(de, er, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
 							return
 						}
 
@@ -1404,7 +1437,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 						for _, dataW := range dataOrigin {
 							_, err := outputFile.Write(dataW)
 							if err != nil {
-								fmt.Println(de, "写入文件失败:", err)
+								fmt.Println(de, er, "写入文件失败:", err)
 								break
 							}
 						}
@@ -1429,12 +1462,12 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 
 			err = FFmpegStdout.Close()
 			if err != nil {
-				fmt.Println(de, "无法关闭 FFmpeg 标准输出管道:", err)
+				fmt.Println(de, er, "无法关闭 FFmpeg 标准输出管道:", err)
 				return
 			}
 			err = FFmpegProcess.Wait()
 			if err != nil {
-				fmt.Println(de, "FFmpeg 命令执行失败:", err)
+				fmt.Println(de, er, "FFmpeg 命令执行失败:", err)
 				return
 			}
 			outputFile.Close()
@@ -1442,7 +1475,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 			if segmentLength != 0 {
 				err := TruncateFile(segmentLength, outputFilePath)
 				if err != nil {
-					fmt.Println(de, "截断解码文件失败:", err)
+					fmt.Println(de, er, "截断解码文件失败:", err)
 					return
 				}
 			} else {
@@ -1450,7 +1483,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 				fmt.Println(de, "未提供原始文件的长度参数，默认删除解码文件的末尾连续的零字节来还原原始文件(无法还原尾部带零字节的分段文件)")
 				err = RemoveTrailingZerosFromFile(outputFilePath)
 				if err != nil {
-					fmt.Println(de, "删除解码文件的末尾连续的零字节失败:", err)
+					fmt.Println(de, er, "删除解码文件的末尾连续的零字节失败:", err)
 					return
 				}
 			}
@@ -1468,6 +1501,11 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 	}
 	wg.Wait()
 
+	if errorDataNum > MGValue-KGValue {
+		fmt.Println(de, er, "恢复失败")
+		return
+	}
+
 	allEndTime := time.Now()
 	allDuration := allEndTime.Sub(allStartTime)
 	fmt.Println(de, "全部完成")
@@ -1479,13 +1517,13 @@ func Add() {
 
 	fd, err := os.Executable()
 	if err != nil {
-		fmt.Println(add, "获取程序所在目录失败:", err)
+		fmt.Println(add, er, "获取程序所在目录失败:", err)
 		return
 	}
 	fileDir := filepath.Dir(fd)
 
 	if _, err := os.Stat(fileDir); os.IsNotExist(err) {
-		fmt.Println(add, "输入文件夹不存在:", err)
+		fmt.Println(add, er, "输入文件夹不存在:", err)
 		return
 	}
 
@@ -1493,25 +1531,25 @@ func Add() {
 
 	fileDict, err := GenerateFileDxDictionary(fileDir, ".fec")
 	if err != nil {
-		fmt.Println(add, "无法生成文件列表:", err)
+		fmt.Println(add, er, "无法生成文件列表:", err)
 		return
 	}
 
 	if len(fileDict) != 0 {
-		fmt.Println(add, "错误：检测到目录下存在 .fec 文件，请先删除 .fec 文件再进行添加")
+		fmt.Println(add, er, "错误：检测到目录下存在 .fec 文件，请先删除 .fec 文件再进行添加")
 		return
 	}
 
 	// 设置默认的文件名
 	fileDict, err = GenerateFileDictionary(fileDir)
 	if err != nil {
-		fmt.Println(add, "无法生成文件列表:", err)
+		fmt.Println(add, er, "无法生成文件列表:", err)
 		return
 	}
 	filePathList := make([]string, 0)
 	for {
 		if len(fileDict) == 0 {
-			fmt.Println(add, "当前目录下没有文件，请将需要编码的文件放到当前目录下")
+			fmt.Println(add, er, "当前目录下没有文件，请将需要编码的文件放到当前目录下")
 			return
 		}
 		fmt.Println(add, "请选择需要编码的文件，输入索引并回车来选择")
@@ -1529,11 +1567,11 @@ func Add() {
 		} else {
 			index, err := strconv.Atoi(result)
 			if err != nil {
-				fmt.Println(add, "输入索引不是数字，请重新输入")
+				fmt.Println(add, er, "输入索引不是数字，请重新输入")
 				continue
 			}
 			if index < 0 || index >= len(fileDict) {
-				fmt.Println(add, "输入索引超出范围，请重新输入")
+				fmt.Println(add, er, "输入索引超出范围，请重新输入")
 				continue
 			}
 			filePathList = append(filePathList, fileDict[index])
@@ -1549,7 +1587,7 @@ func Add() {
 		defaultM = addMLevel
 	}
 	if defaultM == 0 {
-		fmt.Println(add, "错误: M 的值不能为 0，自动设置 M = "+strconv.Itoa(addMLevel))
+		fmt.Println(add, er, "错误: M 的值不能为 0，自动设置 M = "+strconv.Itoa(addMLevel))
 		defaultM = addMLevel
 	}
 
@@ -1561,7 +1599,7 @@ func Add() {
 		defaultK = addKLevel
 	}
 	if defaultK == 0 {
-		fmt.Println(add, "错误: K 的值不能为 0，自动设置 K = "+strconv.Itoa(addKLevel))
+		fmt.Println(add, er, "错误: K 的值不能为 0，自动设置 K = "+strconv.Itoa(addKLevel))
 		defaultK = addKLevel
 	}
 
@@ -1573,7 +1611,7 @@ func Add() {
 		MGValue = addMGLevel
 	}
 	if MGValue == 0 {
-		fmt.Println(add, "错误: G 的值不能为 0，自动设置 G = "+strconv.Itoa(addMGLevel))
+		fmt.Println(add, er, "错误: G 的值不能为 0，自动设置 G = "+strconv.Itoa(addMGLevel))
 		MGValue = addMGLevel
 	}
 
@@ -1585,7 +1623,7 @@ func Add() {
 		KGValue = addKGLevel
 	}
 	if KGValue == 0 {
-		fmt.Println(add, "错误: G 的值不能为 0，自动设置 G = "+strconv.Itoa(addKGLevel))
+		fmt.Println(add, er, "错误: G 的值不能为 0，自动设置 G = "+strconv.Itoa(addKGLevel))
 		KGValue = addKGLevel
 	}
 
@@ -1597,7 +1635,7 @@ func Add() {
 		videoSize = encodeVideoSizeLevel
 	}
 	if videoSize <= 0 {
-		fmt.Println(add, "错误: 分辨率大小不能小于等于 0，自动设置分辨率大小为", encodeVideoSizeLevel)
+		fmt.Println(add, er, "错误: 分辨率大小不能小于等于 0，自动设置分辨率大小为", encodeVideoSizeLevel)
 		videoSize = encodeVideoSizeLevel
 	}
 
@@ -1609,7 +1647,7 @@ func Add() {
 		outputFPS = encodeOutputFPSLevel
 	}
 	if outputFPS <= 0 {
-		fmt.Println(add, "错误: 帧率大小不能小于等于 0，自动设置帧率大小为", encodeOutputFPSLevel)
+		fmt.Println(add, er, "错误: 帧率大小不能小于等于 0，自动设置帧率大小为", encodeOutputFPSLevel)
 		outputFPS = encodeOutputFPSLevel
 	}
 
@@ -1621,7 +1659,7 @@ func Add() {
 		encodeMaxSeconds = encodeMaxSecondsLevel
 	}
 	if encodeMaxSeconds <= 0 {
-		fmt.Println(add, "错误: 最大生成的视频长度限制不能小于等于 0，自动设置最大生成的视频长度限制为", encodeMaxSecondsLevel)
+		fmt.Println(add, er, "错误: 最大生成的视频长度限制不能小于等于 0，自动设置最大生成的视频长度限制为", encodeMaxSecondsLevel)
 		encodeMaxSeconds = encodeMaxSecondsLevel
 	}
 
@@ -1641,7 +1679,7 @@ func Add() {
 		encodeThread = runtime.NumCPU()
 	}
 	if encodeThread <= 0 {
-		fmt.Println(add, "错误: 处理使用的线程数量不能小于等于 0，自动设置处理使用的线程数量为", runtime.NumCPU())
+		fmt.Println(add, er, "错误: 处理使用的线程数量不能小于等于 0，自动设置处理使用的线程数量为", runtime.NumCPU())
 		encodeThread = runtime.NumCPU()
 	}
 
@@ -1658,7 +1696,7 @@ func Add() {
 		// 创建输出目录
 		err = os.Mkdir(defaultOutputDir, os.ModePerm)
 		if err != nil {
-			fmt.Println(add, "创建输出目录失败:", err)
+			fmt.Println(add, er, "创建输出目录失败:", err)
 			return
 		}
 		fmt.Println(add, "使用默认文件名:", defaultFileName)
@@ -1667,7 +1705,7 @@ func Add() {
 		// 计算文件长度
 		fileInfo, err := os.Stat(filePath)
 		if err != nil {
-			fmt.Println("Error:", err)
+			fmt.Println(add, er, "文件长度计算失败:", err)
 			return
 		}
 		fileSize := fileInfo.Size()
@@ -1677,22 +1715,22 @@ func Add() {
 		zfecStartTime := time.Now()
 		enc, err := reedsolomon.New(defaultK, defaultM-defaultK)
 		if err != nil {
-			fmt.Println(add, "创建 reedsolomon 对象失败:", err)
+			fmt.Println(add, er, "创建RS编码器失败:", err)
 			return
 		}
 		b, err := os.ReadFile(filePath)
 		if err != nil {
-			fmt.Println(add, "读取文件失败:", err)
+			fmt.Println(add, er, "读取文件失败:", err)
 			return
 		}
 		shards, err := enc.Split(b)
 		if err != nil {
-			fmt.Println(add, "分割文件失败:", err)
+			fmt.Println(add, er, "分割文件失败:", err)
 			return
 		}
 		err = enc.Encode(shards)
 		if err != nil {
-			fmt.Println(add, "编码文件失败:", err)
+			fmt.Println(add, er, "编码文件失败:", err)
 			return
 		}
 		// 生成 fecHashList
@@ -1703,7 +1741,7 @@ func Add() {
 			fmt.Println(add, "写入 .fec 文件:", outfn)
 			err = os.WriteFile(outfnPath, shard, 0644)
 			if err != nil {
-				fmt.Println(add, ".fec 文件写入失败:", err)
+				fmt.Println(add, er, ".fec 文件写入失败:", err)
 				return
 			}
 			fileHash := CalculateFileHash(outfnPath, defaultHashLength)
@@ -1731,7 +1769,7 @@ func Add() {
 		}
 		fecFileConfigJson, err := json.Marshal(fecFileConfig)
 		if err != nil {
-			fmt.Println(add, "生成 JSON 配置失败:", err)
+			fmt.Println(add, er, "生成 JSON 配置失败:", err)
 			return
 		}
 		// 转换为 Base64
@@ -1740,7 +1778,7 @@ func Add() {
 		fmt.Println(add, "Base64 配置生成完成，开始写入文件:", fecFileConfigFilePath)
 		err = os.WriteFile(fecFileConfigFilePath, []byte(fecFileConfigBase64), 0644)
 		if err != nil {
-			fmt.Println(add, "写入文件失败:", err)
+			fmt.Println(add, er, "写入文件失败:", err)
 			return
 		}
 		fmt.Println(add, "写入配置成功")
@@ -1756,7 +1794,7 @@ func Get() {
 	base64Config := ""
 	ep, err := os.Executable()
 	if err != nil {
-		fmt.Println(get, "无法获取运行目录:", err)
+		fmt.Println(get, er, "无法获取运行目录:", err)
 		return
 	}
 	epPath := filepath.Dir(ep)
@@ -1772,11 +1810,11 @@ func Get() {
 			// 读取本目录下所有的子目录
 			dirList, err := GetSubDirectories(epPath)
 			if err != nil {
-				fmt.Println(get, "无法获取子目录:", err)
+				fmt.Println(get, er, "无法获取子目录:", err)
 				return
 			}
 			if len(dirList) == 0 {
-				fmt.Println(get, "没有找到子目录，请添加存放编码文件的目录")
+				fmt.Println(get, er, "没有找到子目录，请添加存放编码文件的目录")
 				return
 			}
 			// 从子目录读取 Base64 配置文件，有配置文件的目录就放入 fecDirList
@@ -1786,7 +1824,7 @@ func Get() {
 				}
 			}
 			if len(fecDirList) == 0 {
-				fmt.Println(get, "没有找到子目录下的索引配置，请添加索引来解码")
+				fmt.Println(get, er, "没有找到子目录下的索引配置，请添加索引来解码")
 				return
 			}
 			fmt.Println(get, "找到存有索引配置的目录:")
@@ -1799,25 +1837,25 @@ func Get() {
 			if IsFileExistsInDir(epPath, "lumika_config") {
 				fecDirList = append(fecDirList, epPath)
 			} else {
-				fmt.Println(get, "没有找到本目录下的索引配置，请添加索引来解码")
+				fmt.Println(get, er, "没有找到本目录下的索引配置，请添加索引来解码")
 				return
 			}
 			break
 		} else {
-			fmt.Println(get, "无效输入，请重新输入")
+			fmt.Println(get, er, "无效输入，请重新输入")
 			continue
 		}
 	}
 
 	// 设置处理使用的线程数量
-	fmt.Println(add, "请输入处理使用的线程数量。默认(CPU核心数量)：\""+strconv.Itoa(runtime.NumCPU())+"\"")
+	fmt.Println(get, "请输入处理使用的线程数量。默认(CPU核心数量)：\""+strconv.Itoa(runtime.NumCPU())+"\"")
 	decodeThread, err := strconv.Atoi(GetUserInput(""))
 	if err != nil {
-		fmt.Println(add, "自动设置处理使用的线程数量为", runtime.NumCPU())
+		fmt.Println(get, "自动设置处理使用的线程数量为", runtime.NumCPU())
 		decodeThread = runtime.NumCPU()
 	}
 	if decodeThread <= 0 {
-		fmt.Println(add, "错误: 处理使用的线程数量不能小于等于 0，自动设置处理使用的线程数量为", runtime.NumCPU())
+		fmt.Println(get, er, "错误: 处理使用的线程数量不能小于等于 0，自动设置处理使用的线程数量为", runtime.NumCPU())
 		decodeThread = runtime.NumCPU()
 	}
 
@@ -1829,7 +1867,7 @@ func Get() {
 		// 读取文件
 		configBase64Bytes, err := os.ReadFile(configBase64FilePath)
 		if err != nil {
-			fmt.Println(get, "读取文件失败:", err)
+			fmt.Println(get, er, "读取文件失败:", err)
 			return
 		}
 		base64Config = string(configBase64Bytes)
@@ -1837,19 +1875,19 @@ func Get() {
 		var fecFileConfig FecFileConfig
 		fecFileConfigJson, err := base64.StdEncoding.DecodeString(base64Config)
 		if err != nil {
-			fmt.Println(get, "解析 Base64 配置失败:", err)
+			fmt.Println(get, er, "解析 Base64 配置失败:", err)
 			return
 		}
 		err = json.Unmarshal(fecFileConfigJson, &fecFileConfig)
 		if err != nil {
-			fmt.Println(get, "解析 JSON 配置失败:", err)
+			fmt.Println(get, er, "解析 JSON 配置失败:", err)
 			return
 		}
 
 		// 查找 .mp4 文件
 		fileDict, err := GenerateFileDxDictionary(fileDir, ".mp4")
 		if err != nil {
-			fmt.Println(get, "无法生成文件列表:", err)
+			fmt.Println(get, er, "无法生成文件列表:", err)
 			return
 		}
 
@@ -1879,7 +1917,7 @@ func Get() {
 		// 查找生成的 .fec 文件
 		fileDict, err = GenerateFileDxDictionary(fileDir, ".fec")
 		if err != nil {
-			fmt.Println(get, "无法生成文件列表:", err)
+			fmt.Println(get, er, "无法生成文件列表:", err)
 			return
 		}
 
@@ -1920,7 +1958,7 @@ func Get() {
 		zunfecStartTime := time.Now()
 		enc, err := reedsolomon.New(fecFileConfig.K, fecFileConfig.M-fecFileConfig.K)
 		if err != nil {
-			fmt.Println(get, "无法构建 reedsolomon 解码器:", err)
+			fmt.Println(get, er, "无法构建RS解码器:", err)
 			return
 		}
 		shards := make([][]byte, fecFileConfig.M)
@@ -1932,7 +1970,7 @@ func Get() {
 			fmt.Println(get, "Index:", i, ", 读取文件:", fecFindFileList[i])
 			shards[i], err = os.ReadFile(fecFindFileList[i])
 			if err != nil {
-				fmt.Println(get, "读取 .fec 文件时出错", err)
+				fmt.Println(get, er, "读取 .fec 文件时出错", err)
 				shards[i] = nil
 			}
 		}
@@ -1944,20 +1982,20 @@ func Get() {
 			fmt.Println(get, "数据不完整，准备恢复数据")
 			err = enc.Reconstruct(shards)
 			if err != nil {
-				fmt.Println(get, "恢复失败 -", err)
+				fmt.Println(get, er, "恢复失败 -", err)
 				DeleteFecFiles(fileDir)
 				GetUserInput("请按回车键继续...")
 				return
 			}
 			ok, err = enc.Verify(shards)
 			if !ok {
-				fmt.Println(get, "恢复失败，数据可能已损坏")
+				fmt.Println(get, er, "恢复失败，数据可能已损坏")
 				DeleteFecFiles(fileDir)
 				GetUserInput("请按回车键继续...")
 				return
 			}
 			if err != nil {
-				fmt.Println(get, "恢复失败 -", err)
+				fmt.Println(get, er, "恢复失败 -", err)
 				DeleteFecFiles(fileDir)
 				GetUserInput("请按回车键继续...")
 				return
@@ -1967,18 +2005,18 @@ func Get() {
 		fmt.Println(get, "写入文件到:", fecFileConfig.Name)
 		f, err := os.Create(fecFileConfig.Name)
 		if err != nil {
-			fmt.Println(get, "创建文件失败:", err)
+			fmt.Println(get, er, "创建文件失败:", err)
 			return
 		}
 		err = enc.Join(f, shards, len(shards[0])*fecFileConfig.K)
 		if err != nil {
-			fmt.Println(get, "写入文件失败:", err)
+			fmt.Println(get, er, "写入文件失败:", err)
 			return
 		}
 		f.Close()
 		err = TruncateFile(fecFileConfig.Length, filepath.Join(epPath, fecFileConfig.Name))
 		if err != nil {
-			fmt.Println(get, "截断解码文件失败:", err)
+			fmt.Println(get, er, "截断解码文件失败:", err)
 			return
 		}
 		zunfecEndTime := time.Now()
@@ -1989,10 +2027,10 @@ func Get() {
 		fmt.Println(get, "检查生成的文件是否与源文件一致")
 		targetHash := CalculateFileHash(filepath.Join(epPath, fecFileConfig.Name), defaultHashLength)
 		if targetHash != fecFileConfig.Hash {
-			fmt.Println(get, "警告: 生成的文件与源文件不一致")
-			fmt.Println(get, "源文件 Hash:", fecFileConfig.Hash)
-			fmt.Println(get, "生成文件 Hash:", targetHash)
-			fmt.Println(get, "文件解码失败")
+			fmt.Println(get, er, "警告: 生成的文件与源文件不一致")
+			fmt.Println(get, er, "源文件 Hash:", fecFileConfig.Hash)
+			fmt.Println(get, er, "生成文件 Hash:", targetHash)
+			fmt.Println(get, er, "文件解码失败")
 		} else {
 			fmt.Println(get, "生成的文件与源文件一致")
 			fmt.Println(get, "源文件 Hash:", fecFileConfig.Hash)
@@ -2016,7 +2054,7 @@ func AutoRun() {
 		var input string
 		_, err := fmt.Scanln(&input)
 		if err != nil {
-			fmt.Println(ar, "错误: 请重新输入")
+			fmt.Println(ar, er, "错误: 请重新输入")
 			continue
 		}
 		if input == "1" {
@@ -2038,7 +2076,7 @@ func AutoRun() {
 		} else if input == "5" {
 			os.Exit(0)
 		} else {
-			fmt.Println(ar, "错误: 无效的操作编号")
+			fmt.Println(ar, er, "错误: 无效的操作编号")
 			continue
 		}
 	}
@@ -2100,28 +2138,28 @@ func main() {
 	case "add":
 		err := addFlag.Parse(os.Args[2:])
 		if err != nil {
-			fmt.Println(add, "参数解析错误")
+			fmt.Println(add, er, "参数解析错误")
 			return
 		}
 		Add()
 	case "get":
 		err := getFlag.Parse(os.Args[2:])
 		if err != nil {
-			fmt.Println(get, "参数解析错误")
+			fmt.Println(get, er, "参数解析错误")
 			return
 		}
 		Get()
 	case "encode":
 		err := encodeFlag.Parse(os.Args[2:])
 		if err != nil {
-			fmt.Println(en, "参数解析错误")
+			fmt.Println(en, er, "参数解析错误")
 			return
 		}
 		Encode(*encodeInput, *encodeQrcodeSize, *encodeOutputFPS, *encodeMaxSeconds, *encodeMGValue, *encodeKGValue, *encodeThread, *encodeFFmpegMode, false)
 	case "decode":
 		err := decodeFlag.Parse(os.Args[2:])
 		if err != nil {
-			fmt.Println(de, "参数解析错误")
+			fmt.Println(de, er, "参数解析错误")
 			return
 		}
 		Decode(*decodeInputDir, 0, nil, *decodeMGValue, *decodeKGValue, *decodeThread)
