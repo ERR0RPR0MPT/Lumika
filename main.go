@@ -732,9 +732,9 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 			for ig := range shards {
 				shards[ig] = make([]byte, dataSliceLen-4)
 			}
-			enc, err := reedsolomon.New(MGValue, MGValue-KGValue)
+			enc, err := reedsolomon.New(KGValue, MGValue-KGValue)
 			if err != nil {
-				fmt.Println(en, "无法创建冗余数据:", err)
+				fmt.Println(en, "无法创建RS编码器:", err)
 				return
 			}
 
@@ -871,7 +871,6 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 				}
 				// 填入 shards 中
 				shards[shardsInsideNum] = dataPackage
-				//fmt.Println(en, "填入 shards 中:", shardsInsideNum, "索引:", dataNowNum)
 
 				// 判断shards是否被填满(0-9填满，还有10去填冗余数据，总长11)
 				if shardsInsideNum == KGValue-1 {
@@ -1197,7 +1196,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 			isRecord := false
 			var recordData [][]byte
 
-			enc, err := reedsolomon.New(MGValue, MGValue-KGValue)
+			enc, err := reedsolomon.New(KGValue, MGValue-KGValue)
 			if err != nil {
 				fmt.Println(de, "无法创建RS解码器:", err)
 				return
@@ -1253,7 +1252,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 							recordData = make([][]byte, 0)
 							var dataShards [][]byte
 							// 检查整理后的长度是否为预期长度且nil元素数量小于等于1
-							if len(sortShards) == MGValue && countNilElements(sortShards) <= 1 {
+							if len(sortShards) == MGValue && countNilElements(sortShards) <= MGValue-KGValue {
 								// 修改 sortShards 的空白数据为 nil
 								for oiu := range sortShards {
 									if len(sortShards[oiu]) >= 4 {
@@ -1307,7 +1306,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 								return
 							}
 
-							dataOrigin := dataShards[:len(dataShards)-1]
+							dataOrigin := dataShards[:len(dataShards)-MGValue+KGValue]
 							// 写入到文件
 							for _, dataW := range dataOrigin {
 								_, err := outputFile.Write(dataW)
@@ -1347,7 +1346,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 						recordData = make([][]byte, 0)
 						var dataShards [][]byte
 						// 检查整理后的长度是否为预期长度且nil元素数量小于等于1
-						if len(sortShards) == MGValue && countNilElements(sortShards) <= 1 {
+						if len(sortShards) == MGValue && countNilElements(sortShards) <= MGValue-KGValue {
 							// 修改 sortShards 的空白数据为 nil
 							for oiu := range sortShards {
 								if len(sortShards[oiu]) >= 4 {
@@ -1400,7 +1399,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 							return
 						}
 
-						dataOrigin := dataShards[:len(dataShards)-1]
+						dataOrigin := dataShards[:len(dataShards)-MGValue+KGValue]
 						// 写入到文件
 						for _, dataW := range dataOrigin {
 							_, err := outputFile.Write(dataW)
@@ -1589,7 +1588,7 @@ func Add() {
 		fmt.Println(add, "自动设置 G = "+strconv.Itoa(addKGLevel))
 		KGValue = addKGLevel
 	}
-	if MGValue == 0 {
+	if KGValue == 0 {
 		fmt.Println(add, "错误: G 的值不能为 0，自动设置 G = "+strconv.Itoa(addKGLevel))
 		KGValue = addKGLevel
 	}
