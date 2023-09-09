@@ -36,7 +36,8 @@ const (
 	ar                    = "AutoRun:"
 	addMLevel             = 100
 	addKLevel             = 90
-	addGLevel             = 10
+	addMGLevel            = 10
+	addKGLevel            = 7
 	encodeVideoSizeLevel  = 32
 	encodeOutputFPSLevel  = 24
 	encodeMaxSecondsLevel = 86400
@@ -55,7 +56,8 @@ type FecFileConfig struct {
 	Hash          string   `json:"h"`
 	M             int      `json:"m"`
 	K             int      `json:"k"`
-	G             int      `json:"g"`
+	MG            int      `json:"mg"`
+	KG            int      `json:"kg"`
 	Length        int64    `json:"l"`
 	SegmentLength int64    `json:"sl"`
 	FecHashList   []string `json:"fhl"`
@@ -112,9 +114,9 @@ func MakeMaxByteSlice(data []byte) []byte {
 	return newSlice
 }
 
-func MakeMax2ByteSlice(data [][]byte, dataLength, GValue int) [][]byte {
+func MakeMax2ByteSlice(data [][]byte, dataLength, MGValue int) [][]byte {
 	// 创建新切片并设置最大长度
-	newSlice := make([][]byte, GValue)
+	newSlice := make([][]byte, MGValue)
 	for i := range newSlice {
 		newSlice[i] = make([]byte, dataLength)
 	}
@@ -167,7 +169,7 @@ func RemoveDuplicates(slices [][]byte) [][]byte {
 	return result
 }
 
-func ProcessSlices(slices [][]byte, GValue int) [][]byte {
+func ProcessSlices(slices [][]byte, MGValue int) [][]byte {
 	slices = RemoveDuplicates(slices) // 去重
 	// 自定义排序函数
 	sort.Slice(slices, func(i, j int) bool {
@@ -175,7 +177,7 @@ func ProcessSlices(slices [][]byte, GValue int) [][]byte {
 		num2 := ByteArrayToInt(slices[j][:4]) // 获取第二个切片的前四个字节的 256 进制数
 		return num1 < num2
 	})
-	result := make([][]byte, GValue) // 创建一个新切片来存储结果
+	result := make([][]byte, MGValue) // 创建一个新切片来存储结果
 	// 遍历输入切片
 	for i := 0; i < len(slices); i++ {
 		if len(slices[i]) < 4 {
@@ -533,7 +535,7 @@ func SearchFileNameInDir(directory, filename string) string {
 	return ""
 }
 
-func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, gValue int, encodeFFmpegMode string, auto bool) (segmentLength int64) {
+func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValue int, KGValue int, encodeFFmpegMode string, auto bool) (segmentLength int64) {
 	ep, err := os.Executable()
 	if err != nil {
 		fmt.Println(get, "无法获取运行目录:", err)
@@ -726,11 +728,11 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, gValue
 
 			// 创建一个shards
 			shardsInsideNum := 0
-			shards := make([][]byte, gValue+1)
+			shards := make([][]byte, MGValue)
 			for ig := range shards {
 				shards[ig] = make([]byte, dataSliceLen-4)
 			}
-			enc, err := reedsolomon.New(gValue, 1)
+			enc, err := reedsolomon.New(MGValue, MGValue-KGValue)
 			if err != nil {
 				fmt.Println(en, "无法创建冗余数据:", err)
 				return
@@ -768,14 +770,14 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, gValue
 							blankData2[j] = 0
 						}
 
-						for l := shardsInsideNum; l < gValue; l++ {
-							dataPackage := make([]byte, dataSliceLen-4)
-							// 写入数据
-							for p := range blankData2 {
-								dataPackage[p] = blankData2[p]
-							}
+						for l := shardsInsideNum; l < KGValue; l++ {
+							//dataPackage := make([]byte, dataSliceLen-4)
+							//// 写入数据
+							//for p := range blankData2 {
+							//	dataPackage[p] = blankData2[p]
+							//}
 							// 填入 shards 中
-							shards[shardsInsideNum] = dataPackage
+							shards[shardsInsideNum] = blankData2
 						}
 
 						shardsInsideNum = 0
@@ -787,7 +789,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, gValue
 							return
 						}
 						// 创建完整数据
-						allShards := make([][]byte, gValue+1)
+						allShards := make([][]byte, MGValue)
 						for ig := range allShards {
 							allShards[ig] = make([]byte, dataSliceLen)
 						}
@@ -872,7 +874,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, gValue
 				//fmt.Println(en, "填入 shards 中:", shardsInsideNum, "索引:", dataNowNum)
 
 				// 判断shards是否被填满(0-9填满，还有10去填冗余数据，总长11)
-				if shardsInsideNum == gValue-1 {
+				if shardsInsideNum == KGValue-1 {
 					shardsInsideNum = 0
 					// 创建冗余数据
 					err = enc.Encode(shards)
@@ -881,7 +883,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, gValue
 						return
 					}
 					// 创建完整数据
-					allShards := make([][]byte, gValue+1)
+					allShards := make([][]byte, MGValue)
 					for ig := range allShards {
 						allShards[ig] = make([]byte, dataSliceLen)
 					}
@@ -1015,8 +1017,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, gValue
 	return segmentLength
 }
 
-func Decode(videoFileDir string, segmentLength int64, filePathList []string, GValue int) {
-	GValue += 1
+func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGValue int, KGValue int) {
 	ep, err := os.Executable()
 	if err != nil {
 		fmt.Println(get, "无法获取运行目录:", err)
@@ -1196,7 +1197,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, GVa
 			isRecord := false
 			var recordData [][]byte
 
-			enc, err := reedsolomon.New(GValue-1, 1)
+			enc, err := reedsolomon.New(MGValue, MGValue-KGValue)
 			if err != nil {
 				fmt.Println(de, "无法创建RS解码器:", err)
 				return
@@ -1247,12 +1248,12 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, GVa
 								break
 							}
 							// 对数据进行排序等操作
-							sortShards := ProcessSlices(recordData, GValue)
+							sortShards := ProcessSlices(recordData, MGValue)
 							// 删除记录数据
 							recordData = make([][]byte, 0)
 							var dataShards [][]byte
 							// 检查整理后的长度是否为预期长度且nil元素数量小于等于1
-							if len(sortShards) == GValue && countNilElements(sortShards) <= 1 {
+							if len(sortShards) == MGValue && countNilElements(sortShards) <= 1 {
 								// 修改 sortShards 的空白数据为 nil
 								for oiu := range sortShards {
 									if len(sortShards[oiu]) >= 4 {
@@ -1261,7 +1262,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, GVa
 									sortShards[oiu] = nil
 								}
 								// 删除索引，复制数据到新切片
-								dataShards = MakeMax2ByteSlice(ExtractForwardElements(sortShards, 4), videoHeight*videoWidth/8-4, GValue)
+								dataShards = MakeMax2ByteSlice(ExtractForwardElements(sortShards, 4), videoHeight*videoWidth/8-4, MGValue)
 								// 数据将开始重建
 								ok, err := enc.Verify(dataShards)
 								if !ok {
@@ -1341,12 +1342,12 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, GVa
 							break
 						}
 						// 对数据进行排序等操作
-						sortShards := ProcessSlices(recordData, GValue)
+						sortShards := ProcessSlices(recordData, MGValue)
 						// 删除记录数据
 						recordData = make([][]byte, 0)
 						var dataShards [][]byte
 						// 检查整理后的长度是否为预期长度且nil元素数量小于等于1
-						if len(sortShards) == GValue && countNilElements(sortShards) <= 1 {
+						if len(sortShards) == MGValue && countNilElements(sortShards) <= 1 {
 							// 修改 sortShards 的空白数据为 nil
 							for oiu := range sortShards {
 								if len(sortShards[oiu]) >= 4 {
@@ -1355,7 +1356,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, GVa
 								sortShards[oiu] = nil
 							}
 							// 删除索引，复制数据到新切片
-							dataShards = MakeMax2ByteSlice(ExtractForwardElements(sortShards, 4), videoHeight*videoWidth/8-4, GValue)
+							dataShards = MakeMax2ByteSlice(ExtractForwardElements(sortShards, 4), videoHeight*videoWidth/8-4, MGValue)
 							// 数据将开始重建
 							ok, err := enc.Verify(dataShards)
 							if !ok {
@@ -1569,16 +1570,28 @@ func Add() {
 		defaultK = addKLevel
 	}
 
-	// 设置G的值
-	fmt.Println(add, "请输入 G 的值(0<=G<=256)，G 为帧数据的切片数量。默认：\""+strconv.Itoa(addGLevel)+"\"")
-	gValue, err := strconv.Atoi(GetUserInput(""))
+	// 设置MG的值
+	fmt.Println(add, "请输入 MG 的值(0<=MG<=256)，MG 为帧数据的总切片数量。默认：\""+strconv.Itoa(addMGLevel)+"\"")
+	MGValue, err := strconv.Atoi(GetUserInput(""))
 	if err != nil {
-		fmt.Println(add, "自动设置 G = "+strconv.Itoa(addGLevel))
-		gValue = addGLevel
+		fmt.Println(add, "自动设置 G = "+strconv.Itoa(addMGLevel))
+		MGValue = addMGLevel
 	}
-	if gValue == 0 {
-		fmt.Println(add, "错误: G 的值不能为 0，自动设置 G = "+strconv.Itoa(addGLevel))
-		gValue = addGLevel
+	if MGValue == 0 {
+		fmt.Println(add, "错误: G 的值不能为 0，自动设置 G = "+strconv.Itoa(addMGLevel))
+		MGValue = addMGLevel
+	}
+
+	// 设置KG的值
+	fmt.Println(add, "请输入 KG 的值(0<=KG<=256)，KG 为帧数据的总切片数量。默认：\""+strconv.Itoa(addKGLevel)+"\"")
+	KGValue, err := strconv.Atoi(GetUserInput(""))
+	if err != nil {
+		fmt.Println(add, "自动设置 G = "+strconv.Itoa(addKGLevel))
+		KGValue = addKGLevel
+	}
+	if MGValue == 0 {
+		fmt.Println(add, "错误: G 的值不能为 0，自动设置 G = "+strconv.Itoa(addKGLevel))
+		KGValue = addKGLevel
 	}
 
 	// 设置默认的分辨率大小
@@ -1690,7 +1703,7 @@ func Add() {
 		fmt.Println(add, ".fec 文件生成完成，耗时:", zfecDuration)
 
 		fmt.Println(add, "开始进行编码")
-		segmentLength := Encode(defaultOutputDir, videoSize, outputFPS, encodeMaxSeconds, gValue, encodeFFmpegMode, true)
+		segmentLength := Encode(defaultOutputDir, videoSize, outputFPS, encodeMaxSeconds, MGValue, KGValue, encodeFFmpegMode, true)
 
 		fmt.Println(add, "编码完成，开始生成配置")
 		fecFileConfig := FecFileConfig{
@@ -1699,7 +1712,8 @@ func Add() {
 			Hash:          CalculateFileHash(filePath, defaultHashLength),
 			M:             defaultM,
 			K:             defaultK,
-			G:             gValue,
+			MG:            MGValue,
+			KG:            KGValue,
 			Length:        fileSize,
 			SegmentLength: segmentLength,
 			FecHashList:   fecHashList,
@@ -1836,7 +1850,7 @@ func Get() {
 		}
 
 		fmt.Println(get, "开始解码")
-		Decode(fileDir, fecFileConfig.SegmentLength, fileDictList, fecFileConfig.G)
+		Decode(fileDir, fecFileConfig.SegmentLength, fileDictList, fecFileConfig.MG, fecFileConfig.KG)
 		fmt.Println(get, "解码完成")
 
 		// 查找生成的 .fec 文件
@@ -1992,11 +2006,11 @@ func AutoRun() {
 			break
 		} else if input == "3" {
 			clearScreen()
-			Encode("", encodeVideoSizeLevel, encodeOutputFPSLevel, encodeMaxSecondsLevel, addGLevel, encodeFFmpegModeLevel, false)
+			Encode("", encodeVideoSizeLevel, encodeOutputFPSLevel, encodeMaxSecondsLevel, addMGLevel, addKGLevel, encodeFFmpegModeLevel, false)
 			break
 		} else if input == "4" {
 			clearScreen()
-			Decode("", 0, nil, addGLevel)
+			Decode("", 0, nil, addMGLevel, addKGLevel)
 			break
 		} else if input == "5" {
 			os.Exit(0)
@@ -2023,11 +2037,14 @@ func main() {
 		fmt.Fprintln(os.Stdout, " -s\tThe video size(default="+strconv.Itoa(encodeVideoSizeLevel)+"), 8-1024(must be a multiple of 8)")
 		fmt.Fprintln(os.Stdout, " -p\tThe output video fps setting(default="+strconv.Itoa(encodeOutputFPSLevel)+"), 1-60")
 		fmt.Fprintln(os.Stdout, " -l\tThe output video max segment length(seconds) setting(default="+strconv.Itoa(encodeMaxSecondsLevel)+"), 1-10^9")
+		fmt.Fprintln(os.Stdout, " -g\tThe output video frame all shards(default="+strconv.Itoa(addMGLevel)+"), 2-256")
+		fmt.Fprintln(os.Stdout, " -k\tThe output video frame data shards(default="+strconv.Itoa(addKGLevel)+"), 2-256")
 		fmt.Fprintln(os.Stdout, " -m\tFFmpeg mode(default="+encodeFFmpegModeLevel+"): ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow, placebo")
 		fmt.Fprintln(os.Stdout, "decode\tDecode a file")
 		fmt.Fprintln(os.Stdout, " Options:")
 		fmt.Fprintln(os.Stdout, " -i\tThe input file to decode")
-		fmt.Fprintln(os.Stdout, " -g\tThe output video frame shards(default="+strconv.Itoa(addGLevel)+"), 2-256")
+		fmt.Fprintln(os.Stdout, " -m\tThe output video frame all shards(default="+strconv.Itoa(addMGLevel)+"), 2-256")
+		fmt.Fprintln(os.Stdout, " -k\tThe output video frame data shards(default="+strconv.Itoa(addKGLevel)+"), 2-256")
 		fmt.Fprintln(os.Stdout, "help\tShow this help")
 		flag.PrintDefaults()
 	}
@@ -2036,12 +2053,14 @@ func main() {
 	encodeQrcodeSize := encodeFlag.Int("s", encodeVideoSizeLevel, "The video size(default="+strconv.Itoa(encodeVideoSizeLevel)+"), 8-1024(must be a multiple of 8)")
 	encodeOutputFPS := encodeFlag.Int("p", encodeOutputFPSLevel, "The output video fps setting(default="+strconv.Itoa(encodeOutputFPSLevel)+"), 1-60")
 	encodeMaxSeconds := encodeFlag.Int("l", encodeMaxSecondsLevel, "The output video max segment length(seconds) setting(default="+strconv.Itoa(encodeMaxSecondsLevel)+"), 1-10^9")
-	encodeGValue := encodeFlag.Int("g", addGLevel, "The output video frame shards(default="+strconv.Itoa(addGLevel)+"), 2-256")
+	encodeMGValue := encodeFlag.Int("g", addMGLevel, "The output video frame all shards(default="+strconv.Itoa(addMGLevel)+"), 2-256")
+	encodeKGValue := encodeFlag.Int("k", addKGLevel, "The output video frame data shards(default="+strconv.Itoa(addKGLevel)+"), 2-256")
 	encodeFFmpegMode := encodeFlag.String("m", encodeFFmpegModeLevel, "FFmpeg mode(default="+encodeFFmpegModeLevel+"): ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow, placebo")
 
 	decodeFlag := flag.NewFlagSet("decode", flag.ExitOnError)
 	decodeInputDir := decodeFlag.String("i", "", "The input dir include video segments to decode")
-	decodeGValue := decodeFlag.Int("g", addGLevel, "The output video frame shards(default="+strconv.Itoa(addGLevel)+"), 2-256")
+	decodeMGValue := decodeFlag.Int("m", addMGLevel, "The output video frame all shards(default="+strconv.Itoa(addMGLevel)+"), 2-256")
+	decodeKGValue := decodeFlag.Int("k", addKGLevel, "The output video frame data shards(default="+strconv.Itoa(addKGLevel)+"), 2-256")
 
 	addFlag := flag.NewFlagSet("add", flag.ExitOnError)
 
@@ -2073,14 +2092,14 @@ func main() {
 			fmt.Println(en, "参数解析错误")
 			return
 		}
-		Encode(*encodeInput, *encodeQrcodeSize, *encodeOutputFPS, *encodeMaxSeconds, *encodeGValue, *encodeFFmpegMode, false)
+		Encode(*encodeInput, *encodeQrcodeSize, *encodeOutputFPS, *encodeMaxSeconds, *encodeMGValue, *encodeKGValue, *encodeFFmpegMode, false)
 	case "decode":
 		err := decodeFlag.Parse(os.Args[2:])
 		if err != nil {
 			fmt.Println(de, "参数解析错误")
 			return
 		}
-		Decode(*decodeInputDir, 0, nil, *decodeGValue)
+		Decode(*decodeInputDir, 0, nil, *decodeMGValue, *decodeKGValue)
 	case "help":
 		flag.Usage()
 		return
