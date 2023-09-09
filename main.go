@@ -43,7 +43,7 @@ const (
 	addKGLevel            = 7
 	encodeVideoSizeLevel  = 32
 	encodeOutputFPSLevel  = 24
-	encodeMaxSecondsLevel = 86400
+	encodeMaxSecondsLevel = 35990
 	encodeFFmpegModeLevel = "medium"
 	defaultHashLength     = 7
 	defaultBlankSeconds   = 3
