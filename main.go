@@ -40,7 +40,7 @@ const (
 	addMLevel             = 100
 	addKLevel             = 90
 	addMGLevel            = 200
-	addKGLevel            = 150
+	addKGLevel            = 130
 	encodeVideoSizeLevel  = 32
 	encodeOutputFPSLevel  = 24
 	encodeMaxSecondsLevel = 35990
