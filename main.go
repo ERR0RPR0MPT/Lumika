@@ -1258,7 +1258,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 							// 删除记录数据
 							recordData = make([][]byte, 0)
 							var dataShards [][]byte
-							// 检查整理后的长度是否为预期长度且nil元素数量小于等于1
+							// 检查整理后的长度是否为预期长度且nil元素数量小于等于MGValue-KGValue
 							if len(sortShards) == MGValue && countNilElements(sortShards) <= MGValue-KGValue {
 								// 修改 sortShards 的空白数据为 nil
 								for oiu := range sortShards {
@@ -1272,7 +1272,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 								// 数据将开始重建
 								ok, err := enc.Verify(dataShards)
 								if !ok {
-									fmt.Println(de, "检测到数据出现损坏，开始重建数据")
+									//fmt.Println(de, "检测到数据出现损坏，开始重建数据")
 									//fmt.Println("输出一些详细的信息供参考：")
 									//fmt.Println("数据帧数量:", len(sortShards))
 									//fmt.Println("数据帧长度:", len(sortShards[0]))
@@ -1290,19 +1290,124 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 									for {
 										err = enc.Reconstruct(dataShards)
 										if err != nil {
-											fmt.Println(de, er, "数据重建失败 -", err)
-											break
+											// 尝试进行二次重建
+											isReconstructSuccess := false
+											reconstructData := dataShards
+											for ytp := range dataShards {
+												copyDataShards := dataShards
+												copyDataShards[ytp] = nil
+												err = enc.Reconstruct(copyDataShards)
+												if err != nil {
+													continue
+												}
+												ok, err = enc.Verify(copyDataShards)
+												if !ok {
+													continue
+												}
+												if err != nil {
+													continue
+												}
+												isReconstructSuccess = true
+												reconstructData = copyDataShards
+											}
+											if !isReconstructSuccess {
+												// 重建失败，数据出现无法修复的错误
+												errorDataNum++
+												fmt.Println(de, er, "\n\n————————————————————————————————————————————")
+												fmt.Println(de, er, "警告：数据出现无法修复的错误，停止输出数据到分片文件(原因：编码视频出现数据损坏且两次重建均失败，建议缩短分片编码视频的时长/增大文件冗余量，这样可以有效降低错误发生的概率)")
+												fmt.Println(de, er, "当前无法恢复的切片文件数量:", errorDataNum)
+												fmt.Println(de, er, "最大可丢失的切片文件数量:", MGValue-KGValue)
+												fmt.Println(de, er, "————————————————————————————————————————————")
+												fmt.Println()
+												bar.Finish()
+												if errorDataNum > MGValue-KGValue {
+													fmt.Println(de, er, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
+													return
+												}
+												return
+											}
+											dataShards = reconstructData
 										}
 										ok, err = enc.Verify(dataShards)
 										if !ok {
-											fmt.Println(de, er, "数据重建失败并且已经损坏")
-											break
+											// 尝试进行二次重建
+											isReconstructSuccess := false
+											reconstructData := dataShards
+											for ytp := range dataShards {
+												copyDataShards := dataShards
+												copyDataShards[ytp] = nil
+												err = enc.Reconstruct(copyDataShards)
+												if err != nil {
+													continue
+												}
+												ok, err = enc.Verify(copyDataShards)
+												if !ok {
+													continue
+												}
+												if err != nil {
+													continue
+												}
+												isReconstructSuccess = true
+												reconstructData = copyDataShards
+											}
+											if !isReconstructSuccess {
+												// 重建失败，数据出现无法修复的错误
+												errorDataNum++
+												fmt.Println(de, er, "\n\n————————————————————————————————————————————")
+												fmt.Println(de, er, "警告：数据出现无法修复的错误，停止输出数据到分片文件(原因：编码视频出现数据损坏且两次重建均失败，建议缩短分片编码视频的时长/增大文件冗余量，这样可以有效降低错误发生的概率)")
+												fmt.Println(de, er, "当前无法恢复的切片文件数量:", errorDataNum)
+												fmt.Println(de, er, "最大可丢失的切片文件数量:", MGValue-KGValue)
+												fmt.Println(de, er, "————————————————————————————————————————————")
+												fmt.Println()
+												bar.Finish()
+												if errorDataNum > MGValue-KGValue {
+													fmt.Println(de, er, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
+													return
+												}
+												return
+											}
+											dataShards = reconstructData
 										}
 										if err != nil {
-											fmt.Println(de, er, "数据重建失败并且已经损坏 -", err)
-											break
+											// 尝试进行二次重建
+											isReconstructSuccess := false
+											reconstructData := dataShards
+											for ytp := range dataShards {
+												copyDataShards := dataShards
+												copyDataShards[ytp] = nil
+												err = enc.Reconstruct(copyDataShards)
+												if err != nil {
+													continue
+												}
+												ok, err = enc.Verify(copyDataShards)
+												if !ok {
+													continue
+												}
+												if err != nil {
+													continue
+												}
+												isReconstructSuccess = true
+												reconstructData = copyDataShards
+											}
+											if !isReconstructSuccess {
+												// 重建失败，数据出现无法修复的错误
+												errorDataNum++
+												fmt.Println(de, er, "\n\n————————————————————————————————————————————")
+												fmt.Println(de, er, "警告：数据出现无法修复的错误，停止输出数据到分片文件(原因：编码视频出现数据损坏且两次重建均失败，建议缩短分片编码视频的时长/增大文件冗余量，这样可以有效降低错误发生的概率)")
+												fmt.Println(de, er, "当前无法恢复的切片文件数量:", errorDataNum)
+												fmt.Println(de, er, "最大可丢失的切片文件数量:", MGValue-KGValue)
+												fmt.Println(de, er, "————————————————————————————————————————————")
+												fmt.Println()
+												bar.Finish()
+												if errorDataNum > MGValue-KGValue {
+													fmt.Println(de, er, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
+													return
+												}
+												return
+											}
+											dataShards = reconstructData
 										}
-										fmt.Println(de, "数据重建成功")
+										//fmt.Println(de, "数据重建成功")
 										break
 									}
 								}
@@ -1310,10 +1415,11 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 								// 数据出现无法修复的错误
 								errorDataNum++
 								fmt.Println(de, er, "\n\n————————————————————————————————————————————")
-								fmt.Println(de, er, "警告：数据出现无法修复的错误，停止输出数据到分片文件")
+								fmt.Println(de, er, "警告：数据出现无法修复的错误，停止输出数据到分片文件(原因：数据丢失过多，出现了超出冗余数据长度的较多空白元素，适当增大 MG 和 KG 和缓解此问题)")
 								fmt.Println(de, er, "当前无法恢复的切片文件数量:", errorDataNum)
 								fmt.Println(de, er, "最大可丢失的切片文件数量:", MGValue-KGValue)
-								fmt.Print(de, er, "————————————————————————————————————————————\n\n")
+								fmt.Println(de, er, "————————————————————————————————————————————")
+								fmt.Println()
 								bar.Finish()
 								if errorDataNum > MGValue-KGValue {
 									fmt.Println(de, er, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
@@ -1324,6 +1430,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 
 							if errorDataNum > MGValue-KGValue {
 								fmt.Println(de, er, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
+								bar.Finish()
 								return
 							}
 
@@ -1366,7 +1473,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 						// 删除记录数据
 						recordData = make([][]byte, 0)
 						var dataShards [][]byte
-						// 检查整理后的长度是否为预期长度且nil元素数量小于等于1
+						// 检查整理后的长度是否为预期长度且nil元素数量小于等于MGValue-KGValue
 						if len(sortShards) == MGValue && countNilElements(sortShards) <= MGValue-KGValue {
 							// 修改 sortShards 的空白数据为 nil
 							for oiu := range sortShards {
@@ -1398,17 +1505,122 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 								for {
 									err = enc.Reconstruct(dataShards)
 									if err != nil {
-										fmt.Println(de, er, "数据重建失败，数据可能已经损坏 -", err)
-										break
+										// 尝试进行二次重建
+										isReconstructSuccess := false
+										reconstructData := dataShards
+										for ytp := range dataShards {
+											copyDataShards := dataShards
+											copyDataShards[ytp] = nil
+											err = enc.Reconstruct(copyDataShards)
+											if err != nil {
+												continue
+											}
+											ok, err = enc.Verify(copyDataShards)
+											if !ok {
+												continue
+											}
+											if err != nil {
+												continue
+											}
+											isReconstructSuccess = true
+											reconstructData = copyDataShards
+										}
+										if !isReconstructSuccess {
+											// 重建失败，数据出现无法修复的错误
+											errorDataNum++
+											fmt.Println(de, er, "\n\n————————————————————————————————————————————")
+											fmt.Println(de, er, "警告：数据出现无法修复的错误，停止输出数据到分片文件(原因：编码视频出现数据损坏且两次重建均失败，建议缩短分片编码视频的时长/增大文件冗余量，这样可以有效降低错误发生的概率)")
+											fmt.Println(de, er, "当前无法恢复的切片文件数量:", errorDataNum)
+											fmt.Println(de, er, "最大可丢失的切片文件数量:", MGValue-KGValue)
+											fmt.Println(de, er, "————————————————————————————————————————————")
+											fmt.Println()
+											bar.Finish()
+											if errorDataNum > MGValue-KGValue {
+												fmt.Println(de, er, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
+												return
+											}
+											return
+										}
+										dataShards = reconstructData
 									}
 									ok, err = enc.Verify(dataShards)
 									if !ok {
-										fmt.Println(de, er, "数据重建失败，数据可能已经损坏")
-										break
+										// 尝试进行二次重建
+										isReconstructSuccess := false
+										reconstructData := dataShards
+										for ytp := range dataShards {
+											copyDataShards := dataShards
+											copyDataShards[ytp] = nil
+											err = enc.Reconstruct(copyDataShards)
+											if err != nil {
+												continue
+											}
+											ok, err = enc.Verify(copyDataShards)
+											if !ok {
+												continue
+											}
+											if err != nil {
+												continue
+											}
+											isReconstructSuccess = true
+											reconstructData = copyDataShards
+										}
+										if !isReconstructSuccess {
+											// 重建失败，数据出现无法修复的错误
+											errorDataNum++
+											fmt.Println(de, er, "\n\n————————————————————————————————————————————")
+											fmt.Println(de, er, "警告：数据出现无法修复的错误，停止输出数据到分片文件(原因：编码视频出现数据损坏且两次重建均失败，建议缩短分片编码视频的时长/增大文件冗余量，这样可以有效降低错误发生的概率)")
+											fmt.Println(de, er, "当前无法恢复的切片文件数量:", errorDataNum)
+											fmt.Println(de, er, "最大可丢失的切片文件数量:", MGValue-KGValue)
+											fmt.Println(de, er, "————————————————————————————————————————————")
+											fmt.Println()
+											bar.Finish()
+											if errorDataNum > MGValue-KGValue {
+												fmt.Println(de, er, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
+												return
+											}
+											return
+										}
+										dataShards = reconstructData
 									}
 									if err != nil {
-										fmt.Println(de, er, "数据重建失败，数据可能已经损坏 -", err)
-										break
+										// 尝试进行二次重建
+										isReconstructSuccess := false
+										reconstructData := dataShards
+										for ytp := range dataShards {
+											copyDataShards := dataShards
+											copyDataShards[ytp] = nil
+											err = enc.Reconstruct(copyDataShards)
+											if err != nil {
+												continue
+											}
+											ok, err = enc.Verify(copyDataShards)
+											if !ok {
+												continue
+											}
+											if err != nil {
+												continue
+											}
+											isReconstructSuccess = true
+											reconstructData = copyDataShards
+										}
+										if !isReconstructSuccess {
+											// 重建失败，数据出现无法修复的错误
+											errorDataNum++
+											fmt.Println(de, er, "\n\n————————————————————————————————————————————")
+											fmt.Println(de, er, "警告：数据出现无法修复的错误，停止输出数据到分片文件(原因：编码视频出现数据损坏且两次重建均失败，建议缩短分片编码视频的时长/增大文件冗余量，这样可以有效降低错误发生的概率)")
+											fmt.Println(de, er, "当前无法恢复的切片文件数量:", errorDataNum)
+											fmt.Println(de, er, "最大可丢失的切片文件数量:", MGValue-KGValue)
+											fmt.Println(de, er, "————————————————————————————————————————————")
+											fmt.Println()
+											bar.Finish()
+											if errorDataNum > MGValue-KGValue {
+												fmt.Println(de, er, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
+												return
+											}
+											return
+										}
+										dataShards = reconstructData
 									}
 									//fmt.Println(de, "数据重建成功")
 									break
@@ -1418,11 +1630,10 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 							// 数据出现无法修复的错误
 							errorDataNum++
 							fmt.Println(de, er, "\n\n————————————————————————————————————————————")
-							fmt.Println(de, er, "警告：数据出现无法修复的错误，停止输出数据到分片文件")
+							fmt.Println(de, er, "警告：数据出现无法修复的错误，停止输出数据到分片文件(原因：数据丢失过多，出现了超出冗余数据长度的较多空白元素，适当增大 MG 和 KG 和缓解此问题)")
 							fmt.Println(de, er, "当前无法恢复的切片文件数量:", errorDataNum)
 							fmt.Println(de, er, "最大可丢失的切片文件数量:", MGValue-KGValue)
 							fmt.Println(de, er, "————————————————————————————————————————————")
-							fmt.Println()
 							fmt.Println()
 							bar.Finish()
 							if errorDataNum > MGValue-KGValue {
@@ -1434,6 +1645,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 
 						if errorDataNum > MGValue-KGValue {
 							fmt.Println(de, er, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
+							bar.Finish()
 							return
 						}
 
