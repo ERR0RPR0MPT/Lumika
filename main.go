@@ -214,7 +214,7 @@ func DeleteFecFiles(fileDir string) {
 			return
 		}
 		if len(fileDict) != 0 {
-			fmt.Println("DeleteFecFiles:", er, "删除临时文件")
+			fmt.Println("DeleteFecFiles:", "删除临时文件")
 			for _, filePath := range fileDict {
 				err = os.Remove(filePath)
 				if err != nil {
@@ -552,6 +552,11 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 		return 0
 	}
 
+	if KGValue > MGValue {
+		fmt.Println(en, er, "KG值不能大于MG值")
+		return 0
+	}
+
 	// 当没有检测到videoFileDir时，自动匹配
 	if fileDir == "" {
 		fmt.Println(en, "自动使用程序所在目录作为输入目录")
@@ -742,23 +747,23 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 				return
 			}
 
+			// 创建图像缓冲区(公用)
+			imageBuffer := new(bytes.Buffer)
+
 			// 为规避某些编码器会自动在视频的前后删除某些帧，导致解码失败，这里在视频的前后各添加defaultBlankSeconds秒的空白帧
 			// 由于视频的前后各添加了defaultBlankSeconds秒的空白帧，所以总时长需要加上4秒
 			for k := 0; k < outputFPS*defaultBlankSeconds; k++ {
 				// 生成带空白数据的图像
-				imageBuffer := new(bytes.Buffer)
 				err = png.Encode(imageBuffer, imgBlank)
 				if err != nil {
 					return
 				}
-				imageData := imageBuffer.Bytes()
-				_, err = stdin.Write(imageData)
+				_, err = stdin.Write(imageBuffer.Bytes())
 				if err != nil {
 					fmt.Println(en, er, "无法写入帧数据到 FFmpeg:", err)
 					return
 				}
-				imageBuffer = nil
-				imageData = nil
+				imageBuffer.Reset()
 				allBlankFrameNum++
 				i++
 			}
@@ -773,89 +778,61 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 						for j := 0; j < dataSliceLen-4; j++ {
 							blankData2[j] = 0
 						}
-
+						dataPackageBlankData2 := make([]byte, dataSliceLen-4)
+						copy(dataPackageBlankData2, blankData2)
 						for l := shardsInsideNum; l < KGValue; l++ {
-							//dataPackage := make([]byte, dataSliceLen-4)
-							//// 写入数据
-							//for p := range blankData2 {
-							//	dataPackage[p] = blankData2[p]
-							//}
-							// 填入 shards 中
-							shards[shardsInsideNum] = blankData2
+							shards[shardsInsideNum] = dataPackageBlankData2
 						}
-
 						shardsInsideNum = 0
 						// 创建冗余数据
 						err = enc.Encode(shards)
 						if err != nil {
 							fmt.Println(en, er, "无法创建冗余数据:", err)
-							//fmt.Println(len(shards))
 							return
 						}
 						// 创建完整数据
 						allShards := make([][]byte, MGValue)
-						for ig := range allShards {
-							allShards[ig] = make([]byte, dataSliceLen)
-						}
-						// 给数据写入索引信息
-						for iu := range shards {
-							ikp := IntToByteArray(uint32(iu))
-							for p := range ikp {
-								allShards[iu][p] = ikp[p]
-							}
-						}
-						// 写入数据
-						for iu := range shards {
-							for p := range shards[iu] {
-								allShards[iu][p+4] = shards[iu][p]
-							}
+						for jk := range shards {
+							// 给数据写入索引信息，同时写入数据
+							allShards[jk] = append(IntToByteArray(uint32(jk)), shards[jk]...)
 						}
 						// 输入开始帧
-						imageBuffer := new(bytes.Buffer)
 						err = png.Encode(imageBuffer, imgBlankStart)
 						if err != nil {
 							return
 						}
-						imageData := imageBuffer.Bytes()
-						_, err = stdin.Write(imageData)
+						_, err = stdin.Write(imageBuffer.Bytes())
 						if err != nil {
 							fmt.Println(en, er, "无法写入帧数据到 FFmpeg:", err)
 							return
 						}
-						imageBuffer = nil
-						imageData = nil
+						imageBuffer.Reset()
 						// 遍历 allShards
 						for _, shardData := range allShards {
 							// 生成带数据的图像
 							img := Data2Image(shardData, videoSize)
-							imageBuffer := new(bytes.Buffer)
-							err = png.Encode(imageBuffer, img)
+							err := png.Encode(imageBuffer, img)
 							if err != nil {
 								return
 							}
-							imageData := imageBuffer.Bytes()
-							_, err = stdin.Write(imageData)
+							_, err = stdin.Write(imageBuffer.Bytes())
 							if err != nil {
 								fmt.Println(en, er, "无法写入帧数据到 FFmpeg:", err)
 								return
 							}
-							imageBuffer = nil
-							imageData = nil
+							imageBuffer.Reset()
 						}
 						// 输入终止帧
-						imageBuffer = new(bytes.Buffer)
 						err = png.Encode(imageBuffer, imgBlankEnd)
 						if err != nil {
 							return
 						}
-						imageData = imageBuffer.Bytes()
-						_, err = stdin.Write(imageData)
+						_, err = stdin.Write(imageBuffer.Bytes())
 						if err != nil {
 							fmt.Println(en, er, "无法写入帧数据到 FFmpeg:", err)
 							return
 						}
-						imageBuffer = nil
-						imageData = nil
+						imageBuffer.Reset()
 					}
 					break
 				}
@@ -869,14 +846,10 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 				}
 
 				dataPackage := make([]byte, dataSliceLen-4)
-				// 写入数据
-				for p := range data {
-					dataPackage[p] = data[p]
-				}
-				// 填入 shards 中
+				copy(dataPackage, data)
 				shards[shardsInsideNum] = dataPackage
 
-				// 判断shards是否被填满(0-9填满，还有10去填冗余数据，总长11)
+				// 判断shards是否被填满
 				if shardsInsideNum == KGValue-1 {
 					shardsInsideNum = 0
 					// 创建冗余数据
@@ -887,68 +860,47 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 					}
 					// 创建完整数据
 					allShards := make([][]byte, MGValue)
-					for ig := range allShards {
-						allShards[ig] = make([]byte, dataSliceLen)
-					}
-					// 给数据写入索引信息
-					for iu := range shards {
-						ikp := IntToByteArray(uint32(iu))
-						for p := range ikp {
-							allShards[iu][p] = ikp[p]
-						}
-					}
-					// 写入数据
-					for iu := range shards {
-						for p := range shards[iu] {
-							allShards[iu][p+4] = shards[iu][p]
-						}
+					for jk := range shards {
+						// 给数据写入索引信息，同时写入数据
+						allShards[jk] = append(IntToByteArray(uint32(jk)), shards[jk]...)
 					}
 					// 输入开始帧
-					imageBuffer := new(bytes.Buffer)
 					err = png.Encode(imageBuffer, imgBlankStart)
 					if err != nil {
 						return
 					}
-					imageData := imageBuffer.Bytes()
-					_, err = stdin.Write(imageData)
+					_, err = stdin.Write(imageBuffer.Bytes())
 					if err != nil {
 						fmt.Println(en, er, "无法写入帧数据到 FFmpeg:", err)
 						return
 					}
-					imageBuffer = nil
-					imageData = nil
+					imageBuffer.Reset()
 					// 遍历 allShards
 					for _, shardData := range allShards {
 						// 生成带数据的图像
 						img := Data2Image(shardData, videoSize)
-						imageBuffer := new(bytes.Buffer)
-						err = png.Encode(imageBuffer, img)
+						err := png.Encode(imageBuffer, img)
 						if err != nil {
 							return
 						}
-						imageData := imageBuffer.Bytes()
-						_, err = stdin.Write(imageData)
+						_, err = stdin.Write(imageBuffer.Bytes())
 						if err != nil {
 							fmt.Println(en, er, "无法写入帧数据到 FFmpeg:", err)
 							return
 						}
-						imageBuffer = nil
-						imageData = nil
+						imageBuffer.Reset()
 					}
 					// 输入终止帧
-					imageBuffer = new(bytes.Buffer)
 					err = png.Encode(imageBuffer, imgBlankEnd)
 					if err != nil {
 						return
 					}
-					imageData = imageBuffer.Bytes()
-					_, err = stdin.Write(imageData)
+					_, err = stdin.Write(imageBuffer.Bytes())
 					if err != nil {
 						fmt.Println(en, er, "无法写入帧数据到 FFmpeg:", err)
 						return
 					}
-					imageBuffer = nil
-					imageData = nil
+					imageBuffer.Reset()
 				} else {
 					shardsInsideNum++
 				}
@@ -965,21 +917,17 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 
 			// 为规避某些编码器会自动在视频的前后删除某些帧，导致解码失败，这里在视频的前后各添加defaultBlankSeconds秒的空白帧
 			// 或者直接生成后一半的空白视频来阻止编码器删除数据帧
-			//for k := 0; k < i; k++ {
 			for k := 0; k < outputFPS*defaultBlankSeconds; k++ {
-				imageBuffer := new(bytes.Buffer)
-				err = png.Encode(imageBuffer, imgBlank)
+				err := png.Encode(imageBuffer, imgBlank)
 				if err != nil {
 					return
 				}
-				imageData := imageBuffer.Bytes()
-				_, err = stdin.Write(imageData)
+				_, err = stdin.Write(imageBuffer.Bytes())
 				if err != nil {
 					fmt.Println(en, er, "无法写入帧数据到 FFmpeg:", err)
 					return
 				}
-				imageBuffer = nil
-				imageData = nil
+				imageBuffer.Reset()
 				allBlankFrameNum++
 			}
 			fmt.Println(en, "添加完成，总共添加", allBlankFrameNum, "帧空白帧")
@@ -1027,6 +975,11 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 		return
 	}
 	epPath := filepath.Dir(ep)
+
+	if KGValue > MGValue {
+		fmt.Println(de, er, "KG值不能大于MG值")
+		return
+	}
 
 	// 当没有检测到videoFileDir时，自动匹配
 	if videoFileDir == "" {
@@ -1820,6 +1773,11 @@ func Add() {
 		defaultK = addKLevel
 	}
 
+	if defaultK > defaultM {
+		fmt.Println(add, er, "错误: K 的值不能大于 M 的值，自动设置 K = M = "+strconv.Itoa(defaultM))
+		defaultK = defaultM
+	}
+
 	// 设置MG的值
 	fmt.Println(add, "请输入 MG 的值(0<=MG<=256)，MG 为帧数据的总切片数量。默认：\""+strconv.Itoa(addMGLevel)+"\"")
 	MGValue, err := strconv.Atoi(GetUserInput(""))
@@ -1842,6 +1800,11 @@ func Add() {
 	if KGValue == 0 {
 		fmt.Println(add, er, "错误: G 的值不能为 0，自动设置 G = "+strconv.Itoa(addKGLevel))
 		KGValue = addKGLevel
+	}
+
+	if KGValue > MGValue {
+		fmt.Println(add, er, "错误: KG 的值不能大于 MG 的值，自动设置 KG = MG = "+strconv.Itoa(MGValue))
+		KGValue = MGValue
 	}
 
 	// 设置默认的分辨率大小
