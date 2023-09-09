@@ -39,8 +39,8 @@ const (
 	er                    = "Error:"
 	addMLevel             = 100
 	addKLevel             = 90
-	addMGLevel            = 10
-	addKGLevel            = 7
+	addMGLevel            = 200
+	addKGLevel            = 150
 	encodeVideoSizeLevel  = 32
 	encodeOutputFPSLevel  = 24
 	encodeMaxSecondsLevel = 35990
@@ -1380,7 +1380,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 							// 数据将开始重建
 							ok, err := enc.Verify(dataShards)
 							if !ok {
-								fmt.Println(de, "检测到数据出现损坏，开始重建数据")
+								//fmt.Println(de, "检测到数据出现损坏，开始重建数据")
 								//fmt.Println("输出一些详细的信息供参考：")
 								//fmt.Println("数据帧数量:", len(sortShards))
 								//fmt.Println("数据帧长度:", len(sortShards[0]))
@@ -1398,19 +1398,19 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 								for {
 									err = enc.Reconstruct(dataShards)
 									if err != nil {
-										fmt.Println(de, er, "数据重建失败 -", err)
+										fmt.Println(de, er, "数据重建失败，数据可能已经损坏 -", err)
 										break
 									}
 									ok, err = enc.Verify(dataShards)
 									if !ok {
-										fmt.Println(de, er, "数据重建失败并且已经损坏")
+										fmt.Println(de, er, "数据重建失败，数据可能已经损坏")
 										break
 									}
 									if err != nil {
-										fmt.Println(de, er, "数据重建失败并且已经损坏 -", err)
+										fmt.Println(de, er, "数据重建失败，数据可能已经损坏 -", err)
 										break
 									}
-									fmt.Println(de, "数据重建成功")
+									//fmt.Println(de, "数据重建成功")
 									break
 								}
 							}
@@ -1421,7 +1421,9 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 							fmt.Println(de, er, "警告：数据出现无法修复的错误，停止输出数据到分片文件")
 							fmt.Println(de, er, "当前无法恢复的切片文件数量:", errorDataNum)
 							fmt.Println(de, er, "最大可丢失的切片文件数量:", MGValue-KGValue)
-							fmt.Print(de, er, "————————————————————————————————————————————\n\n")
+							fmt.Println(de, er, "————————————————————————————————————————————")
+							fmt.Println()
+							fmt.Println()
 							bar.Finish()
 							if errorDataNum > MGValue-KGValue {
 								fmt.Println(de, er, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
