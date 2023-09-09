@@ -29,6 +29,8 @@ import (
 )
 
 const (
+	lumikaVersionNum      = 3
+	lumikaVersionString   = "v3.7.0"
 	en                    = "Encode:"
 	de                    = "Decode:"
 	add                   = "Add:"
@@ -52,6 +54,7 @@ const (
 )
 
 type FecFileConfig struct {
+	Version       int      `json:"v"`
 	Name          string   `json:"n"`
 	Summary       string   `json:"s"`
 	Hash          string   `json:"h"`
@@ -1310,7 +1313,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 								fmt.Println(de, er, "警告：数据出现无法修复的错误，停止输出数据到分片文件")
 								fmt.Println(de, er, "当前无法恢复的切片文件数量:", errorDataNum)
 								fmt.Println(de, er, "最大可丢失的切片文件数量:", MGValue-KGValue)
-								fmt.Printf(de, er, "————————————————————————————————————————————\n\n")
+								fmt.Print(de, er, "————————————————————————————————————————————\n\n")
 								bar.Finish()
 								if errorDataNum > MGValue-KGValue {
 									fmt.Println(de, er, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
@@ -1418,7 +1421,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 							fmt.Println(de, er, "警告：数据出现无法修复的错误，停止输出数据到分片文件")
 							fmt.Println(de, er, "当前无法恢复的切片文件数量:", errorDataNum)
 							fmt.Println(de, er, "最大可丢失的切片文件数量:", MGValue-KGValue)
-							fmt.Printf(de, er, "————————————————————————————————————————————\n\n")
+							fmt.Print(de, er, "————————————————————————————————————————————\n\n")
 							bar.Finish()
 							if errorDataNum > MGValue-KGValue {
 								fmt.Println(de, er, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
@@ -1756,6 +1759,7 @@ func Add() {
 
 		fmt.Println(add, "编码完成，开始生成配置")
 		fecFileConfig := FecFileConfig{
+			Version:       lumikaVersionNum,
 			Name:          defaultFileName,
 			Summary:       defaultSummary,
 			Hash:          CalculateFileHash(filePath, defaultHashLength),
@@ -1868,7 +1872,7 @@ func Get() {
 		configBase64Bytes, err := os.ReadFile(configBase64FilePath)
 		if err != nil {
 			fmt.Println(get, er, "读取文件失败:", err)
-			return
+			continue
 		}
 		base64Config = string(configBase64Bytes)
 
@@ -1876,19 +1880,25 @@ func Get() {
 		fecFileConfigJson, err := base64.StdEncoding.DecodeString(base64Config)
 		if err != nil {
 			fmt.Println(get, er, "解析 Base64 配置失败:", err)
-			return
+			continue
 		}
 		err = json.Unmarshal(fecFileConfigJson, &fecFileConfig)
 		if err != nil {
 			fmt.Println(get, er, "解析 JSON 配置失败:", err)
-			return
+			continue
+		}
+
+		// 检测是否与当前版本匹配
+		if fecFileConfig.Version != lumikaVersionNum {
+			fmt.Println(get, er, "错误: 版本不匹配，无法进行解码。编码文件版本:", fecFileConfig.Version, "当前版本:", lumikaVersionNum)
+			continue
 		}
 
 		// 查找 .mp4 文件
 		fileDict, err := GenerateFileDxDictionary(fileDir, ".mp4")
 		if err != nil {
 			fmt.Println(get, er, "无法生成文件列表:", err)
-			return
+			continue
 		}
 
 		// 修改文件名加上output前缀
@@ -1918,7 +1928,7 @@ func Get() {
 		fileDict, err = GenerateFileDxDictionary(fileDir, ".fec")
 		if err != nil {
 			fmt.Println(get, er, "无法生成文件列表:", err)
-			return
+			continue
 		}
 
 		// 遍历索引的 FecHashList
@@ -1959,7 +1969,7 @@ func Get() {
 		enc, err := reedsolomon.New(fecFileConfig.K, fecFileConfig.M-fecFileConfig.K)
 		if err != nil {
 			fmt.Println(get, er, "无法构建RS解码器:", err)
-			return
+			continue
 		}
 		shards := make([][]byte, fecFileConfig.M)
 		for i := range shards {
@@ -1985,20 +1995,20 @@ func Get() {
 				fmt.Println(get, er, "恢复失败 -", err)
 				DeleteFecFiles(fileDir)
 				GetUserInput("请按回车键继续...")
-				return
+				continue
 			}
 			ok, err = enc.Verify(shards)
 			if !ok {
 				fmt.Println(get, er, "恢复失败，数据可能已损坏")
 				DeleteFecFiles(fileDir)
 				GetUserInput("请按回车键继续...")
-				return
+				continue
 			}
 			if err != nil {
 				fmt.Println(get, er, "恢复失败 -", err)
 				DeleteFecFiles(fileDir)
 				GetUserInput("请按回车键继续...")
-				return
+				continue
 			}
 			fmt.Println(get, "恢复成功")
 		}
@@ -2006,18 +2016,18 @@ func Get() {
 		f, err := os.Create(fecFileConfig.Name)
 		if err != nil {
 			fmt.Println(get, er, "创建文件失败:", err)
-			return
+			continue
 		}
 		err = enc.Join(f, shards, len(shards[0])*fecFileConfig.K)
 		if err != nil {
 			fmt.Println(get, er, "写入文件失败:", err)
-			return
+			continue
 		}
 		f.Close()
 		err = TruncateFile(fecFileConfig.Length, filepath.Join(epPath, fecFileConfig.Name))
 		if err != nil {
 			fmt.Println(get, er, "截断解码文件失败:", err)
-			return
+			continue
 		}
 		zunfecEndTime := time.Now()
 		zunfecDuration := zunfecEndTime.Sub(zunfecStartTime)
@@ -2086,8 +2096,10 @@ func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stdout, "Usage: %s [command] [options]\n", os.Args[0])
+		fmt.Fprintln(os.Stdout, "\nLumika", lumikaVersionString)
 		fmt.Fprintln(os.Stdout, "Double-click to run: Start via automatic mode")
 		fmt.Fprintln(os.Stdout, "\nCommands:")
+		fmt.Fprintln(os.Stdout, "version\tLumika version.")
 		fmt.Fprintln(os.Stdout, "add\tUsing FFmpeg to encode zfec redundant files into .mp4 FEC video files that appear less harmful.")
 		fmt.Fprintln(os.Stdout, "get\tUsing FFmpeg to decode .mp4 FEC video files into the original files.")
 		fmt.Fprintln(os.Stdout, " Options:")
@@ -2171,6 +2183,15 @@ func main() {
 		return
 	case "--help":
 		flag.Usage()
+		return
+	case "version":
+		fmt.Println(lumikaVersionString)
+		return
+	case "-v":
+		fmt.Println(lumikaVersionString)
+		return
+	case "--version":
+		fmt.Println(lumikaVersionString)
 		return
 	default:
 		fmt.Println("Unknown command:", os.Args[1])
