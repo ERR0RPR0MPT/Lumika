@@ -30,7 +30,7 @@ import (
 
 const (
 	lumikaVersionNum      = 3
-	lumikaVersionString   = "v3.7.1"
+	lumikaVersionString   = "v3.7.2"
 	en                    = "Encode:"
 	de                    = "Decode:"
 	add                   = "Add:"
