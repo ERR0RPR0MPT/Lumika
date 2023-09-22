@@ -30,15 +30,15 @@ import (
 
 const (
 	lumikaVersionNum      = 3
-	lumikaVersionString   = "v3.7.2"
+	lumikaVersionString   = "v3.7.3"
 	en                    = "Encode:"
 	de                    = "Decode:"
 	add                   = "Add:"
 	get                   = "Get:"
 	ar                    = "AutoRun:"
 	er                    = "Error:"
-	addMLevel             = 100
-	addKLevel             = 90
+	addMLevel             = 90
+	addKLevel             = 81
 	addMGLevel            = 200
 	addKGLevel            = 130
 	encodeVideoSizeLevel  = 32
@@ -619,6 +619,22 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 		}
 	}
 
+	isPaused := false
+	isRuntime := true
+
+	// 启动监控进程
+	go func() {
+		fmt.Println(en, "按下回车键暂停/继续运行")
+		for {
+			GetUserInput("")
+			if !isRuntime {
+				return
+			}
+			isPaused = !isPaused
+			fmt.Println(en, "当前是否正在运行：", !isPaused)
+		}
+	}()
+
 	// 启动多个goroutine
 	var wg sync.WaitGroup
 	maxGoroutines := encodeThread // 最大同时运行的协程数量
@@ -770,6 +786,11 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 
 			fileNowLength := 0
 			for {
+				// 检测是否暂停
+				if isPaused {
+					time.Sleep(time.Second)
+					continue
+				}
 				// 从文件读取数据
 				if len(fileData) == 0 {
 					if shardsInsideNum != 0 {
@@ -961,6 +982,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 		}(fileIndexNum, filePath)
 	}
 	wg.Wait()
+	isRuntime = false
 	allEndTime := time.Now()
 	allDuration := allEndTime.Sub(allStartTime)
 	fmt.Printf(en+" 总共耗时%f秒\n", allDuration.Seconds())
@@ -1043,6 +1065,22 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 
 	// 错误数据数量
 	errorDataNum := 0
+
+	isPaused := false
+	isRuntime := true
+
+	// 启动监控进程
+	go func() {
+		fmt.Println(de, "按下回车键暂停/继续运行")
+		for {
+			GetUserInput("")
+			if !isRuntime {
+				return
+			}
+			isPaused = !isPaused
+			fmt.Println(de, "当前是否正在运行：", !isPaused)
+		}
+	}()
 
 	var wg sync.WaitGroup
 	maxGoroutines := decodeThread // 最大同时运行的协程数量
@@ -1166,6 +1204,11 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 			i := 0
 			allDataNum := 0
 			for {
+				// 检测是否暂停
+				if isPaused {
+					time.Sleep(time.Second)
+					continue
+				}
 				rawData := make([]byte, videoWidth*videoHeight*3)
 				readBytes := 0
 				exitFlag := false
@@ -1676,6 +1719,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 		return
 	}
 
+	isRuntime = false
 	allEndTime := time.Now()
 	allDuration := allEndTime.Sub(allStartTime)
 	fmt.Println(de, "全部完成")
