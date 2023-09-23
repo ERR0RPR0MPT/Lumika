@@ -1794,7 +1794,7 @@ func Add() {
 	}
 
 	// 设置M的值
-	fmt.Println(add, "请输入 M 的值(0<=M<=256)，M 为最终生成的切片文件数量。默认：\""+strconv.Itoa(addMLevel)+"\"")
+	fmt.Println(add, "请输入 M 的值(0<=M<=256)，M 为最终生成的总切片数量。默认：\""+strconv.Itoa(addMLevel)+"\"")
 	defaultM, err := strconv.Atoi(GetUserInput(""))
 	if err != nil {
 		fmt.Println(add, "自动设置 M = "+strconv.Itoa(addMLevel))
@@ -1835,7 +1835,7 @@ func Add() {
 	}
 
 	// 设置KG的值
-	fmt.Println(add, "请输入 KG 的值(0<=KG<=256)，KG 为帧数据的总切片数量。默认：\""+strconv.Itoa(addKGLevel)+"\"")
+	fmt.Println(add, "请输入 KG 的值(0<=KG<=256)，KG 为恢复帧数据所需的最少完整切片数量。默认：\""+strconv.Itoa(addKGLevel)+"\"")
 	KGValue, err := strconv.Atoi(GetUserInput(""))
 	if err != nil {
 		fmt.Println(add, "自动设置 G = "+strconv.Itoa(addKGLevel))
