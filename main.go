@@ -17,8 +17,8 @@ func main() {
 		fmt.Fprintln(os.Stdout, "Double-click to run: Start via automatic mode")
 		fmt.Fprintln(os.Stdout, "\nCommands:")
 		fmt.Fprintln(os.Stdout, "version\tLumika version.")
-		fmt.Fprintln(os.Stdout, "AddStr\tUsing FFmpeg to encode zfec redundant files into .mp4 FEC video files that appear less harmful.")
-		fmt.Fprintln(os.Stdout, "GetStr\tUsing FFmpeg to decode .mp4 FEC video files into the original files.")
+		fmt.Fprintln(os.Stdout, "add\tUsing FFmpeg to encode zfec redundant files into .mp4 FEC video files that appear less harmful.")
+		fmt.Fprintln(os.Stdout, "get\tUsing FFmpeg to decode .mp4 FEC video files into the original files.")
 		fmt.Fprintln(os.Stdout, " Options:")
 		fmt.Fprintln(os.Stdout, " -b\tThe Base64 encoded JSON included message to provide decode")
 		fmt.Fprintln(os.Stdout, "encode\tEncode a file")
@@ -54,9 +54,9 @@ func main() {
 	decodeKGValue := decodeFlag.Int("k", utils.AddKGLevel, "The output video frame data shards(default="+strconv.Itoa(utils.AddKGLevel)+"), 2-256")
 	decodeThread := decodeFlag.Int("t", runtime.NumCPU(), "Set Runtime Go routines number to process the task(default="+strconv.Itoa(runtime.NumCPU())+"), 1-128")
 
-	addFlag := flag.NewFlagSet("AddStr", flag.ExitOnError)
+	addFlag := flag.NewFlagSet("add", flag.ExitOnError)
 
-	getFlag := flag.NewFlagSet("GetStr", flag.ExitOnError)
+	getFlag := flag.NewFlagSet("get", flag.ExitOnError)
 
 	if len(os.Args) < 2 {
 		utils.AutoRun()
@@ -64,14 +64,14 @@ func main() {
 		return
 	}
 	switch os.Args[1] {
-	case "AddStr":
+	case "add":
 		err := addFlag.Parse(os.Args[2:])
 		if err != nil {
 			fmt.Println(utils.AddStr, utils.ErStr, "参数解析错误")
 			return
 		}
 		utils.Add()
-	case "GetStr":
+	case "get":
 		err := getFlag.Parse(os.Args[2:])
 		if err != nil {
 			fmt.Println(utils.GetStr, utils.ErStr, "参数解析错误")
