@@ -7,10 +7,26 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"strings"
 )
+
+func MainInit() {
+	// 创建 Lumika 工作目录
+	if _, err := os.Stat(utils.LumikaWorkDir); err == nil {
+		fmt.Println(utils.InitStr, "Lumika 工作目录已存在，跳过创建 Lumika 工作目录")
+	} else {
+		fmt.Println(utils.InitStr, "Lumika 工作目录不存在，创建 Lumika 工作目录")
+		err = os.Mkdir(utils.LumikaWorkDir, os.ModePerm)
+		if err != nil {
+			fmt.Println(utils.InitStr, "创建 Lumika 工作目录失败:", err)
+			return
+		}
+	}
+}
 
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
+	MainInit()
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stdout, "Usage: %s [command] [options]\n", os.Args[0])
 		fmt.Fprintln(os.Stdout, "\nLumika", utils.LumikaVersionString)
@@ -58,12 +74,21 @@ func main() {
 
 	getFlag := flag.NewFlagSet("get", flag.ExitOnError)
 
+	dlFlag := flag.NewFlagSet("dl", flag.ExitOnError)
+
 	if len(os.Args) < 2 {
-		utils.AutoRun()
-		utils.PressEnterToContinue()
+		utils.WebServer()
 		return
 	}
 	switch os.Args[1] {
+	case "a":
+		utils.AutoRun()
+		utils.PressEnterToContinue()
+		return
+	case "autorun":
+		utils.AutoRun()
+		utils.PressEnterToContinue()
+		return
 	case "add":
 		err := addFlag.Parse(os.Args[2:])
 		if err != nil {
@@ -71,6 +96,7 @@ func main() {
 			return
 		}
 		utils.Add()
+		return
 	case "get":
 		err := getFlag.Parse(os.Args[2:])
 		if err != nil {
@@ -78,6 +104,19 @@ func main() {
 			return
 		}
 		utils.Get()
+		return
+	case "dl":
+		err := dlFlag.Parse(os.Args[2:])
+		if err != nil || len(os.Args) < 3 {
+			fmt.Println(utils.BDlStr, utils.ErStr, "参数解析错误，请正确填写 av/BV 号，例如：", os.Args[0], "dl", "av2")
+			return
+		}
+		if os.Args[2] == "" || (!strings.Contains(os.Args[2], "BV") && !strings.Contains(os.Args[2], "av")) {
+			fmt.Println(utils.BDlStr, utils.ErStr, "参数解析错误，请输入正确的av/BV号")
+			return
+		}
+		utils.BDl(os.Args[2])
+		return
 	case "encode":
 		err := encodeFlag.Parse(os.Args[2:])
 		if err != nil {
@@ -85,6 +124,7 @@ func main() {
 			return
 		}
 		utils.Encode(*encodeInput, *encodeQrcodeSize, *encodeOutputFPS, *encodeMaxSeconds, *encodeMGValue, *encodeKGValue, *encodeThread, *encodeFFmpegMode, false)
+		return
 	case "decode":
 		err := decodeFlag.Parse(os.Args[2:])
 		if err != nil {
@@ -92,6 +132,7 @@ func main() {
 			return
 		}
 		utils.Decode(*decodeInputDir, 0, nil, *decodeMGValue, *decodeKGValue, *decodeThread)
+		return
 	case "help":
 		flag.Usage()
 		return
