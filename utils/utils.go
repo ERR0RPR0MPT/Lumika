@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"unicode"
 )
 
 func PressEnterToContinue() {
@@ -486,4 +487,43 @@ func SearchFileNameInDir(directory, filename string) string {
 		}
 	}
 	return ""
+}
+
+func ReplaceInvalidCharacters(input string, replacement rune) string {
+	invalidChars := []rune{'\\', '/', ':', '*', '?', '"', '<', '>', '|'}
+	validChars := make(map[rune]bool)
+
+	// 替换非法字符为有效字符
+	for _, char := range input {
+		if unicode.IsControl(char) || char == replacement {
+			continue
+		}
+		if ReplaceInvalidCharactersContains(invalidChars, char) {
+			validChars[char] = true
+		}
+	}
+
+	// 构建替换后的字符串
+	var result strings.Builder
+	for _, char := range input {
+		if unicode.IsControl(char) || char == replacement {
+			continue
+		}
+		if validChars[char] {
+			result.WriteRune(replacement)
+		} else {
+			result.WriteRune(char)
+		}
+	}
+
+	return result.String()
+}
+
+func ReplaceInvalidCharactersContains(slice []rune, char rune) bool {
+	for _, c := range slice {
+		if c == char {
+			return true
+		}
+	}
+	return false
 }

@@ -1,34 +1,36 @@
 package utils
 
 const (
-	LumikaVersionNum           = 3
-	LumikaVersionString        = "v3.8.0.beta1"
-	LumikaWorkDir              = "lumika_data"
-	InitStr                    = "Init:"
-	EnStr                      = "Encode:"
-	DeStr                      = "Decode:"
-	AddStr                     = "Add:"
-	GetStr                     = "Get:"
-	BDlStr                     = "BDl:"
-	ArStr                      = "AutoRun:"
-	ErStr                      = "Error:"
-	AddMLevel                  = 90
-	AddKLevel                  = 81
-	AddMGLevel                 = 200
-	AddKGLevel                 = 130
-	EncodeVideoSizeLevel       = 32
-	EncodeOutputFPSLevel       = 24
-	EncodeMaxSecondsLevel      = 35990
-	EncodeFFmpegModeLevel      = "medium"
-	DefaultHashLength          = 7
-	DefaultBlankSeconds        = 3
-	DefaultBlankByte           = 85
-	DefaultBlankStartByte      = 86
-	DefaultBlankEndByte        = 87
-	DefaultDeleteFecFiles      = true
-	DefaultBiliDownloadThreads = 64
-	DefaultBiliDownloadReferer = "https://www.bilibili.com"
-	DefaultUserAgent           = "Mozilla/5.0 (Windows NT 10.0; WOW64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.5666.197 Safari/537.36"
+	LumikaVersionNum                = 3
+	LumikaVersionString             = "v3.8.0.beta1"
+	LumikaWorkDir                   = "lumika_data"
+	InitStr                         = "Init:"
+	EnStr                           = "Encode:"
+	DeStr                           = "Decode:"
+	AddStr                          = "Add:"
+	GetStr                          = "Get:"
+	BDlStr                          = "BDl:"
+	ArStr                           = "AutoRun:"
+	ErStr                           = "Error:"
+	AddMLevel                       = 90
+	AddKLevel                       = 81
+	AddMGLevel                      = 200
+	AddKGLevel                      = 130
+	EncodeVideoSizeLevel            = 32
+	EncodeOutputFPSLevel            = 24
+	EncodeMaxSecondsLevel           = 35990
+	EncodeFFmpegModeLevel           = "medium"
+	DefaultHashLength               = 7
+	DefaultBlankSeconds             = 3
+	DefaultBlankByte                = 85
+	DefaultBlankStartByte           = 86
+	DefaultBlankEndByte             = 87
+	DefaultDeleteFecFiles           = true
+	DefaultBiliDownloadGoRoutines   = 20
+	DefaultBiliDownloadsMaxQueueNum = 5
+	DefaultBiliDownloadMaxRetries   = 100
+	DefaultBiliDownloadReferer      = "https://www.bilibili.com"
+	DefaultUserAgent                = "Mozilla/5.0 (Windows NT 10.0; WOW64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.5666.197 Safari/537.36"
 )
 
 type FecFileConfig struct {
