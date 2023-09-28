@@ -5,20 +5,55 @@ import (
 	"fmt"
 	"github.com/ERR0RPR0MPT/Lumika/utils"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
 )
 
 func MainInit() {
+	est, err := os.Executable()
+	if err != nil {
+		fmt.Println(utils.InitStr, "工作目录获取失败")
+		return
+	}
+	WorkDir := filepath.Dir(est)
 	// 创建 Lumika 工作目录
-	if _, err := os.Stat(utils.LumikaWorkDir); err == nil {
+	if _, err := os.Stat(filepath.Join(WorkDir, utils.LumikaWorkDirName)); err == nil {
 		fmt.Println(utils.InitStr, "Lumika 工作目录已存在，跳过创建 Lumika 工作目录")
+		if _, err := os.Stat(filepath.Join(WorkDir, utils.LumikaWorkDirName, "encode")); err != nil {
+			fmt.Println(utils.InitStr, "创建 encode 工作目录")
+			err = os.Mkdir(filepath.Join(WorkDir, utils.LumikaWorkDirName, "encode"), os.ModePerm)
+			if err != nil {
+				fmt.Println(utils.InitStr, "创建 encode 目录失败:", err)
+				return
+			}
+		}
+		if _, err := os.Stat(filepath.Join(WorkDir, utils.LumikaWorkDirName, "decode")); err != nil {
+			fmt.Println(utils.InitStr, "创建 decode 工作目录")
+			err = os.Mkdir(filepath.Join(WorkDir, utils.LumikaWorkDirName, "decode"), os.ModePerm)
+			if err != nil {
+				fmt.Println(utils.InitStr, "创建 decode 目录失败:", err)
+				return
+			}
+		}
 	} else {
 		fmt.Println(utils.InitStr, "Lumika 工作目录不存在，创建 Lumika 工作目录")
-		err = os.Mkdir(utils.LumikaWorkDir, os.ModePerm)
+		err = os.Mkdir(filepath.Join(WorkDir, utils.LumikaWorkDirName), os.ModePerm)
 		if err != nil {
 			fmt.Println(utils.InitStr, "创建 Lumika 工作目录失败:", err)
+			return
+		}
+		fmt.Println(utils.InitStr, "创建 encode 工作目录")
+		err = os.Mkdir(filepath.Join(WorkDir, utils.LumikaWorkDirName, "encode"), os.ModePerm)
+		if err != nil {
+			fmt.Println(utils.InitStr, "创建 encode 目录失败:", err)
+			return
+		}
+		fmt.Println(utils.InitStr, "创建 decode 工作目录")
+		err = os.Mkdir(filepath.Join(WorkDir, utils.LumikaWorkDirName, "decode"), os.ModePerm)
+		if err != nil {
+			fmt.Println(utils.InitStr, "创建 decode 目录失败:", err)
 			return
 		}
 	}

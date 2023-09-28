@@ -2,9 +2,11 @@ package utils
 
 const (
 	LumikaVersionNum                = 3
-	LumikaVersionString             = "v3.8.0.beta1"
-	LumikaWorkDir                   = "lumika_data"
+	LumikaVersionString             = "v3.8.0.beta3"
+	LumikaWorkDirName               = "lumika_data"
 	InitStr                         = "Init:"
+	WebStr                          = "WebServer:"
+	DbStr                           = "Database:"
 	EnStr                           = "Encode:"
 	DeStr                           = "Decode:"
 	AddStr                          = "Add:"
@@ -31,6 +33,8 @@ const (
 	DefaultBiliDownloadMaxRetries   = 100
 	DefaultBiliDownloadReferer      = "https://www.bilibili.com"
 	DefaultUserAgent                = "Mozilla/5.0 (Windows NT 10.0; WOW64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.5666.197 Safari/537.36"
+	DefaultWebServerDebugMode       = false
+	DefaultWebServerBindAddress     = ":7860"
 )
 
 type FecFileConfig struct {
@@ -45,4 +49,7 @@ type FecFileConfig struct {
 	Length        int64    `json:"l"`
 	SegmentLength int64    `json:"sl"`
 	FecHashList   []string `json:"fhl"`
+}
+
+type Database struct {
 }
