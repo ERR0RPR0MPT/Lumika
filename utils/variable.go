@@ -60,7 +60,11 @@ type DlTaskListData struct {
 	ProgressRate int    `json:"progressRate"`
 }
 
-type Database struct {
+type FileInfo struct {
+	Filename string `json:"filename"`
+	Type     string `json:"type"`
 }
 
+var DlTaskQueue chan *DlTaskInfo
 var DlTaskList []DlTaskListData
+var DirectoryData []FileInfo

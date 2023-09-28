@@ -539,3 +539,22 @@ func GetFileNameFromURL(urlString string) string {
 	fileName := path.Base(parsedURL.Path)
 	return fileName
 }
+
+func GetDirectoryJSON(directoryPath string) ([]FileInfo, error) {
+	fileList := make([]FileInfo, 0)
+	files, err := os.ReadDir(directoryPath)
+	if err != nil {
+		return nil, err
+	}
+	for _, file := range files {
+		fileType := "file"
+		if file.IsDir() {
+			fileType = "dir"
+		}
+		fileList = append(fileList, FileInfo{
+			Filename: file.Name(),
+			Type:     fileType,
+		})
+	}
+	return fileList, nil
+}

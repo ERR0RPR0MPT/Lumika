@@ -41,8 +41,6 @@ type DlTaskInfo struct {
 	numThreads int
 }
 
-var DlTaskQueue chan *DlTaskInfo
-
 func DlAddTask(url string, filePath string, referer string, userAgent string, numThreads int) {
 	uuidd := uuid.New().String()
 	DlTaskList = append(DlTaskList, DlTaskListData{
@@ -78,6 +76,7 @@ func DlTaskWorker(id int) {
 func DlTaskWorkerInit() {
 	DlTaskQueue = make(chan *DlTaskInfo)
 	DlTaskList = make([]DlTaskListData, 0)
+	DirectoryData = make([]FileInfo, 0)
 	// 启动多个 DlTaskWorker 协程来处理任务
 	for i := 0; i < DefaultBiliDownloadsMaxQueueNum; i++ {
 		go DlTaskWorker(i)

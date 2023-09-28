@@ -102,6 +102,20 @@ func GetDlTaskList(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": DlTaskList})
 }
 
+func GetFileList(c *gin.Context) {
+	EncodeDirData, err := GetDirectoryJSON(filepath.Join("lumika_data", "encode"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"读取文件出现错误:": err.Error()})
+		return
+	}
+	DecodeDirData, err := GetDirectoryJSON(filepath.Join("lumika_data", "decode"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"读取文件出现错误:": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"encode": EncodeDirData, "decode": DecodeDirData})
+}
+
 func WebServerInit() {
 	DlTaskWorkerInit()
 	BDlTaskWorkerInit()
@@ -119,6 +133,7 @@ func WebServerInit() {
 	r.POST("/api/get-file-from-url", GetFileFromURL)
 	r.POST("/api/get-encoded-video-files", GetFileFromBiliID)
 	r.GET("/api/get-dl-task-list", GetDlTaskList)
+	r.GET("/api/get-file-list", GetFileList)
 	fmt.Println(WebStr, "Web Server 在 "+DefaultWebServerBindAddress+" 上监听")
 	fmt.Println(WebStr, "尝试访问管理面板: http://127.0.0.1:7860/")
 	err := r.Run(DefaultWebServerBindAddress)
