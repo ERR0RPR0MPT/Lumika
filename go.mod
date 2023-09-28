@@ -4,6 +4,8 @@ go 1.19
 
 require (
 	github.com/cheggaaa/pb/v3 v3.1.4
+	github.com/gin-gonic/gin v1.9.1
+	github.com/google/uuid v1.3.1
 	github.com/iyear/biligo v0.1.7
 	github.com/klauspost/reedsolomon v1.11.8
 )
@@ -16,7 +18,6 @@ require (
 	github.com/fatih/color v1.15.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
-	github.com/gin-gonic/gin v1.9.1 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.15.4 // indirect

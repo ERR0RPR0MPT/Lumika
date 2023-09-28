@@ -8,8 +8,10 @@ import (
 	"image"
 	"image/color"
 	"io"
+	"net/url"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -526,4 +528,14 @@ func ReplaceInvalidCharactersContains(slice []rune, char rune) bool {
 		}
 	}
 	return false
+}
+
+func GetFileNameFromURL(urlString string) string {
+	parsedURL, err := url.Parse(urlString)
+	if err != nil {
+		return ""
+	}
+
+	fileName := path.Base(parsedURL.Path)
+	return fileName
 }

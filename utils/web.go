@@ -66,7 +66,45 @@ func UploadDecode(c *gin.Context) {
 	c.JSON(http.StatusOK, fmt.Sprintf("目录上传成功: 已上传 %d 个文件", len(files)))
 }
 
-func WebServer() {
+func GetFileFromURL(c *gin.Context) {
+	url := c.PostForm("url")
+	if url == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "URL 不能为空"})
+		return
+	}
+	fileName := c.PostForm("fileName")
+	if fileName == "" {
+		fileName = GetFileNameFromURL(url)
+	}
+	useSingleThreadToDownload := c.PostForm("useSingleThreadToDownload")
+	fmt.Println("读取到 useSingleThreadToDownload:", useSingleThreadToDownload)
+	ua := DefaultBiliDownloadGoRoutines
+	if useSingleThreadToDownload == "true" {
+		ua = 1
+	}
+	fileName = ReplaceInvalidCharacters(fileName, '-')
+	filePath := filepath.Join("lumika_data", "encode", fileName)
+	DlAddTask(url, filePath, "", DefaultUserAgent, ua)
+	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("成功添加下载任务: %s, 使用线程数: %d", fileName, ua)})
+}
+
+func GetFileFromBiliID(c *gin.Context) {
+	AVOrBVStr := c.PostForm("bili-id")
+	if AVOrBVStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "BV/av号不能为空"})
+		return
+	}
+	BDlAddTask(AVOrBVStr)
+	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("成功添加下载任务: %s", AVOrBVStr)})
+}
+
+func GetDlTaskList(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"data": DlTaskList})
+}
+
+func WebServerInit() {
+	DlTaskWorkerInit()
+	BDlTaskWorkerInit()
 	if !DefaultWebServerDebugMode {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -78,12 +116,19 @@ func WebServer() {
 	r.StaticFS("/ui", http.Dir("./ui"))
 	r.POST("/api/upload/encode", UploadEncode)
 	r.POST("/api/upload/decode", UploadDecode)
+	r.POST("/api/get-file-from-url", GetFileFromURL)
+	r.POST("/api/get-encoded-video-files", GetFileFromBiliID)
+	r.GET("/api/get-dl-task-list", GetDlTaskList)
 	fmt.Println(WebStr, "Web Server 在 "+DefaultWebServerBindAddress+" 上监听")
-	fmt.Println(WebStr, "尝试访问管理面板: http://127.0.0.1:7860/ui/")
+	fmt.Println(WebStr, "尝试访问管理面板: http://127.0.0.1:7860/")
 	err := r.Run(DefaultWebServerBindAddress)
 	if err != nil {
 		fmt.Println(WebStr, "Web Server 启动失败：", err)
 		return
 	}
+}
+
+func WebServer() {
+	WebServerInit()
 	<-make(chan int)
 }

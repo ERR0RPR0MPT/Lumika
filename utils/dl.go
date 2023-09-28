@@ -3,9 +3,11 @@ package utils
 import (
 	"fmt"
 	"github.com/cheggaaa/pb/v3"
+	"github.com/google/uuid"
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -24,17 +26,65 @@ func (pw *progressBarWriter) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-type threadInfo struct {
+type ThreadInfo struct {
 	threadIndex  int
 	startOffset  int64
 	endOffset    int64
 	tempFilePath string
 }
 
-func Dl(url string, filePath string, referer string, userAgent string, numThreads int) error {
-	if referer == "" {
-		referer = DefaultBiliDownloadReferer
+type DlTaskInfo struct {
+	url        string
+	filePath   string
+	referer    string
+	userAgent  string
+	numThreads int
+}
+
+var DlTaskQueue chan *DlTaskInfo
+
+func DlAddTask(url string, filePath string, referer string, userAgent string, numThreads int) {
+	uuidd := uuid.New().String()
+	DlTaskList = append(DlTaskList, DlTaskListData{
+		UUID:         uuidd,
+		Type:         "dl",
+		TimeStamp:    time.Now().Format("2006-01-02 15:04:05"),
+		ResourceID:   url,
+		FileName:     filepath.Base(filePath),
+		ProgressRate: 0,
+	})
+	dt := DlTaskInfo{
+		url:        url,
+		filePath:   filePath,
+		referer:    referer,
+		userAgent:  userAgent,
+		numThreads: numThreads,
 	}
+	DlTaskQueue <- &dt
+}
+
+func DlTaskWorker(id int) {
+	for task := range DlTaskQueue {
+		// 处理任务
+		fmt.Printf("DlTaskWorker %d 处理下载任务：%v\n", id, task.url)
+		err := Dl(task.url, task.filePath, task.referer, task.userAgent, task.numThreads)
+		if err != nil {
+			fmt.Printf("DlTaskWorker %d 处理下载任务(%v)失败：%v\n", id, task.url, err)
+			continue
+		}
+	}
+}
+
+func DlTaskWorkerInit() {
+	DlTaskQueue = make(chan *DlTaskInfo)
+	DlTaskList = make([]DlTaskListData, 0)
+	// 启动多个 DlTaskWorker 协程来处理任务
+	for i := 0; i < DefaultBiliDownloadsMaxQueueNum; i++ {
+		go DlTaskWorker(i)
+	}
+}
+
+func Dl(url string, filePath string, referer string, userAgent string, numThreads int) error {
 	if userAgent == "" {
 		userAgent = DefaultUserAgent
 	}
@@ -59,7 +109,7 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 	threadSize := totalSize / int64(numThreads)
 
 	// 创建临时文件和线程信息
-	threads := make([]threadInfo, numThreads)
+	threads := make([]ThreadInfo, numThreads)
 	for i := 0; i < numThreads; i++ {
 		tempFilePath := fmt.Sprintf("%s.lpart%d", filePath, i)
 
@@ -71,7 +121,7 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 			endOffset = totalSize - 1
 		}
 
-		threads[i] = threadInfo{
+		threads[i] = ThreadInfo{
 			threadIndex:  i,
 			startOffset:  startOffset,
 			endOffset:    endOffset,

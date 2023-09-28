@@ -51,5 +51,16 @@ type FecFileConfig struct {
 	FecHashList   []string `json:"fhl"`
 }
 
+type DlTaskListData struct {
+	UUID         string `json:"uuid"`
+	Type         string `json:"type"`
+	TimeStamp    string `json:"timestamp"`
+	ResourceID   string `json:"resourceId"`
+	FileName     string `json:"fileName"`
+	ProgressRate int    `json:"progressRate"`
+}
+
 type Database struct {
 }
+
+var DlTaskList []DlTaskListData
