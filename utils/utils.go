@@ -35,7 +35,7 @@ func clearScreen() {
 	cmd.Stdout = os.Stdout
 	err := cmd.Run()
 	if err != nil {
-		fmt.Println("clearScreen: 清屏失败:", err)
+		LogPrint("", "clearScreen: 清屏失败:", err)
 		return
 	}
 }
@@ -162,15 +162,15 @@ func DeleteFecFiles(fileDir string) {
 	if DefaultDeleteFecFiles {
 		fileDict, err := GenerateFileDxDictionary(fileDir, ".fec")
 		if err != nil {
-			fmt.Println("DeleteFecFiles:", ErStr, "无法生成文件列表:", err)
+			LogPrint("", "DeleteFecFiles:", ErStr, "无法生成文件列表:", err)
 			return
 		}
 		if len(fileDict) != 0 {
-			fmt.Println("DeleteFecFiles:", "删除临时文件")
+			LogPrint("", "DeleteFecFiles:", "删除临时文件")
 			for _, filePath := range fileDict {
 				err = os.Remove(filePath)
 				if err != nil {
-					fmt.Println("DeleteFecFiles:", ErStr, "删除文件失败:", err)
+					LogPrint("", "DeleteFecFiles:", ErStr, "删除文件失败:", err)
 					return
 				}
 			}
@@ -277,7 +277,7 @@ func Data2Image(data []byte, size int) image.Image {
 		padding := make([]byte, paddingLength)
 		data = append(data, padding...)
 	} else if len(data) > maxDataLength {
-		fmt.Println("Data2Image:", ErStr, "警告: 数据过长，将进行截断")
+		LogPrint("", "Data2Image:", ErStr, "警告: 数据过长，将进行截断")
 		data = data[:maxDataLength]
 	}
 	// 创建新的RGBA图像对象
@@ -371,7 +371,7 @@ func GetUserInput(s string) string {
 	fmt.Print(s)
 	input, err := reader.ReadString('\n')
 	if err != nil {
-		fmt.Println("GetUserInput:", ErStr, "获取用户输入失败:", err)
+		LogPrint("", "GetUserInput:", ErStr, "获取用户输入失败:", err)
 		return ""
 	}
 	return strings.TrimSpace(input)
@@ -466,7 +466,7 @@ func GetSubDirectories(path string) ([]string, error) {
 func IsFileExistsInDir(directory, filename string) bool {
 	files, err := os.ReadDir(directory)
 	if err != nil {
-		fmt.Println("IsFileExistsInDir:", ErStr, "无法读取目录:", err)
+		LogPrint("", "IsFileExistsInDir:", ErStr, "无法读取目录:", err)
 		return false
 	}
 	for _, file := range files {
@@ -480,7 +480,7 @@ func IsFileExistsInDir(directory, filename string) bool {
 func SearchFileNameInDir(directory, filename string) string {
 	files, err := os.ReadDir(directory)
 	if err != nil {
-		fmt.Println("SearchFileNameInDir:", ErStr, "无法读取目录:", err)
+		LogPrint("", "SearchFileNameInDir:", ErStr, "无法读取目录:", err)
 		return ""
 	}
 	for _, file := range files {

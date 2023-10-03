@@ -5,8 +5,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"os"
-	"path"
 	"path/filepath"
+	"runtime"
+	"strconv"
 )
 
 func UploadEncode(c *gin.Context) {
@@ -20,7 +21,7 @@ func UploadEncode(c *gin.Context) {
 	// 遍历所有文件
 	for _, file := range files {
 		// 上传文件至指定目录
-		dst := path.Join("./lumika_data/encode", file.Filename)
+		dst := filepath.Join(LumikaEncodePath, file.Filename)
 		if err := c.SaveUploadedFile(file, dst); err != nil {
 			c.JSON(http.StatusBadRequest, fmt.Sprintf("上传失败: %s", err.Error()))
 			return
@@ -44,9 +45,9 @@ func UploadDecode(c *gin.Context) {
 	folderName = ReplaceInvalidCharacters(folderName, '-')
 
 	// 创建目标文件夹（如果不存在）
-	targetDir := filepath.Join("lumika_data", "decode", folderName)
+	targetDir := filepath.Join(LumikaDecodePath, folderName)
 	if _, err := os.Stat(targetDir); os.IsNotExist(err) {
-		err := os.Mkdir(targetDir, os.ModePerm)
+		err := os.Mkdir(targetDir, 0644)
 		if err != nil {
 			return
 		}
@@ -57,7 +58,7 @@ func UploadDecode(c *gin.Context) {
 	// 遍历所有文件
 	for _, file := range files {
 		// 上传文件至指定目录
-		dst := filepath.Join("lumika_data", "decode", folderName, file.Filename)
+		dst := filepath.Join(LumikaDecodePath, folderName, file.Filename)
 		if err := c.SaveUploadedFile(file, dst); err != nil {
 			c.JSON(http.StatusBadRequest, fmt.Sprintf("上传失败: %s", err.Error()))
 			return
@@ -77,15 +78,15 @@ func GetFileFromURL(c *gin.Context) {
 		fileName = GetFileNameFromURL(url)
 	}
 	useSingleThreadToDownload := c.PostForm("useSingleThreadToDownload")
-	fmt.Println("读取到 useSingleThreadToDownload:", useSingleThreadToDownload)
-	ua := DefaultBiliDownloadGoRoutines
+	LogPrint("", "读取到 useSingleThreadToDownload:", useSingleThreadToDownload)
+	gor := DefaultBiliDownloadGoRoutines
 	if useSingleThreadToDownload == "true" {
-		ua = 1
+		gor = 1
 	}
 	fileName = ReplaceInvalidCharacters(fileName, '-')
-	filePath := filepath.Join("lumika_data", "encode", fileName)
-	DlAddTask(url, filePath, "", DefaultUserAgent, ua)
-	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("成功添加下载任务: %s, 使用线程数: %d", fileName, ua)})
+	filePath := filepath.Join(LumikaEncodePath, fileName)
+	DlAddTask(url, filePath, "", DefaultUserAgent, gor)
+	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("成功添加下载任务: %s, 使用线程数: %d", fileName, gor)})
 }
 
 func GetFileFromBiliID(c *gin.Context) {
@@ -103,22 +104,91 @@ func GetDlTaskList(c *gin.Context) {
 }
 
 func GetFileList(c *gin.Context) {
-	EncodeDirData, err := GetDirectoryJSON(filepath.Join("lumika_data", "encode"))
+	EncodeDirData, err := GetDirectoryJSON(LumikaEncodePath)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"读取文件出现错误:": err.Error()})
 		return
 	}
-	DecodeDirData, err := GetDirectoryJSON(filepath.Join("lumika_data", "decode"))
+	EncodeOutputDirData, err := GetDirectoryJSON(LumikaEncodeOutputPath)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"读取文件出现错误:": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"encode": EncodeDirData, "decode": DecodeDirData})
+	DecodeDirData, err := GetDirectoryJSON(LumikaDecodePath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"读取文件出现错误:": err.Error()})
+		return
+	}
+	DecodeOutputDirData, err := GetDirectoryJSON(LumikaDecodeOutputPath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"读取文件出现错误:": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"encode": EncodeDirData, "encodeOutput": EncodeOutputDirData, "decode": DecodeDirData, "decodeOutput": DecodeOutputDirData})
+}
+
+func AddEncodeTask(c *gin.Context) {
+	var ed *AddTaskInfo
+	if err := c.ShouldBindJSON(&ed); err != nil {
+		c.JSON(400, gin.H{"msg": "AddEncodeTask JSON 解析错误", "error": err.Error()})
+		return
+	}
+	if ed.DefaultM == 0 {
+		LogPrint("", AddStr, ErStr, "错误: M 的值不能为 0，自动设置 M = "+strconv.Itoa(AddMLevel))
+		ed.DefaultM = AddMLevel
+	}
+	if ed.DefaultK == 0 {
+		LogPrint("", AddStr, ErStr, "错误: K 的值不能为 0，自动设置 K = "+strconv.Itoa(AddKLevel))
+		ed.DefaultK = AddKLevel
+	}
+	if ed.DefaultK > ed.DefaultM {
+		LogPrint("", AddStr, ErStr, "错误: K 的值不能大于 M 的值，自动设置 K = M = "+strconv.Itoa(ed.DefaultM))
+		ed.DefaultK = ed.DefaultM
+	}
+	if ed.MGValue == 0 {
+		LogPrint("", AddStr, ErStr, "错误: MG 的值不能为 0，自动设置 MG = "+strconv.Itoa(AddMGLevel))
+		ed.MGValue = AddMGLevel
+	}
+	if ed.KGValue == 0 {
+		LogPrint("", AddStr, ErStr, "错误: KG 的值不能为 0，自动设置 KG = "+strconv.Itoa(AddKGLevel))
+		ed.KGValue = AddKGLevel
+	}
+	if ed.KGValue > ed.MGValue {
+		LogPrint("", AddStr, ErStr, "错误: KG 的值不能大于 MG 的值，自动设置 KG = MG = "+strconv.Itoa(ed.MGValue))
+		ed.KGValue = ed.MGValue
+	}
+	if ed.VideoSize <= 0 {
+		LogPrint("", AddStr, ErStr, "错误: 分辨率大小不能小于等于 0，自动设置分辨率大小为", EncodeVideoSizeLevel)
+		ed.VideoSize = EncodeVideoSizeLevel
+	}
+	if ed.OutputFPS <= 0 {
+		LogPrint("", AddStr, ErStr, "错误: 输出帧率不能小于等于 0，自动设置输出帧率为", EncodeOutputFPSLevel)
+		ed.OutputFPS = EncodeOutputFPSLevel
+	}
+	if ed.EncodeMaxSeconds <= 0 {
+		LogPrint("", AddStr, ErStr, "错误: 最大编码时间不能小于等于 0，自动设置最大编码时间为", EncodeMaxSecondsLevel)
+		ed.EncodeMaxSeconds = EncodeMaxSecondsLevel
+	}
+	if ed.EncodeThread <= 0 {
+		LogPrint("", AddStr, ErStr, "错误: 处理使用的线程数量不能小于等于 0，自动设置处理使用的线程数量为", runtime.NumCPU())
+		ed.EncodeThread = runtime.NumCPU()
+	}
+	AddAddTask(ed.FileNameList, ed.DefaultM, ed.DefaultK, ed.MGValue, ed.KGValue, ed.VideoSize, ed.OutputFPS, ed.EncodeMaxSeconds, ed.EncodeThread, ed.EncodeFFmpegMode, ed.DefaultSummary)
+	c.JSON(http.StatusOK, gin.H{"msg": fmt.Sprintf("成功添加编码任务")})
+}
+
+func GetAddTaskList(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"encodeTaskList": AddTaskList})
+}
+
+func TaskWorkerInit() {
+	DlTaskWorkerInit()
+	BDlTaskWorkerInit()
+	AddTaskWorkerInit()
 }
 
 func WebServerInit() {
-	DlTaskWorkerInit()
-	BDlTaskWorkerInit()
+	TaskWorkerInit()
 	if !DefaultWebServerDebugMode {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -134,11 +204,13 @@ func WebServerInit() {
 	r.POST("/api/get-encoded-video-files", GetFileFromBiliID)
 	r.GET("/api/get-dl-task-list", GetDlTaskList)
 	r.GET("/api/get-file-list", GetFileList)
-	fmt.Println(WebStr, "Web Server 在 "+DefaultWebServerBindAddress+" 上监听")
-	fmt.Println(WebStr, "尝试访问管理面板: http://127.0.0.1:7860/")
+	r.POST("/api/add-encode-task", AddEncodeTask)
+	r.GET("/api/get-add-task-list", GetAddTaskList)
+	LogPrint("", WebStr, "Web Server 在 "+DefaultWebServerBindAddress+" 上监听")
+	LogPrint("", WebStr, "尝试访问管理面板: http://127.0.0.1:7860/")
 	err := r.Run(DefaultWebServerBindAddress)
 	if err != nil {
-		fmt.Println(WebStr, "Web Server 启动失败：", err)
+		LogPrint("", WebStr, "Web Server 启动失败：", err)
 		return
 	}
 }

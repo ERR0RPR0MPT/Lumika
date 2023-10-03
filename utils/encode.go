@@ -16,30 +16,30 @@ import (
 	"time"
 )
 
-func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValue int, KGValue int, encodeThread int, encodeFFmpegMode string, auto bool) (segmentLength int64) {
+func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValue int, KGValue int, encodeThread int, encodeFFmpegMode string, auto bool, UUID string) (segmentLength int64) {
 	ep, err := os.Executable()
 	if err != nil {
-		fmt.Println(EnStr, ErStr, "无法获取运行目录:", err)
+		LogPrint(UUID, EnStr, ErStr, "无法获取运行目录:", err)
 		return
 	}
 	epPath := filepath.Dir(ep)
 
 	if videoSize%8 != 0 {
-		fmt.Println(EnStr, ErStr, "视频大小必须是8的倍数")
+		LogPrint(UUID, EnStr, ErStr, "视频大小必须是8的倍数")
 		return 0
 	}
 
 	if KGValue > MGValue {
-		fmt.Println(EnStr, ErStr, "KG值不能大于MG值")
+		LogPrint(UUID, EnStr, ErStr, "KG值不能大于MG值")
 		return 0
 	}
 
 	// 当没有检测到videoFileDir时，自动匹配
 	if fileDir == "" {
-		fmt.Println(EnStr, "自动使用程序所在目录作为输入目录")
+		LogPrint(UUID, EnStr, "自动使用程序所在目录作为输入目录")
 		fd, err := os.Executable()
 		if err != nil {
-			fmt.Println(EnStr, ErStr, "获取程序所在目录失败:", err)
+			LogPrint(UUID, EnStr, ErStr, "获取程序所在目录失败:", err)
 			return 0
 		}
 		fileDir = filepath.Dir(fd)
@@ -47,27 +47,27 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 
 	// 检查输入文件夹是否存在
 	if _, err := os.Stat(fileDir); os.IsNotExist(err) {
-		fmt.Println(EnStr, ErStr, "输入文件夹不存在:", err)
+		LogPrint(UUID, EnStr, ErStr, "输入文件夹不存在:", err)
 		return 0
 	}
 
-	fmt.Println(EnStr, "当前目录:", fileDir)
+	LogPrint(UUID, EnStr, "当前目录:", fileDir)
 
 	fileDict, err := GenerateFileDxDictionary(fileDir, ".fec")
 	if err != nil {
-		fmt.Println(EnStr, ErStr, "无法生成文件列表:", err)
+		LogPrint(UUID, EnStr, ErStr, "无法生成文件列表:", err)
 		return 0
 	}
 	filePathList := make([]string, 0)
 	for {
 		if len(fileDict) == 0 {
-			fmt.Println(EnStr, ErStr, "当前目录下没有.fec文件，请将需要编码的文件放到当前目录下")
+			LogPrint(UUID, EnStr, ErStr, "当前目录下没有.fec文件，请将需要编码的文件放到当前目录下")
 			return 0
 		}
-		fmt.Println(EnStr, "请选择需要编码的.fec文件，输入索引并回车来选择")
-		fmt.Println(EnStr, "如果需要编码当前目录下的所有.fec文件，请直接输入回车")
+		LogPrint(UUID, EnStr, "请选择需要编码的.fec文件，输入索引并回车来选择")
+		LogPrint(UUID, EnStr, "如果需要编码当前目录下的所有.fec文件，请直接输入回车")
 		for index := 0; index < len(fileDict); index++ {
-			fmt.Println(EnStr, strconv.Itoa(index)+":", fileDict[index])
+			LogPrint(UUID, EnStr, strconv.Itoa(index)+":", fileDict[index])
 		}
 		var result string
 		if auto {
@@ -76,7 +76,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 			result = GetUserInput("")
 		}
 		if result == "" {
-			fmt.Println(EnStr, "注意：开始编码当前目录下的所有.fec文件")
+			LogPrint(UUID, EnStr, "注意：开始编码当前目录下的所有.fec文件")
 			for _, filePath := range fileDict {
 				filePathList = append(filePathList, filePath)
 			}
@@ -84,11 +84,11 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 		} else {
 			index, err := strconv.Atoi(result)
 			if err != nil {
-				fmt.Println(EnStr, ErStr, "输入索引不是数字，请重新输入")
+				LogPrint(UUID, EnStr, ErStr, "输入索引不是数字，请重新输入")
 				continue
 			}
 			if index < 0 || index >= len(fileDict) {
-				fmt.Println(EnStr, ErStr, "输入索引超出范围，请重新输入")
+				LogPrint(UUID, EnStr, ErStr, "输入索引超出范围，请重新输入")
 				continue
 			}
 			filePathList = append(filePathList, fileDict[index])
@@ -101,14 +101,14 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 
 	// 启动监控进程
 	go func() {
-		fmt.Println(EnStr, "按下回车键暂停/继续运行")
+		LogPrint(UUID, EnStr, "按下回车键暂停/继续运行")
 		for {
 			GetUserInput("")
 			if !isRuntime {
 				return
 			}
 			isPaused = !isPaused
-			fmt.Println(EnStr, "当前是否正在运行：", !isPaused)
+			LogPrint(UUID, EnStr, "当前是否正在运行：", !isPaused)
 		}
 	}()
 
@@ -120,7 +120,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 
 	// 遍历需要处理的文件列表
 	for fileIndexNum, filePath := range filePathList {
-		fmt.Println(EnStr, "开始编码第", fileIndexNum+1, "个文件，路径:", filePath)
+		LogPrint(UUID, EnStr, "开始编码第", fileIndexNum+1, "个文件，路径:", filePath)
 		wg.Add(1)               // 增加计数器
 		semaphore <- struct{}{} // 协程获取信号量，若已满则阻塞
 		go func(fileIndexNum int, filePath string) {
@@ -132,7 +132,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 			// 读取文件
 			fileData, err := os.ReadFile(filePath)
 			if err != nil {
-				fmt.Println(EnStr, ErStr, "无法打开文件:", err)
+				LogPrint(UUID, EnStr, ErStr, "无法打开文件:", err)
 				return
 			}
 
@@ -144,29 +144,29 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 
 			// 检查时长是否超过限制
 			if allSeconds > maxSeconds {
-				fmt.Println(EnStr, ErStr, "警告：生成的段视频时长超过限制("+strconv.Itoa(allSeconds)+"s>"+strconv.Itoa(maxSeconds)+"s)")
-				fmt.Println(EnStr, ErStr, "请调整M值、K值、输出帧率、最大生成时长来满足要求")
+				LogPrint(UUID, EnStr, ErStr, "警告：生成的段视频时长超过限制("+strconv.Itoa(allSeconds)+"s>"+strconv.Itoa(maxSeconds)+"s)")
+				LogPrint(UUID, EnStr, ErStr, "请调整M值、K值、输出帧率、最大生成时长来满足要求")
 				GetUserInput("请按回车键继续...")
 				os.Exit(0)
 			}
 
 			segmentLength = fileLength
 
-			fmt.Println(EnStr, "开始运行")
-			fmt.Println(EnStr, "使用配置：")
-			fmt.Println(EnStr, "  ---------------------------")
-			fmt.Println(EnStr, "  输入文件:", filePath)
-			fmt.Println(EnStr, "  输出文件:", outputFilePath)
-			fmt.Println(EnStr, "  输入文件长度:", fileLength)
-			fmt.Println(EnStr, "  每帧数据长度:", dataSliceLen)
-			fmt.Println(EnStr, "  每帧索引数据长度:", 4)
-			fmt.Println(EnStr, "  每帧真实数据长度:", dataSliceLen-4)
-			fmt.Println(EnStr, "  帧大小:", videoSize)
-			fmt.Println(EnStr, "  输出帧率:", outputFPS)
-			fmt.Println(EnStr, "  生成总帧数:", allFrameNum)
-			fmt.Println(EnStr, "  总时长: ", strconv.Itoa(allSeconds)+"s")
-			fmt.Println(EnStr, "  FFmpeg 预设:", encodeFFmpegMode)
-			fmt.Println(EnStr, "  ---------------------------")
+			LogPrint(UUID, EnStr, "开始运行")
+			LogPrint(UUID, EnStr, "使用配置：")
+			LogPrint(UUID, EnStr, "  ---------------------------")
+			LogPrint(UUID, EnStr, "  输入文件:", filePath)
+			LogPrint(UUID, EnStr, "  输出文件:", outputFilePath)
+			LogPrint(UUID, EnStr, "  输入文件长度:", fileLength)
+			LogPrint(UUID, EnStr, "  每帧数据长度:", dataSliceLen)
+			LogPrint(UUID, EnStr, "  每帧索引数据长度:", 4)
+			LogPrint(UUID, EnStr, "  每帧真实数据长度:", dataSliceLen-4)
+			LogPrint(UUID, EnStr, "  帧大小:", videoSize)
+			LogPrint(UUID, EnStr, "  输出帧率:", outputFPS)
+			LogPrint(UUID, EnStr, "  生成总帧数:", allFrameNum)
+			LogPrint(UUID, EnStr, "  总时长: ", strconv.Itoa(allSeconds)+"s")
+			LogPrint(UUID, EnStr, "  FFmpeg 预设:", encodeFFmpegMode)
+			LogPrint(UUID, EnStr, "  ---------------------------")
 
 			FFmpegCmd := []string{
 				"-y",
@@ -184,21 +184,21 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 			// 检查是否有 FFmpeg 在程序目录下
 			FFmpegPath := SearchFileNameInDir(epPath, "ffmpeg")
 			if FFmpegPath == "" || FFmpegPath != "" && !strings.Contains(filepath.Base(FFmpegPath), "ffmpeg") {
-				fmt.Println(EnStr, "使用系统环境变量中的 FFmpeg")
+				LogPrint(UUID, EnStr, "使用系统环境变量中的 FFmpeg")
 				FFmpegPath = "ffmpeg"
 			} else {
-				fmt.Println(EnStr, "使用找到 FFmpeg 程序:", FFmpegPath)
+				LogPrint(UUID, EnStr, "使用找到 FFmpeg 程序:", FFmpegPath)
 			}
 
 			FFmpegProcess := exec.Command(FFmpegPath, FFmpegCmd...)
 			stdin, err := FFmpegProcess.StdinPipe()
 			if err != nil {
-				fmt.Println(EnStr, ErStr, "无法创建 FFmpeg 的标准输入管道:", err)
+				LogPrint(UUID, EnStr, ErStr, "无法创建 FFmpeg 的标准输入管道:", err)
 				return
 			}
 			err = FFmpegProcess.Start()
 			if err != nil {
-				fmt.Println(EnStr, ErStr, "无法启动 FFmpeg 子进程:", err)
+				LogPrint(UUID, EnStr, ErStr, "无法启动 FFmpeg 子进程:", err)
 				return
 			}
 
@@ -236,7 +236,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 			}
 			enc, err := reedsolomon.New(KGValue, MGValue-KGValue)
 			if err != nil {
-				fmt.Println(EnStr, ErStr, "无法创建RS编码器:", err)
+				LogPrint(UUID, EnStr, ErStr, "无法创建RS编码器:", err)
 				return
 			}
 
@@ -253,7 +253,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 				}
 				_, err = stdin.Write(imageBuffer.Bytes())
 				if err != nil {
-					fmt.Println(EnStr, ErStr, "无法写入帧数据到 FFmpeg:", err)
+					LogPrint(UUID, EnStr, ErStr, "无法写入帧数据到 FFmpeg:", err)
 					return
 				}
 				imageBuffer.Reset()
@@ -285,7 +285,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 						// 创建冗余数据
 						err = enc.Encode(shards)
 						if err != nil {
-							fmt.Println(EnStr, ErStr, "无法创建冗余数据:", err)
+							LogPrint(UUID, EnStr, ErStr, "无法创建冗余数据:", err)
 							return
 						}
 						// 创建完整数据
@@ -301,7 +301,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 						}
 						_, err = stdin.Write(imageBuffer.Bytes())
 						if err != nil {
-							fmt.Println(EnStr, ErStr, "无法写入帧数据到 FFmpeg:", err)
+							LogPrint(UUID, EnStr, ErStr, "无法写入帧数据到 FFmpeg:", err)
 							return
 						}
 						imageBuffer.Reset()
@@ -315,7 +315,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 							}
 							_, err = stdin.Write(imageBuffer.Bytes())
 							if err != nil {
-								fmt.Println(EnStr, ErStr, "无法写入帧数据到 FFmpeg:", err)
+								LogPrint(UUID, EnStr, ErStr, "无法写入帧数据到 FFmpeg:", err)
 								return
 							}
 							imageBuffer.Reset()
@@ -327,7 +327,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 						}
 						_, err = stdin.Write(imageBuffer.Bytes())
 						if err != nil {
-							fmt.Println(EnStr, ErStr, "无法写入帧数据到 FFmpeg:", err)
+							LogPrint(UUID, EnStr, ErStr, "无法写入帧数据到 FFmpeg:", err)
 							return
 						}
 						imageBuffer.Reset()
@@ -353,7 +353,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 					// 创建冗余数据
 					err = enc.Encode(shards)
 					if err != nil {
-						fmt.Println(EnStr, ErStr, "无法创建冗余数据:", err)
+						LogPrint(UUID, EnStr, ErStr, "无法创建冗余数据:", err)
 						return
 					}
 					// 创建完整数据
@@ -369,7 +369,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 					}
 					_, err = stdin.Write(imageBuffer.Bytes())
 					if err != nil {
-						fmt.Println(EnStr, ErStr, "无法写入帧数据到 FFmpeg:", err)
+						LogPrint(UUID, EnStr, ErStr, "无法写入帧数据到 FFmpeg:", err)
 						return
 					}
 					imageBuffer.Reset()
@@ -383,7 +383,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 						}
 						_, err = stdin.Write(imageBuffer.Bytes())
 						if err != nil {
-							fmt.Println(EnStr, ErStr, "无法写入帧数据到 FFmpeg:", err)
+							LogPrint(UUID, EnStr, ErStr, "无法写入帧数据到 FFmpeg:", err)
 							return
 						}
 						imageBuffer.Reset()
@@ -395,7 +395,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 					}
 					_, err = stdin.Write(imageBuffer.Bytes())
 					if err != nil {
-						fmt.Println(EnStr, ErStr, "无法写入帧数据到 FFmpeg:", err)
+						LogPrint(UUID, EnStr, ErStr, "无法写入帧数据到 FFmpeg:", err)
 						return
 					}
 					imageBuffer.Reset()
@@ -422,40 +422,48 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 				}
 				_, err = stdin.Write(imageBuffer.Bytes())
 				if err != nil {
-					fmt.Println(EnStr, ErStr, "无法写入帧数据到 FFmpeg:", err)
+					LogPrint(UUID, EnStr, ErStr, "无法写入帧数据到 FFmpeg:", err)
 					return
 				}
 				imageBuffer.Reset()
 				allBlankFrameNum++
 			}
-			fmt.Println(EnStr, "添加完成，总共添加", allBlankFrameNum, "帧空白帧")
+			LogPrint(UUID, EnStr, "添加完成，总共添加", allBlankFrameNum, "帧空白帧")
 
 			// 关闭 FFmpeg 的标准输入管道，等待子进程完成
 			err = stdin.Close()
 			if err != nil {
-				fmt.Println(EnStr, ErStr, "无法关闭 FFmpeg 的标准输入管道:", err)
+				LogPrint(UUID, EnStr, ErStr, "无法关闭 FFmpeg 的标准输入管道:", err)
 				return
 			}
 			if err := FFmpegProcess.Wait(); err != nil {
-				fmt.Println(EnStr, ErStr, "FFmpeg 子进程执行失败:", err)
+				LogPrint(UUID, EnStr, ErStr, "FFmpeg 子进程执行失败:", err)
 				return
 			}
 
-			fmt.Println(EnStr, "完成")
-			fmt.Println(EnStr, "使用配置：")
-			fmt.Println(EnStr, "  ---------------------------")
-			fmt.Println(EnStr, "  输入文件:", filePath)
-			fmt.Println(EnStr, "  输出文件:", outputFilePath)
-			fmt.Println(EnStr, "  输入文件长度:", fileLength)
-			fmt.Println(EnStr, "  每帧数据长度:", dataSliceLen)
-			fmt.Println(EnStr, "  每帧索引数据长度:", 4)
-			fmt.Println(EnStr, "  每帧真实数据长度:", dataSliceLen-4)
-			fmt.Println(EnStr, "  帧大小:", videoSize)
-			fmt.Println(EnStr, "  输出帧率:", outputFPS)
-			fmt.Println(EnStr, "  生成总帧数:", allFrameNum)
-			fmt.Println(EnStr, "  总时长: ", strconv.Itoa(allSeconds)+"s")
-			fmt.Println(EnStr, "  FFmpeg 预设:", encodeFFmpegMode)
-			fmt.Println(EnStr, "  ---------------------------")
+			// 为全局 ProgressRate 变量赋值
+			for kp, kq := range AddTaskList {
+				if kq.UUID == UUID {
+					AddTaskList[kp].ProgressRate++
+					break
+				}
+			}
+
+			LogPrint(UUID, EnStr, "完成")
+			LogPrint(UUID, EnStr, "使用配置：")
+			LogPrint(UUID, EnStr, "  ---------------------------")
+			LogPrint(UUID, EnStr, "  输入文件:", filePath)
+			LogPrint(UUID, EnStr, "  输出文件:", outputFilePath)
+			LogPrint(UUID, EnStr, "  输入文件长度:", fileLength)
+			LogPrint(UUID, EnStr, "  每帧数据长度:", dataSliceLen)
+			LogPrint(UUID, EnStr, "  每帧索引数据长度:", 4)
+			LogPrint(UUID, EnStr, "  每帧真实数据长度:", dataSliceLen-4)
+			LogPrint(UUID, EnStr, "  帧大小:", videoSize)
+			LogPrint(UUID, EnStr, "  输出帧率:", outputFPS)
+			LogPrint(UUID, EnStr, "  生成总帧数:", allFrameNum)
+			LogPrint(UUID, EnStr, "  总时长: ", strconv.Itoa(allSeconds)+"s")
+			LogPrint(UUID, EnStr, "  FFmpeg 预设:", encodeFFmpegMode)
+			LogPrint(UUID, EnStr, "  ---------------------------")
 		}(fileIndexNum, filePath)
 	}
 	wg.Wait()
@@ -463,6 +471,6 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 	allEndTime := time.Now()
 	allDuration := allEndTime.Sub(allStartTime)
 	fmt.Printf(EnStr+" 总共耗时%f秒\n", allDuration.Seconds())
-	fmt.Println(EnStr, "所有选择的.fec文件已编码完成，编码结束")
+	LogPrint(UUID, EnStr, "所有选择的.fec文件已编码完成，编码结束")
 	return segmentLength
 }

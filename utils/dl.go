@@ -26,24 +26,9 @@ func (pw *progressBarWriter) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-type ThreadInfo struct {
-	threadIndex  int
-	startOffset  int64
-	endOffset    int64
-	tempFilePath string
-}
-
-type DlTaskInfo struct {
-	url        string
-	filePath   string
-	referer    string
-	userAgent  string
-	numThreads int
-}
-
 func DlAddTask(url string, filePath string, referer string, userAgent string, numThreads int) {
 	uuidd := uuid.New().String()
-	DlTaskList = append(DlTaskList, DlTaskListData{
+	DlTaskList = append(DlTaskList, &DlTaskListData{
 		UUID:         uuidd,
 		Type:         "dl",
 		TimeStamp:    time.Now().Format("2006-01-02 15:04:05"),
@@ -75,10 +60,9 @@ func DlTaskWorker(id int) {
 
 func DlTaskWorkerInit() {
 	DlTaskQueue = make(chan *DlTaskInfo)
-	DlTaskList = make([]DlTaskListData, 0)
-	DirectoryData = make([]FileInfo, 0)
+	DlTaskList = make([]*DlTaskListData, 0)
 	// 启动多个 DlTaskWorker 协程来处理任务
-	for i := 0; i < DefaultBiliDownloadsMaxQueueNum; i++ {
+	for i := 0; i < DefaultTaskWorkerGoRoutines; i++ {
 		go DlTaskWorker(i)
 	}
 }
@@ -142,11 +126,11 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 
 				tempFile, err := os.Create(thread.tempFilePath)
 				if err != nil {
-					fmt.Println("临时文件创建失败")
+					LogPrint("", "临时文件创建失败")
 					// 尝试删除临时文件
 					err := os.Remove(thread.tempFilePath)
 					if err != nil {
-						fmt.Println("尝试删除临时文件时出现错误，删除失败")
+						LogPrint("", "尝试删除临时文件时出现错误，删除失败")
 						tempFile.Close()
 						return
 					}
@@ -156,7 +140,7 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 				// 创建一个新的HTTP请求
 				req2, err := http.NewRequest("GET", url, nil)
 				if err != nil {
-					fmt.Println("创建新的HTTP请求时出现错误:", err)
+					LogPrint("", "创建新的HTTP请求时出现错误:", err)
 					continue
 				}
 
@@ -167,7 +151,7 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 
 				resp2, err := client.Do(req2)
 				if err != nil {
-					fmt.Println("下载中出现错误:", err)
+					LogPrint("", "下载中出现错误:", err)
 					continue
 				}
 
@@ -182,7 +166,7 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 
 				_, err = io.Copy(writer, resp2.Body)
 				if err != nil {
-					fmt.Println("下载中出现 io.Copy 错误:", err)
+					LogPrint("", "下载中出现 io.Copy 错误:", err)
 					tempFile.Close()
 					progressBar.Finish()
 					continue
@@ -209,19 +193,19 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 		// 读取临时文件
 		tempFile, err := os.Open(thread.tempFilePath)
 		if err != nil {
-			fmt.Println("尝试打开临时文件时出现错误：", err)
+			LogPrint("", "尝试打开临时文件时出现错误：", err)
 			return nil
 		}
 
 		_, err = tempFile.Seek(0, 0)
 		if err != nil {
-			fmt.Println("尝试将临时文件指针移动到文件开头时出现错误：", err)
+			LogPrint("", "尝试将临时文件指针移动到文件开头时出现错误：", err)
 			return nil
 		}
 
 		_, err = io.Copy(file, tempFile)
 		if err != nil {
-			fmt.Println("从临时文件复制数据到目标文件时出现错误：", err)
+			LogPrint("", "从临时文件复制数据到目标文件时出现错误：", err)
 			return nil
 		}
 
@@ -230,7 +214,7 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 			err = os.Remove(tempFile.Name())
 			if err != nil {
 				if di >= 10 {
-					fmt.Println("下载完成后尝试删除临时文件时出现错误，准备重试：", err)
+					LogPrint("", "下载完成后尝试删除临时文件时出现错误，准备重试：", err)
 				}
 				time.Sleep(250 * time.Millisecond)
 				continue

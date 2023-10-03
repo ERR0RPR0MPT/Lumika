@@ -15,24 +15,17 @@ import (
 )
 
 func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGValue int, KGValue int, decodeThread int) {
-	ep, err := os.Executable()
-	if err != nil {
-		fmt.Println(DeStr, ErStr, "无法获取运行目录:", err)
-		return
-	}
-	epPath := filepath.Dir(ep)
-
 	if KGValue > MGValue {
-		fmt.Println(DeStr, ErStr, "KG值不能大于MG值")
+		LogPrint("", DeStr, ErStr, "KG值不能大于MG值")
 		return
 	}
 
 	// 当没有检测到videoFileDir时，自动匹配
 	if videoFileDir == "" {
-		fmt.Println(DeStr, "自动使用程序所在目录作为输入目录")
+		LogPrint("", DeStr, "自动使用程序所在目录作为输入目录")
 		fd, err := os.Executable()
 		if err != nil {
-			fmt.Println(DeStr, ErStr, "获取程序所在目录失败:", err)
+			LogPrint("", DeStr, ErStr, "获取程序所在目录失败:", err)
 			return
 		}
 		videoFileDir = filepath.Dir(fd)
@@ -40,15 +33,27 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 
 	// 检查输入文件夹是否存在
 	if _, err := os.Stat(videoFileDir); os.IsNotExist(err) {
-		fmt.Println(DeStr, ErStr, "输入文件夹不存在:", err)
+		LogPrint("", DeStr, ErStr, "输入文件夹不存在:", err)
 		return
 	}
 
-	fmt.Println(DeStr, "当前目录:", videoFileDir)
+	// 创建输出目录
+	videoFileOutputDir := filepath.Join(LumikaDecodeOutputPath, filepath.Base(videoFileDir))
+	if _, err := os.Stat(videoFileOutputDir); os.IsNotExist(err) {
+		LogPrint("", DeStr, "创建输出目录:", videoFileOutputDir)
+		err = os.Mkdir(videoFileOutputDir, 0644)
+		if err != nil {
+			LogPrint("", DeStr, ErStr, "创建输出目录失败:", err)
+			return
+		}
+	}
+
+	LogPrint("", DeStr, "当前检测目录:", videoFileDir)
+	LogPrint("", DeStr, "当前输出目录:", videoFileOutputDir)
 
 	fileDict, err := GenerateFileDxDictionary(videoFileDir, ".mp4")
 	if err != nil {
-		fmt.Println(DeStr, ErStr, "无法生成视频列表:", err)
+		LogPrint("", DeStr, ErStr, "无法生成视频列表:", err)
 		return
 	}
 
@@ -56,17 +61,17 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 		filePathList = make([]string, 0)
 		for {
 			if len(fileDict) == 0 {
-				fmt.Println(DeStr, ErStr, "当前目录下没有.mp4文件，请将需要解码的视频文件放到当前目录下")
+				LogPrint("", DeStr, ErStr, "当前目录下没有.mp4文件，请将需要解码的视频文件放到当前目录下")
 				return
 			}
-			fmt.Println(DeStr, "请选择需要编码的.mp4文件，输入索引并回车来选择")
-			fmt.Println(DeStr, "如果需要编码当前目录下的所有.mp4文件，请直接输入回车")
+			LogPrint("", DeStr, "请选择需要编码的.mp4文件，输入索引并回车来选择")
+			LogPrint("", DeStr, "如果需要编码当前目录下的所有.mp4文件，请直接输入回车")
 			for index := 0; index < len(fileDict); index++ {
-				fmt.Println("Encode:", strconv.Itoa(index)+":", fileDict[index])
+				LogPrint("", "Encode:", strconv.Itoa(index)+":", fileDict[index])
 			}
 			result := GetUserInput("")
 			if result == "" {
-				fmt.Println(DeStr, "注意：开始编码当前目录下的所有.mp4文件")
+				LogPrint("", DeStr, "注意：开始解码当前目录下的所有.mp4文件")
 				for _, filePath := range fileDict {
 					filePathList = append(filePathList, filePath)
 				}
@@ -74,11 +79,11 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 			} else {
 				index, err := strconv.Atoi(result)
 				if err != nil {
-					fmt.Println(DeStr, ErStr, "输入索引不是数字，请重新输入")
+					LogPrint("", DeStr, ErStr, "输入索引不是数字，请重新输入")
 					continue
 				}
 				if index < 0 || index >= len(fileDict) {
-					fmt.Println(DeStr, ErStr, "输入索引超出范围，请重新输入")
+					LogPrint("", DeStr, ErStr, "输入索引超出范围，请重新输入")
 					continue
 				}
 				filePathList = append(filePathList, fileDict[index])
@@ -95,14 +100,14 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 
 	// 启动监控进程
 	go func() {
-		fmt.Println(DeStr, "按下回车键暂停/继续运行")
+		LogPrint("", DeStr, "按下回车键暂停/继续运行")
 		for {
 			GetUserInput("")
 			if !isRuntime {
 				return
 			}
 			isPaused = !isPaused
-			fmt.Println(DeStr, "当前是否正在运行：", !isPaused)
+			LogPrint("", DeStr, "当前是否正在运行：", !isPaused)
 		}
 	}()
 
@@ -120,78 +125,78 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 				<-semaphore // 协程释放信号量
 				wg.Done()
 			}()
-			fmt.Println(DeStr, "开始解码第", filePathIndex+1, "个编码文件:", filePath)
+			LogPrint("", DeStr, "开始解码第", filePathIndex+1, "个编码文件:", filePath)
 
 			// 检查是否有 FFprobe 在程序目录下
-			FFprobePath := SearchFileNameInDir(epPath, "ffprobe")
+			FFprobePath := SearchFileNameInDir(EpPath, "ffprobe")
 			if FFprobePath == "" || FFprobePath != "" && !strings.Contains(filepath.Base(FFprobePath), "ffprobe") {
-				fmt.Println(DeStr, "使用系统环境变量中的 FFprobe")
+				LogPrint("", DeStr, "使用系统环境变量中的 FFprobe")
 				FFprobePath = "ffprobe"
 			} else {
-				fmt.Println(DeStr, "使用找到 FFprobe 程序:", FFprobePath)
+				LogPrint("", DeStr, "使用找到 FFprobe 程序:", FFprobePath)
 			}
 
 			cmd := exec.Command(FFprobePath, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", filePath)
 			output, err := cmd.Output()
 			if err != nil {
-				fmt.Println(DeStr, ErStr, "FFprobe 启动失败，请检查文件是否存在:", err)
+				LogPrint("", DeStr, ErStr, "FFprobe 启动失败，请检查文件是否存在:", err)
 				return
 			}
 			result := strings.Split(string(output), ",")
 			if len(result) != 2 {
-				fmt.Println(DeStr, ErStr, "无法读取视频宽高，请检查视频文件是否正确")
+				LogPrint("", DeStr, ErStr, "无法读取视频宽高，请检查视频文件是否正确")
 				return
 			}
 			videoWidth, err := strconv.Atoi(strings.TrimSpace(result[0]))
 			if err != nil {
-				fmt.Println(DeStr, ErStr, "无法读取视频宽高，请检查视频文件是否正确:", err)
+				LogPrint("", DeStr, ErStr, "无法读取视频宽高，请检查视频文件是否正确:", err)
 				return
 			}
 			videoHeight, err := strconv.Atoi(strings.TrimSpace(result[1]))
 			if err != nil {
-				fmt.Println(DeStr, ErStr, "无法读取视频宽高，请检查视频文件是否正确:", err)
+				LogPrint("", DeStr, ErStr, "无法读取视频宽高，请检查视频文件是否正确:", err)
 				return
 			}
 			cmd = exec.Command(FFprobePath, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=nb_frames", "-of", "default=nokey=1:noprint_wrappers=1", filePath)
 			output, err = cmd.Output()
 			if err != nil {
-				fmt.Println(DeStr, ErStr, "执行 FFprobe 命令时出错:", err)
+				LogPrint("", DeStr, ErStr, "执行 FFprobe 命令时出错:", err)
 				return
 			}
 			frameCount, err := strconv.Atoi(regexp.MustCompile(`\d+`).FindString(string(output)))
 			if err != nil {
-				fmt.Println(DeStr, ErStr, "解析视频帧数时出错:", err)
+				LogPrint("", DeStr, ErStr, "解析视频帧数时出错:", err)
 				return
 			}
 
 			// 设置输出路径
-			outputFilePath := filepath.Join(videoFileDir, filepath.Base(filePath)+".fec")
+			outputFilePath := filepath.Join(videoFileOutputDir, filepath.Base(filePath)+".fec")
 
-			fmt.Println(DeStr, "开始解码")
-			fmt.Println(DeStr, "使用配置：")
-			fmt.Println(DeStr, "  ---------------------------")
-			fmt.Println(DeStr, "  视频宽度:", videoWidth)
-			fmt.Println(DeStr, "  视频高度:", videoHeight)
-			fmt.Println(DeStr, "  总帧数:", frameCount)
-			fmt.Println(DeStr, "  输入视频路径:", filePath)
-			fmt.Println(DeStr, "  输出文件路径:", outputFilePath)
-			fmt.Println(DeStr, "  ---------------------------")
+			LogPrint("", DeStr, "开始解码")
+			LogPrint("", DeStr, "使用配置：")
+			LogPrint("", DeStr, "  ---------------------------")
+			LogPrint("", DeStr, "  视频宽度:", videoWidth)
+			LogPrint("", DeStr, "  视频高度:", videoHeight)
+			LogPrint("", DeStr, "  总帧数:", frameCount)
+			LogPrint("", DeStr, "  输入视频路径:", filePath)
+			LogPrint("", DeStr, "  输出文件路径:", outputFilePath)
+			LogPrint("", DeStr, "  ---------------------------")
 
 			// 打开输出文件
-			fmt.Println(DeStr, "创建输出文件:", outputFilePath)
+			LogPrint("", DeStr, "创建输出文件:", outputFilePath)
 			outputFile, err := os.Create(outputFilePath)
 			if err != nil {
-				fmt.Println(DeStr, ErStr, "无法创建输出文件:", err)
+				LogPrint("", DeStr, ErStr, "无法创建输出文件:", err)
 				return
 			}
 
 			// 检查是否有 FFmpeg 在程序目录下
-			FFmpegPath := SearchFileNameInDir(epPath, "ffmpeg")
+			FFmpegPath := SearchFileNameInDir(EpPath, "ffmpeg")
 			if FFmpegPath == "" || FFmpegPath != "" && !strings.Contains(filepath.Base(FFmpegPath), "ffmpeg") {
-				fmt.Println(DeStr, "使用系统环境变量中的 FFmpeg")
+				LogPrint("", DeStr, "使用系统环境变量中的 FFmpeg")
 				FFmpegPath = "ffmpeg"
 			} else {
-				fmt.Println(DeStr, "使用找到 FFmpeg 程序:", FFmpegPath)
+				LogPrint("", DeStr, "使用找到 FFmpeg 程序:", FFmpegPath)
 			}
 
 			FFmpegCmd := []string{
@@ -205,12 +210,12 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 			FFmpegProcess := exec.Command(FFmpegCmd[0], FFmpegCmd[1:]...)
 			FFmpegStdout, err := FFmpegProcess.StdoutPipe()
 			if err != nil {
-				fmt.Println(DeStr, ErStr, "无法创建 FFmpeg 标准输出管道:", err)
+				LogPrint("", DeStr, ErStr, "无法创建 FFmpeg 标准输出管道:", err)
 				return
 			}
 			err = FFmpegProcess.Start()
 			if err != nil {
-				fmt.Println(DeStr, ErStr, "无法启动 FFmpeg 进程:", err)
+				LogPrint("", DeStr, ErStr, "无法启动 FFmpeg 进程:", err)
 				return
 			}
 
@@ -220,7 +225,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 
 			enc, err := reedsolomon.New(KGValue, MGValue-KGValue)
 			if err != nil {
-				fmt.Println(DeStr, ErStr, "无法创建RS解码器:", err)
+				LogPrint("", DeStr, ErStr, "无法创建RS解码器:", err)
 				return
 			}
 
@@ -255,22 +260,22 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 				// 3: 空白终止帧
 				data, t := Image2Data(img)
 				if t == 1 {
-					//fmt.Println(DeStr, "检测到空白帧，跳过")
+					//LogPrint("", DeStr, "检测到空白帧，跳过")
 					i++
 					continue
 				}
 
 				// 检查是否是空白起始帧
 				if t == 2 {
-					//fmt.Println(DeStr, "检测到空白起始帧")
+					//LogPrint("", DeStr, "检测到空白起始帧")
 					// 检查是否没有找到终止帧
 					if isRecord {
 						for {
 							isRecord = false
-							//fmt.Println(DeStr, "本轮检测到", len(recordData), "帧数据")
+							//LogPrint("", DeStr, "本轮检测到", len(recordData), "帧数据")
 							if len(recordData) == 0 {
 								// 没有检查到数据，直接退出即可
-								fmt.Println(DeStr, "检测到终止帧重复，跳过操作")
+								LogPrint("", DeStr, "检测到终止帧重复，跳过操作")
 								break
 							}
 							// 对数据进行排序等操作
@@ -292,20 +297,20 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 								// 数据将开始重建
 								ok, err := enc.Verify(dataShards)
 								if !ok {
-									//fmt.Println(DeStr, "检测到数据出现损坏，开始重建数据")
-									//fmt.Println("输出一些详细的信息供参考：")
-									//fmt.Println("数据帧数量:", len(sortShards))
-									//fmt.Println("数据帧长度:", len(sortShards[0]))
+									//LogPrint("", DeStr, "检测到数据出现损坏，开始重建数据")
+									//LogPrint("", "输出一些详细的信息供参考：")
+									//LogPrint("", "数据帧数量:", len(sortShards))
+									//LogPrint("", "数据帧长度:", len(sortShards[0]))
 									//for oiu := range sortShards {
 									//	if len(sortShards[oiu]) >= 4 {
-									//		fmt.Println("数据帧索引", oiu, ":", sortShards[oiu][:4])
+									//		LogPrint("", "数据帧索引", oiu, ":", sortShards[oiu][:4])
 									//		if oiu == 0 {
-									//			fmt.Println(sortShards[oiu])
+									//			LogPrint("", sortShards[oiu])
 									//		}
 									//		continue
 									//	}
 									//	sortShards[oiu] = nil
-									//	fmt.Println("数据帧索引(u)", oiu, ":", sortShards[oiu])
+									//	LogPrint("", "数据帧索引(u)", oiu, ":", sortShards[oiu])
 									//}
 									for {
 										err = enc.Reconstruct(dataShards)
@@ -333,15 +338,15 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 											if !isReconstructSuccess {
 												// 重建失败，数据出现无法修复的错误
 												errorDataNum++
-												fmt.Println(DeStr, ErStr, "\n\n————————————————————————————————————————————")
-												fmt.Println(DeStr, ErStr, "警告：数据出现无法修复的错误，停止输出数据到分片文件(原因：编码视频出现数据损坏且两次重建均失败，建议缩短分片编码视频的时长/增大文件冗余量，这样可以有效降低错误发生的概率)")
-												fmt.Println(DeStr, ErStr, "当前无法恢复的切片文件数量:", errorDataNum)
-												fmt.Println(DeStr, ErStr, "最大可丢失的切片文件数量:", MGValue-KGValue)
-												fmt.Println(DeStr, ErStr, "————————————————————————————————————————————")
-												fmt.Println()
+												LogPrint("", DeStr, ErStr, "\n\n————————————————————————————————————————————")
+												LogPrint("", DeStr, ErStr, "警告：数据出现无法修复的错误，停止输出数据到分片文件(原因：编码视频出现数据损坏且两次重建均失败，建议缩短分片编码视频的时长/增大文件冗余量，这样可以有效降低错误发生的概率)")
+												LogPrint("", DeStr, ErStr, "当前无法恢复的切片文件数量:", errorDataNum)
+												LogPrint("", DeStr, ErStr, "最大可丢失的切片文件数量:", MGValue-KGValue)
+												LogPrint("", DeStr, ErStr, "————————————————————————————————————————————")
+												LogPrint("")
 												bar.Finish()
 												if errorDataNum > MGValue-KGValue {
-													fmt.Println(DeStr, ErStr, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
+													LogPrint("", DeStr, ErStr, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
 													return
 												}
 												return
@@ -373,15 +378,15 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 											if !isReconstructSuccess {
 												// 重建失败，数据出现无法修复的错误
 												errorDataNum++
-												fmt.Println(DeStr, ErStr, "\n\n————————————————————————————————————————————")
-												fmt.Println(DeStr, ErStr, "警告：数据出现无法修复的错误，停止输出数据到分片文件(原因：编码视频出现数据损坏且两次重建均失败，建议缩短分片编码视频的时长/增大文件冗余量，这样可以有效降低错误发生的概率)")
-												fmt.Println(DeStr, ErStr, "当前无法恢复的切片文件数量:", errorDataNum)
-												fmt.Println(DeStr, ErStr, "最大可丢失的切片文件数量:", MGValue-KGValue)
-												fmt.Println(DeStr, ErStr, "————————————————————————————————————————————")
-												fmt.Println()
+												LogPrint("", DeStr, ErStr, "\n\n————————————————————————————————————————————")
+												LogPrint("", DeStr, ErStr, "警告：数据出现无法修复的错误，停止输出数据到分片文件(原因：编码视频出现数据损坏且两次重建均失败，建议缩短分片编码视频的时长/增大文件冗余量，这样可以有效降低错误发生的概率)")
+												LogPrint("", DeStr, ErStr, "当前无法恢复的切片文件数量:", errorDataNum)
+												LogPrint("", DeStr, ErStr, "最大可丢失的切片文件数量:", MGValue-KGValue)
+												LogPrint("", DeStr, ErStr, "————————————————————————————————————————————")
+												LogPrint("")
 												bar.Finish()
 												if errorDataNum > MGValue-KGValue {
-													fmt.Println(DeStr, ErStr, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
+													LogPrint("", DeStr, ErStr, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
 													return
 												}
 												return
@@ -412,44 +417,44 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 											if !isReconstructSuccess {
 												// 重建失败，数据出现无法修复的错误
 												errorDataNum++
-												fmt.Println(DeStr, ErStr, "\n\n————————————————————————————————————————————")
-												fmt.Println(DeStr, ErStr, "警告：数据出现无法修复的错误，停止输出数据到分片文件(原因：编码视频出现数据损坏且两次重建均失败，建议缩短分片编码视频的时长/增大文件冗余量，这样可以有效降低错误发生的概率)")
-												fmt.Println(DeStr, ErStr, "当前无法恢复的切片文件数量:", errorDataNum)
-												fmt.Println(DeStr, ErStr, "最大可丢失的切片文件数量:", MGValue-KGValue)
-												fmt.Println(DeStr, ErStr, "————————————————————————————————————————————")
-												fmt.Println()
+												LogPrint("", DeStr, ErStr, "\n\n————————————————————————————————————————————")
+												LogPrint("", DeStr, ErStr, "警告：数据出现无法修复的错误，停止输出数据到分片文件(原因：编码视频出现数据损坏且两次重建均失败，建议缩短分片编码视频的时长/增大文件冗余量，这样可以有效降低错误发生的概率)")
+												LogPrint("", DeStr, ErStr, "当前无法恢复的切片文件数量:", errorDataNum)
+												LogPrint("", DeStr, ErStr, "最大可丢失的切片文件数量:", MGValue-KGValue)
+												LogPrint("", DeStr, ErStr, "————————————————————————————————————————————")
+												LogPrint("")
 												bar.Finish()
 												if errorDataNum > MGValue-KGValue {
-													fmt.Println(DeStr, ErStr, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
+													LogPrint("", DeStr, ErStr, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
 													return
 												}
 												return
 											}
 											dataShards = reconstructData
 										}
-										//fmt.Println(DeStr, "数据重建成功")
+										//LogPrint("", DeStr, "数据重建成功")
 										break
 									}
 								}
 							} else {
 								// 数据出现无法修复的错误
 								errorDataNum++
-								fmt.Println(DeStr, ErStr, "\n\n————————————————————————————————————————————")
-								fmt.Println(DeStr, ErStr, "警告：数据出现无法修复的错误，停止输出数据到分片文件(原因：数据丢失过多，出现了超出冗余数据长度的较多空白元素，适当增大 MG 和 KG 和缓解此问题)")
-								fmt.Println(DeStr, ErStr, "当前无法恢复的切片文件数量:", errorDataNum)
-								fmt.Println(DeStr, ErStr, "最大可丢失的切片文件数量:", MGValue-KGValue)
-								fmt.Println(DeStr, ErStr, "————————————————————————————————————————————")
-								fmt.Println()
+								LogPrint("", DeStr, ErStr, "\n\n————————————————————————————————————————————")
+								LogPrint("", DeStr, ErStr, "警告：数据出现无法修复的错误，停止输出数据到分片文件(原因：数据丢失过多，出现了超出冗余数据长度的较多空白元素，适当增大 MG 和 KG 和缓解此问题)")
+								LogPrint("", DeStr, ErStr, "当前无法恢复的切片文件数量:", errorDataNum)
+								LogPrint("", DeStr, ErStr, "最大可丢失的切片文件数量:", MGValue-KGValue)
+								LogPrint("", DeStr, ErStr, "————————————————————————————————————————————")
+								LogPrint("")
 								bar.Finish()
 								if errorDataNum > MGValue-KGValue {
-									fmt.Println(DeStr, ErStr, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
+									LogPrint("", DeStr, ErStr, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
 									return
 								}
 								return
 							}
 
 							if errorDataNum > MGValue-KGValue {
-								fmt.Println(DeStr, ErStr, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
+								LogPrint("", DeStr, ErStr, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
 								bar.Finish()
 								return
 							}
@@ -459,7 +464,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 							for _, dataW := range dataOrigin {
 								_, err := outputFile.Write(dataW)
 								if err != nil {
-									fmt.Println(DeStr, ErStr, "写入文件失败:", err)
+									LogPrint("", DeStr, ErStr, "写入文件失败:", err)
 									break
 								}
 							}
@@ -473,7 +478,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 
 				// 检查是否是空白终止帧
 				if t == 3 {
-					//fmt.Println(DeStr, "检测到空白终止帧")
+					//LogPrint("", DeStr, "检测到空白终止帧")
 
 					// 检查是否没有找到起始帧
 					if !isRecord {
@@ -482,10 +487,10 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 
 					for {
 						isRecord = false
-						//fmt.Println(DeStr, "本轮检测到", len(recordData), "帧数据")
+						//LogPrint("", DeStr, "本轮检测到", len(recordData), "帧数据")
 						if len(recordData) == 0 {
 							// 没有检查到数据，直接退出即可
-							fmt.Println(DeStr, "检测到终止帧重复，跳过操作")
+							LogPrint("", DeStr, "检测到终止帧重复，跳过操作")
 							break
 						}
 						// 对数据进行排序等操作
@@ -507,20 +512,20 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 							// 数据将开始重建
 							ok, err := enc.Verify(dataShards)
 							if !ok {
-								//fmt.Println(DeStr, "检测到数据出现损坏，开始重建数据")
-								//fmt.Println("输出一些详细的信息供参考：")
-								//fmt.Println("数据帧数量:", len(sortShards))
-								//fmt.Println("数据帧长度:", len(sortShards[0]))
+								//LogPrint("", DeStr, "检测到数据出现损坏，开始重建数据")
+								//LogPrint("", "输出一些详细的信息供参考：")
+								//LogPrint("", "数据帧数量:", len(sortShards))
+								//LogPrint("", "数据帧长度:", len(sortShards[0]))
 								//for oiu := range sortShards {
 								//	if len(sortShards[oiu]) >= 4 {
-								//		fmt.Println("数据帧索引", oiu, ":", sortShards[oiu][:4])
+								//		LogPrint("", "数据帧索引", oiu, ":", sortShards[oiu][:4])
 								//		if oiu == 0 {
-								//			fmt.Println(sortShards[oiu])
+								//			LogPrint("", sortShards[oiu])
 								//		}
 								//		continue
 								//	}
 								//	sortShards[oiu] = nil
-								//	fmt.Println("数据帧索引(u)", oiu, ":", sortShards[oiu])
+								//	LogPrint("", "数据帧索引(u)", oiu, ":", sortShards[oiu])
 								//}
 								for {
 									err = enc.Reconstruct(dataShards)
@@ -548,15 +553,15 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 										if !isReconstructSuccess {
 											// 重建失败，数据出现无法修复的错误
 											errorDataNum++
-											fmt.Println(DeStr, ErStr, "\n\n————————————————————————————————————————————")
-											fmt.Println(DeStr, ErStr, "警告：数据出现无法修复的错误，停止输出数据到分片文件(原因：编码视频出现数据损坏且两次重建均失败，建议缩短分片编码视频的时长/增大文件冗余量，这样可以有效降低错误发生的概率)")
-											fmt.Println(DeStr, ErStr, "当前无法恢复的切片文件数量:", errorDataNum)
-											fmt.Println(DeStr, ErStr, "最大可丢失的切片文件数量:", MGValue-KGValue)
-											fmt.Println(DeStr, ErStr, "————————————————————————————————————————————")
-											fmt.Println()
+											LogPrint("", DeStr, ErStr, "\n\n————————————————————————————————————————————")
+											LogPrint("", DeStr, ErStr, "警告：数据出现无法修复的错误，停止输出数据到分片文件(原因：编码视频出现数据损坏且两次重建均失败，建议缩短分片编码视频的时长/增大文件冗余量，这样可以有效降低错误发生的概率)")
+											LogPrint("", DeStr, ErStr, "当前无法恢复的切片文件数量:", errorDataNum)
+											LogPrint("", DeStr, ErStr, "最大可丢失的切片文件数量:", MGValue-KGValue)
+											LogPrint("", DeStr, ErStr, "————————————————————————————————————————————")
+											LogPrint("")
 											bar.Finish()
 											if errorDataNum > MGValue-KGValue {
-												fmt.Println(DeStr, ErStr, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
+												LogPrint("", DeStr, ErStr, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
 												return
 											}
 											return
@@ -588,15 +593,15 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 										if !isReconstructSuccess {
 											// 重建失败，数据出现无法修复的错误
 											errorDataNum++
-											fmt.Println(DeStr, ErStr, "\n\n————————————————————————————————————————————")
-											fmt.Println(DeStr, ErStr, "警告：数据出现无法修复的错误，停止输出数据到分片文件(原因：编码视频出现数据损坏且两次重建均失败，建议缩短分片编码视频的时长/增大文件冗余量，这样可以有效降低错误发生的概率)")
-											fmt.Println(DeStr, ErStr, "当前无法恢复的切片文件数量:", errorDataNum)
-											fmt.Println(DeStr, ErStr, "最大可丢失的切片文件数量:", MGValue-KGValue)
-											fmt.Println(DeStr, ErStr, "————————————————————————————————————————————")
-											fmt.Println()
+											LogPrint("", DeStr, ErStr, "\n\n————————————————————————————————————————————")
+											LogPrint("", DeStr, ErStr, "警告：数据出现无法修复的错误，停止输出数据到分片文件(原因：编码视频出现数据损坏且两次重建均失败，建议缩短分片编码视频的时长/增大文件冗余量，这样可以有效降低错误发生的概率)")
+											LogPrint("", DeStr, ErStr, "当前无法恢复的切片文件数量:", errorDataNum)
+											LogPrint("", DeStr, ErStr, "最大可丢失的切片文件数量:", MGValue-KGValue)
+											LogPrint("", DeStr, ErStr, "————————————————————————————————————————————")
+											LogPrint("")
 											bar.Finish()
 											if errorDataNum > MGValue-KGValue {
-												fmt.Println(DeStr, ErStr, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
+												LogPrint("", DeStr, ErStr, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
 												return
 											}
 											return
@@ -627,44 +632,44 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 										if !isReconstructSuccess {
 											// 重建失败，数据出现无法修复的错误
 											errorDataNum++
-											fmt.Println(DeStr, ErStr, "\n\n————————————————————————————————————————————")
-											fmt.Println(DeStr, ErStr, "警告：数据出现无法修复的错误，停止输出数据到分片文件(原因：编码视频出现数据损坏且两次重建均失败，建议缩短分片编码视频的时长/增大文件冗余量，这样可以有效降低错误发生的概率)")
-											fmt.Println(DeStr, ErStr, "当前无法恢复的切片文件数量:", errorDataNum)
-											fmt.Println(DeStr, ErStr, "最大可丢失的切片文件数量:", MGValue-KGValue)
-											fmt.Println(DeStr, ErStr, "————————————————————————————————————————————")
-											fmt.Println()
+											LogPrint("", DeStr, ErStr, "\n\n————————————————————————————————————————————")
+											LogPrint("", DeStr, ErStr, "警告：数据出现无法修复的错误，停止输出数据到分片文件(原因：编码视频出现数据损坏且两次重建均失败，建议缩短分片编码视频的时长/增大文件冗余量，这样可以有效降低错误发生的概率)")
+											LogPrint("", DeStr, ErStr, "当前无法恢复的切片文件数量:", errorDataNum)
+											LogPrint("", DeStr, ErStr, "最大可丢失的切片文件数量:", MGValue-KGValue)
+											LogPrint("", DeStr, ErStr, "————————————————————————————————————————————")
+											LogPrint("")
 											bar.Finish()
 											if errorDataNum > MGValue-KGValue {
-												fmt.Println(DeStr, ErStr, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
+												LogPrint("", DeStr, ErStr, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
 												return
 											}
 											return
 										}
 										dataShards = reconstructData
 									}
-									//fmt.Println(DeStr, "数据重建成功")
+									//LogPrint("", DeStr, "数据重建成功")
 									break
 								}
 							}
 						} else {
 							// 数据出现无法修复的错误
 							errorDataNum++
-							fmt.Println(DeStr, ErStr, "\n\n————————————————————————————————————————————")
-							fmt.Println(DeStr, ErStr, "警告：数据出现无法修复的错误，停止输出数据到分片文件(原因：数据丢失过多，出现了超出冗余数据长度的较多空白元素，适当增大 MG 和 KG 和缓解此问题)")
-							fmt.Println(DeStr, ErStr, "当前无法恢复的切片文件数量:", errorDataNum)
-							fmt.Println(DeStr, ErStr, "最大可丢失的切片文件数量:", MGValue-KGValue)
-							fmt.Println(DeStr, ErStr, "————————————————————————————————————————————")
-							fmt.Println()
+							LogPrint("", DeStr, ErStr, "\n\n————————————————————————————————————————————")
+							LogPrint("", DeStr, ErStr, "警告：数据出现无法修复的错误，停止输出数据到分片文件(原因：数据丢失过多，出现了超出冗余数据长度的较多空白元素，适当增大 MG 和 KG 和缓解此问题)")
+							LogPrint("", DeStr, ErStr, "当前无法恢复的切片文件数量:", errorDataNum)
+							LogPrint("", DeStr, ErStr, "最大可丢失的切片文件数量:", MGValue-KGValue)
+							LogPrint("", DeStr, ErStr, "————————————————————————————————————————————")
+							LogPrint("")
 							bar.Finish()
 							if errorDataNum > MGValue-KGValue {
-								fmt.Println(DeStr, ErStr, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
+								LogPrint("", DeStr, ErStr, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
 								return
 							}
 							return
 						}
 
 						if errorDataNum > MGValue-KGValue {
-							fmt.Println(DeStr, ErStr, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
+							LogPrint("", DeStr, ErStr, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
 							bar.Finish()
 							return
 						}
@@ -674,7 +679,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 						for _, dataW := range dataOrigin {
 							_, err := outputFile.Write(dataW)
 							if err != nil {
-								fmt.Println(DeStr, ErStr, "写入文件失败:", err)
+								LogPrint("", DeStr, ErStr, "写入文件失败:", err)
 								break
 							}
 						}
@@ -699,12 +704,12 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 
 			err = FFmpegStdout.Close()
 			if err != nil {
-				fmt.Println(DeStr, ErStr, "无法关闭 FFmpeg 标准输出管道:", err)
+				LogPrint("", DeStr, ErStr, "无法关闭 FFmpeg 标准输出管道:", err)
 				return
 			}
 			err = FFmpegProcess.Wait()
 			if err != nil {
-				fmt.Println(DeStr, ErStr, "FFmpeg 命令执行失败:", err)
+				LogPrint("", DeStr, ErStr, "FFmpeg 命令执行失败:", err)
 				return
 			}
 			outputFile.Close()
@@ -712,40 +717,40 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 			if segmentLength != 0 {
 				err := TruncateFile(segmentLength, outputFilePath)
 				if err != nil {
-					fmt.Println(DeStr, ErStr, "截断解码文件失败:", err)
+					LogPrint("", DeStr, ErStr, "截断解码文件失败:", err)
 					return
 				}
 			} else {
 				// 删除解码文件的末尾连续的零字节
-				fmt.Println(DeStr, "未提供原始文件的长度参数，默认删除解码文件的末尾连续的零字节来还原原始文件(无法还原尾部带零字节的分段文件)")
+				LogPrint("", DeStr, "未提供原始文件的长度参数，默认删除解码文件的末尾连续的零字节来还原原始文件(无法还原尾部带零字节的分段文件)")
 				err = RemoveTrailingZerosFromFile(outputFilePath)
 				if err != nil {
-					fmt.Println(DeStr, ErStr, "删除解码文件的末尾连续的零字节失败:", err)
+					LogPrint("", DeStr, ErStr, "删除解码文件的末尾连续的零字节失败:", err)
 					return
 				}
 			}
 
-			fmt.Println(DeStr, "完成")
-			fmt.Println(DeStr, "使用配置：")
-			fmt.Println(DeStr, "  ---------------------------")
-			fmt.Println(DeStr, "  视频宽度:", videoWidth)
-			fmt.Println(DeStr, "  视频高度:", videoHeight)
-			fmt.Println(DeStr, "  总帧数:", frameCount)
-			fmt.Println(DeStr, "  输入视频路径:", filePath)
-			fmt.Println(DeStr, "  输出文件路径:", outputFilePath)
-			fmt.Println(DeStr, "  ---------------------------")
+			LogPrint("", DeStr, "完成")
+			LogPrint("", DeStr, "使用配置：")
+			LogPrint("", DeStr, "  ---------------------------")
+			LogPrint("", DeStr, "  视频宽度:", videoWidth)
+			LogPrint("", DeStr, "  视频高度:", videoHeight)
+			LogPrint("", DeStr, "  总帧数:", frameCount)
+			LogPrint("", DeStr, "  输入视频路径:", filePath)
+			LogPrint("", DeStr, "  输出文件路径:", outputFilePath)
+			LogPrint("", DeStr, "  ---------------------------")
 		}(filePathIndex, filePath)
 	}
 	wg.Wait()
 
 	if errorDataNum > MGValue-KGValue {
-		fmt.Println(DeStr, ErStr, "恢复失败")
+		LogPrint("", DeStr, ErStr, "恢复失败")
 		return
 	}
 
 	isRuntime = false
 	allEndTime := time.Now()
 	allDuration := allEndTime.Sub(allStartTime)
-	fmt.Println(DeStr, "全部完成")
+	LogPrint("", DeStr, "全部完成")
 	fmt.Printf(DeStr+" 总共耗时%f秒\n", allDuration.Seconds())
 }
