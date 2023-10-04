@@ -1,8 +1,10 @@
 package utils
 
+import "strings"
+
 const (
 	LumikaVersionNum                = 3
-	LumikaVersionString             = "v3.8.0.beta6"
+	LumikaVersionString             = "v3.8.0.beta7"
 	LumikaWorkDirName               = "lumika_data"
 	LumikaConfigFileName            = "lumika_config"
 	InitStr                         = "Init:"
@@ -11,7 +13,7 @@ const (
 	EnStr                           = "Encode:"
 	DeStr                           = "Decode:"
 	AddStr                          = "AddInput:"
-	GetStr                          = "Get:"
+	GetStr                          = "GetInput:"
 	BDlStr                          = "BDl:"
 	ArStr                           = "AutoRun:"
 	ErStr                           = "Error:"
@@ -48,6 +50,14 @@ var (
 	LumikaDecodeOutputPath string
 )
 
+type CommonError struct {
+	Msg string
+}
+
+func (e *CommonError) Error() string {
+	return e.Msg
+}
+
 type FecFileConfig struct {
 	Version       int      `json:"v"`
 	Name          string   `json:"n"`
@@ -62,24 +72,6 @@ type FecFileConfig struct {
 	FecHashList   []string `json:"fhl"`
 }
 
-type DlTaskInfo struct {
-	url        string
-	filePath   string
-	referer    string
-	userAgent  string
-	numThreads int
-}
-
-type DlTaskListData struct {
-	UUID         string `json:"uuid"`
-	Type         string `json:"type"`
-	TimeStamp    string `json:"timestamp"`
-	ResourceID   string `json:"resourceId"`
-	FileName     string `json:"fileName"`
-	LogCat       string `json:"logCat"`
-	ProgressRate int    `json:"progressRate"`
-}
-
 type ThreadInfo struct {
 	threadIndex  int
 	startOffset  int64
@@ -90,6 +82,42 @@ type ThreadInfo struct {
 type FileInfo struct {
 	Filename string `json:"filename"`
 	Type     string `json:"type"`
+}
+
+type DlTaskInfo struct {
+	Url        string `json:"url"`
+	FileName   string `json:"fileName"`
+	Referer    string `json:"referer"`
+	UserAgent  string `json:"userAgent"`
+	NumThreads int    `json:"numThreads"`
+}
+
+type DlTaskListData struct {
+	UUID         string      `json:"uuid"`
+	TimeStamp    string      `json:"timestamp"`
+	FileName     string      `json:"fileName"`
+	TaskInfo     *DlTaskInfo `json:"taskInfo"`
+	LogCat       string      `json:"logCat"`
+	ProgressRate int         `json:"progressRate"`
+	ProgressNum  float64     `json:"progressNum"`
+	Status       string      `json:"status"`
+	StatusMsg    string      `json:"statusMsg"`
+}
+
+type BDlTaskInfo struct {
+	ResourceID string `json:"resourceID"`
+}
+
+type BDlTaskListData struct {
+	UUID         string       `json:"uuid"`
+	TimeStamp    string       `json:"timestamp"`
+	ResourceID   string       `json:"resourceId"`
+	TaskInfo     *BDlTaskInfo `json:"taskInfo"`
+	LogCat       string       `json:"logCat"`
+	ProgressRate int          `json:"progressRate"`
+	ProgressNum  float64      `json:"progressNum"`
+	Status       string       `json:"status"`
+	StatusMsg    string       `json:"statusMsg"`
 }
 
 type AddTaskInfo struct {
@@ -113,14 +141,38 @@ type AddTaskListData struct {
 	LogCat       string       `json:"logCat"`
 	BaseStr      string       `json:"baseStr"`
 	ProgressRate int          `json:"progressRate"`
+	ProgressNum  float64      `json:"progressNum"`
+	Status       string       `json:"status"`
+	StatusMsg    string       `json:"statusMsg"`
 }
 
-var LogVariable string
+type GetTaskInfo struct {
+	DirName      string `json:"dirName"`
+	DecodeThread int    `json:"decodeThread"`
+	BaseStr      string `json:"baseStr"`
+}
 
-var DlTaskQueue chan *DlTaskInfo
+type GetTaskListData struct {
+	UUID         string       `json:"uuid"`
+	TimeStamp    string       `json:"timestamp"`
+	TaskInfo     *GetTaskInfo `json:"taskInfo"`
+	LogCat       string       `json:"logCat"`
+	ProgressRate int          `json:"progressRate"`
+	ProgressNum  float64      `json:"progressNum"`
+	Status       string       `json:"status"`
+	StatusMsg    string       `json:"statusMsg"`
+}
+
+var LogVariable strings.Builder
+
+var DlTaskQueue chan *DlTaskListData
 var DlTaskList []*DlTaskListData
 
-var BDlTaskQueue chan string
+var BDlTaskQueue chan *BDlTaskListData
+var BDlTaskList []*BDlTaskListData
 
 var AddTaskQueue chan *AddTaskListData
 var AddTaskList []*AddTaskListData
+
+var GetTaskQueue chan *GetTaskListData
+var GetTaskList []*GetTaskListData

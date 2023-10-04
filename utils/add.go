@@ -41,8 +41,26 @@ func AddAddTask(fileNameList []string, defaultM int, defaultK int, MGValue int, 
 func AddTaskWorker(id int) {
 	for task := range AddTaskQueue {
 		// 处理任务
-		fmt.Printf("AddTaskWorker %d 处理编码任务：%v\n", id, task.UUID)
-		AddExec(task.TaskInfo.FileNameList, task.TaskInfo.DefaultM, task.TaskInfo.DefaultK, task.TaskInfo.MGValue, task.TaskInfo.KGValue, task.TaskInfo.VideoSize, task.TaskInfo.OutputFPS, task.TaskInfo.EncodeMaxSeconds, task.TaskInfo.EncodeThread, task.TaskInfo.EncodeFFmpegMode, task.TaskInfo.DefaultSummary, task.UUID)
+		LogPrintf(task.UUID, "AddTaskWorker %d 处理编码任务：%v\n", id, task.UUID)
+		i := 0
+		for kp, kq := range AddTaskList {
+			if kq.UUID == task.UUID {
+				i = kp
+				break
+			}
+		}
+		AddTaskList[i].Status = "正在执行"
+		AddTaskList[i].StatusMsg = "正在执行"
+		err := AddExec(task.TaskInfo.FileNameList, task.TaskInfo.DefaultM, task.TaskInfo.DefaultK, task.TaskInfo.MGValue, task.TaskInfo.KGValue, task.TaskInfo.VideoSize, task.TaskInfo.OutputFPS, task.TaskInfo.EncodeMaxSeconds, task.TaskInfo.EncodeThread, task.TaskInfo.EncodeFFmpegMode, task.TaskInfo.DefaultSummary, task.UUID)
+		if err != nil {
+			LogPrintf(task.UUID, "AddTaskWorker %d 编码任务执行失败\n", id)
+			AddTaskList[i].Status = "执行失败"
+			AddTaskList[i].StatusMsg = err.Error()
+			return
+		}
+		AddTaskList[i].Status = "已完成"
+		AddTaskList[i].StatusMsg = "已完成"
+		AddTaskList[i].ProgressNum = 100.0
 	}
 }
 
@@ -236,10 +254,14 @@ func AddInput() {
 	LogPrint("", AddStr, "请输入摘要，可以作为文件内容的简介。例如：\"这是一个相册的压缩包\"")
 	defaultSummary := GetUserInput("")
 
-	AddExec(fileNameList, defaultM, defaultK, MGValue, KGValue, videoSize, outputFPS, encodeMaxSeconds, encodeThread, encodeFFmpegMode, defaultSummary, "")
+	err = AddExec(fileNameList, defaultM, defaultK, MGValue, KGValue, videoSize, outputFPS, encodeMaxSeconds, encodeThread, encodeFFmpegMode, defaultSummary, "")
+	if err != nil {
+		LogPrint("", AddStr, ErStr, "添加任务失败:", err)
+		return
+	}
 }
 
-func AddExec(fileNameList []string, defaultM int, defaultK int, MGValue int, KGValue int, videoSize int, outputFPS int, encodeMaxSeconds int, encodeThread int, encodeFFmpegMode string, defaultSummary string, UUID string) {
+func AddExec(fileNameList []string, defaultM int, defaultK int, MGValue int, KGValue int, videoSize int, outputFPS int, encodeMaxSeconds int, encodeThread int, encodeFFmpegMode string, defaultSummary string, UUID string) error {
 	fileDir := LumikaWorkDirPath
 	fileEncodeDir := LumikaEncodePath
 	fileEncodeOutputDir := LumikaEncodeOutputPath
@@ -258,7 +280,7 @@ func AddExec(fileNameList []string, defaultM int, defaultK int, MGValue int, KGV
 		err := os.Mkdir(defaultOutputDir, 0644)
 		if err != nil {
 			LogPrint(UUID, AddStr, ErStr, "创建输出目录失败:", err)
-			return
+			return &CommonError{Msg: "创建输出目录失败:" + err.Error()}
 		}
 		LogPrint(UUID, AddStr, "使用默认文件名:", fileName)
 		LogPrint(UUID, AddStr, "使用默认输出目录:", defaultOutputDir)
@@ -267,7 +289,7 @@ func AddExec(fileNameList []string, defaultM int, defaultK int, MGValue int, KGV
 		fileInfo, err := os.Stat(filePath)
 		if err != nil {
 			LogPrint(UUID, AddStr, ErStr, "文件长度计算失败:", err)
-			return
+			return &CommonError{Msg: "文件长度计算失败:" + err.Error()}
 		}
 		fileSize := fileInfo.Size()
 
@@ -277,22 +299,22 @@ func AddExec(fileNameList []string, defaultM int, defaultK int, MGValue int, KGV
 		enc, err := reedsolomon.New(defaultK, defaultM-defaultK)
 		if err != nil {
 			LogPrint(UUID, AddStr, ErStr, "创建RS编码器失败:", err)
-			return
+			return &CommonError{Msg: "创建RS编码器失败:" + err.Error()}
 		}
 		b, err := os.ReadFile(filePath)
 		if err != nil {
 			LogPrint(UUID, AddStr, ErStr, "读取文件失败:", err)
-			return
+			return &CommonError{Msg: "读取文件失败:" + err.Error()}
 		}
 		shards, err := enc.Split(b)
 		if err != nil {
 			LogPrint(UUID, AddStr, ErStr, "分割文件失败:", err)
-			return
+			return &CommonError{Msg: "分割文件失败:" + err.Error()}
 		}
 		err = enc.Encode(shards)
 		if err != nil {
 			LogPrint(UUID, AddStr, ErStr, "编码文件失败:", err)
-			return
+			return &CommonError{Msg: "编码文件失败:" + err.Error()}
 		}
 		// 生成 fecHashList
 		fecHashList := make([]string, len(shards))
@@ -303,7 +325,7 @@ func AddExec(fileNameList []string, defaultM int, defaultK int, MGValue int, KGV
 			err = os.WriteFile(outfnPath, shard, 0644)
 			if err != nil {
 				LogPrint(UUID, AddStr, ErStr, ".fec 文件写入失败:", err)
-				return
+				return &CommonError{Msg: ".fec 文件写入失败:" + err.Error()}
 			}
 			fileHash := CalculateFileHash(outfnPath, DefaultHashLength)
 			fecHashList[i] = fileHash
@@ -313,7 +335,11 @@ func AddExec(fileNameList []string, defaultM int, defaultK int, MGValue int, KGV
 		LogPrint(UUID, AddStr, ".fec 文件生成完成，耗时:", zfecDuration)
 
 		LogPrint(UUID, AddStr, "开始进行编码")
-		segmentLength := Encode(defaultOutputDir, videoSize, outputFPS, encodeMaxSeconds, MGValue, KGValue, encodeThread, encodeFFmpegMode, true, UUID)
+		segmentLength, err := Encode(defaultOutputDir, videoSize, outputFPS, encodeMaxSeconds, MGValue, KGValue, encodeThread, encodeFFmpegMode, true, UUID)
+		if err != nil {
+			LogPrint(UUID, AddStr, ErStr, "编码失败:", err)
+			return &CommonError{Msg: "编码失败:" + err.Error()}
+		}
 
 		LogPrint(UUID, AddStr, "编码完成，开始生成配置")
 		fecFileConfig := FecFileConfig{
@@ -332,7 +358,7 @@ func AddExec(fileNameList []string, defaultM int, defaultK int, MGValue int, KGV
 		fecFileConfigJson, err := json.Marshal(fecFileConfig)
 		if err != nil {
 			LogPrint(UUID, AddStr, ErStr, "生成 JSON 配置失败:", err)
-			return
+			return &CommonError{Msg: "生成 JSON 配置失败:" + err.Error()}
 		}
 		// 转换为 Base64
 		fecFileConfigBase64 := base64.StdEncoding.EncodeToString(fecFileConfigJson)
@@ -341,7 +367,7 @@ func AddExec(fileNameList []string, defaultM int, defaultK int, MGValue int, KGV
 		err = os.WriteFile(fecFileConfigFilePath, []byte(fecFileConfigBase64), 0644)
 		if err != nil {
 			LogPrint(UUID, AddStr, ErStr, "写入文件失败:", err)
-			return
+			return &CommonError{Msg: "写入文件失败:" + err.Error()}
 		}
 		LogPrint(UUID, AddStr, "写入配置成功")
 		DeleteFecFiles(fileDir)
@@ -358,7 +384,8 @@ func AddExec(fileNameList []string, defaultM int, defaultK int, MGValue int, KGV
 
 		LogPrint(UUID, AddStr, "Base64 配置文件已生成，路径:", fecFileConfigFilePath)
 		LogPrint(UUID, AddStr, "Base64:", fecFileConfigBase64)
-		LogPrint(UUID, AddStr, "请将生成的 .mp4 fec 视频文件和 Base64 配置分享或发送给你的好友，对方可使用 \"Get\" 子命令来获取文件")
+		LogPrint(UUID, AddStr, "请将生成的 .mp4 fec 视频文件和 Base64 配置分享或发送给你的好友，对方可使用 \"GetInput\" 子命令来获取文件")
 		LogPrint(UUID, AddStr, "添加完成")
 	}
+	return nil
 }

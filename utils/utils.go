@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"image"
 	"image/color"
 	"io"
@@ -20,7 +19,7 @@ import (
 )
 
 func PressEnterToContinue() {
-	fmt.Print("请按回车键继续...")
+	LogPrint("", "请按回车键继续...")
 	reader := bufio.NewReader(os.Stdin)
 	_, _ = reader.ReadString('\n')
 }
@@ -368,7 +367,7 @@ func GetUserInput(s string) string {
 		s = "请输入内容: "
 	}
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Print(s)
+	LogPrint("", s)
 	input, err := reader.ReadString('\n')
 	if err != nil {
 		LogPrint("", "GetUserInput:", ErStr, "获取用户输入失败:", err)

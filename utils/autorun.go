@@ -28,15 +28,19 @@ func AutoRun() {
 			break
 		} else if input == "2" {
 			clearScreen()
-			Get()
+			GetInput()
 			break
 		} else if input == "3" {
 			clearScreen()
-			Encode("", EncodeVideoSizeLevel, EncodeOutputFPSLevel, EncodeMaxSecondsLevel, AddMGLevel, AddKGLevel, runtime.NumCPU(), EncodeFFmpegModeLevel, false, "")
+			_, err := Encode("", EncodeVideoSizeLevel, EncodeOutputFPSLevel, EncodeMaxSecondsLevel, AddMGLevel, AddKGLevel, runtime.NumCPU(), EncodeFFmpegModeLevel, false, "")
+			if err != nil {
+				LogPrint("", ArStr, ErStr, "错误: 编码失败:", err)
+				break
+			}
 			break
 		} else if input == "4" {
 			clearScreen()
-			Decode("", 0, nil, AddMGLevel, AddKGLevel, runtime.NumCPU())
+			Decode("", 0, nil, AddMGLevel, AddKGLevel, runtime.NumCPU(), "")
 			break
 		} else if input == "5" {
 			os.Exit(0)

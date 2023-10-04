@@ -28,38 +28,50 @@ func (pw *progressBarWriter) Write(p []byte) (int, error) {
 
 func DlAddTask(url string, filePath string, referer string, userAgent string, numThreads int) {
 	uuidd := uuid.New().String()
-	DlTaskList = append(DlTaskList, &DlTaskListData{
-		UUID:         uuidd,
-		Type:         "dl",
-		TimeStamp:    time.Now().Format("2006-01-02 15:04:05"),
-		ResourceID:   url,
+	dt := &DlTaskListData{
+		UUID:      uuidd,
+		TimeStamp: time.Now().Format("2006-01-02 15:04:05"),
+		TaskInfo: &DlTaskInfo{
+			Url:        url,
+			FileName:   filePath,
+			Referer:    referer,
+			UserAgent:  userAgent,
+			NumThreads: numThreads,
+		},
 		FileName:     filepath.Base(filePath),
 		ProgressRate: 0,
-	})
-	dt := DlTaskInfo{
-		url:        url,
-		filePath:   filePath,
-		referer:    referer,
-		userAgent:  userAgent,
-		numThreads: numThreads,
 	}
-	DlTaskQueue <- &dt
+	DlTaskList = append(DlTaskList, dt)
+	DlTaskQueue <- dt
 }
 
 func DlTaskWorker(id int) {
 	for task := range DlTaskQueue {
-		// 处理任务
-		fmt.Printf("DlTaskWorker %d 处理下载任务：%v\n", id, task.url)
-		err := Dl(task.url, task.filePath, task.referer, task.userAgent, task.numThreads)
+		LogPrintf(task.UUID, "DlTaskWorker %d 处理下载任务：%v\n", id, task.TaskInfo.Url)
+		i := 0
+		for kp, kq := range DlTaskList {
+			if kq.UUID == task.UUID {
+				i = kp
+				break
+			}
+		}
+		DlTaskList[i].Status = "正在执行"
+		DlTaskList[i].StatusMsg = "正在执行"
+		err := Dl(task.TaskInfo.Url, task.TaskInfo.FileName, task.TaskInfo.Referer, task.TaskInfo.UserAgent, task.TaskInfo.NumThreads, task.UUID)
 		if err != nil {
-			fmt.Printf("DlTaskWorker %d 处理下载任务(%v)失败：%v\n", id, task.url, err)
+			LogPrintf(task.UUID, "DlTaskWorker %d 处理下载任务(%v)失败：%v\n", id, task.TaskInfo.Url, err)
+			DlTaskList[i].Status = "执行失败"
+			DlTaskList[i].StatusMsg = err.Error()
 			continue
 		}
+		DlTaskList[i].Status = "已完成"
+		DlTaskList[i].StatusMsg = "已完成"
+		DlTaskList[i].ProgressNum = 100.0
 	}
 }
 
 func DlTaskWorkerInit() {
-	DlTaskQueue = make(chan *DlTaskInfo)
+	DlTaskQueue = make(chan *DlTaskListData)
 	DlTaskList = make([]*DlTaskListData, 0)
 	// 启动多个 DlTaskWorker 协程来处理任务
 	for i := 0; i < DefaultTaskWorkerGoRoutines; i++ {
@@ -67,7 +79,7 @@ func DlTaskWorkerInit() {
 	}
 }
 
-func Dl(url string, filePath string, referer string, userAgent string, numThreads int) error {
+func Dl(url string, filePath string, referer string, userAgent string, numThreads int, UUID string) error {
 	if userAgent == "" {
 		userAgent = DefaultUserAgent
 	}
@@ -76,7 +88,7 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return err
+		return &CommonError{Msg: err.Error()}
 	}
 
 	req.Header.Set("Referer", referer)
@@ -84,7 +96,7 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return &CommonError{Msg: err.Error()}
 	}
 	defer resp.Body.Close()
 
@@ -126,11 +138,11 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 
 				tempFile, err := os.Create(thread.tempFilePath)
 				if err != nil {
-					LogPrint("", "临时文件创建失败")
+					LogPrint(UUID, "临时文件创建失败")
 					// 尝试删除临时文件
 					err := os.Remove(thread.tempFilePath)
 					if err != nil {
-						LogPrint("", "尝试删除临时文件时出现错误，删除失败")
+						LogPrint(UUID, "尝试删除临时文件时出现错误，删除失败")
 						tempFile.Close()
 						return
 					}
@@ -140,7 +152,7 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 				// 创建一个新的HTTP请求
 				req2, err := http.NewRequest("GET", url, nil)
 				if err != nil {
-					LogPrint("", "创建新的HTTP请求时出现错误:", err)
+					LogPrint(UUID, "创建新的HTTP请求时出现错误:", err)
 					continue
 				}
 
@@ -151,7 +163,7 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 
 				resp2, err := client.Do(req2)
 				if err != nil {
-					LogPrint("", "下载中出现错误:", err)
+					LogPrint(UUID, "下载中出现错误:", err)
 					continue
 				}
 
@@ -166,7 +178,7 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 
 				_, err = io.Copy(writer, resp2.Body)
 				if err != nil {
-					LogPrint("", "下载中出现 io.Copy 错误:", err)
+					LogPrint(UUID, "下载中出现 io.Copy 错误:", err)
 					tempFile.Close()
 					progressBar.Finish()
 					continue
@@ -177,6 +189,17 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 				progressBar.Finish()
 				break
 			}
+
+			// 为全局 ProgressRate 变量赋值
+			for kp, kq := range DlTaskList {
+				if kq.UUID == UUID {
+					DlTaskList[kp].ProgressRate++
+					// 计算正确的 progressNum
+					DlTaskList[kp].ProgressNum = float64(DlTaskList[kp].ProgressRate) / float64(numThreads) * 100
+					break
+				}
+			}
+
 		}(i)
 	}
 
@@ -185,7 +208,7 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 
 	file, err := os.Create(filePath)
 	if err != nil {
-		return err
+		return &CommonError{Msg: err.Error()}
 	}
 	defer file.Close()
 
@@ -193,20 +216,20 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 		// 读取临时文件
 		tempFile, err := os.Open(thread.tempFilePath)
 		if err != nil {
-			LogPrint("", "尝试打开临时文件时出现错误：", err)
-			return nil
+			LogPrint(UUID, "尝试打开临时文件时出现错误：", err)
+			return &CommonError{Msg: err.Error()}
 		}
 
 		_, err = tempFile.Seek(0, 0)
 		if err != nil {
-			LogPrint("", "尝试将临时文件指针移动到文件开头时出现错误：", err)
-			return nil
+			LogPrint(UUID, "尝试将临时文件指针移动到文件开头时出现错误：", err)
+			return &CommonError{Msg: err.Error()}
 		}
 
 		_, err = io.Copy(file, tempFile)
 		if err != nil {
-			LogPrint("", "从临时文件复制数据到目标文件时出现错误：", err)
-			return nil
+			LogPrint(UUID, "从临时文件复制数据到目标文件时出现错误：", err)
+			return &CommonError{Msg: err.Error()}
 		}
 
 		for di := 0; di < DefaultBiliDownloadMaxRetries; di++ {
@@ -214,7 +237,7 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 			err = os.Remove(tempFile.Name())
 			if err != nil {
 				if di >= 10 {
-					LogPrint("", "下载完成后尝试删除临时文件时出现错误，准备重试：", err)
+					LogPrint(UUID, "下载完成后尝试删除临时文件时出现错误，准备重试：", err)
 				}
 				time.Sleep(250 * time.Millisecond)
 				continue

@@ -16,22 +16,22 @@ import (
 	"time"
 )
 
-func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValue int, KGValue int, encodeThread int, encodeFFmpegMode string, auto bool, UUID string) (segmentLength int64) {
+func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValue int, KGValue int, encodeThread int, encodeFFmpegMode string, auto bool, UUID string) (segmentLength int64, err error) {
 	ep, err := os.Executable()
 	if err != nil {
 		LogPrint(UUID, EnStr, ErStr, "无法获取运行目录:", err)
-		return
+		return 0, &CommonError{Msg: "无法获取运行目录"}
 	}
 	epPath := filepath.Dir(ep)
 
 	if videoSize%8 != 0 {
 		LogPrint(UUID, EnStr, ErStr, "视频大小必须是8的倍数")
-		return 0
+		return 0, &CommonError{Msg: "视频大小必须是8的倍数"}
 	}
 
 	if KGValue > MGValue {
 		LogPrint(UUID, EnStr, ErStr, "KG值不能大于MG值")
-		return 0
+		return 0, &CommonError{Msg: "KG值不能大于MG值"}
 	}
 
 	// 当没有检测到videoFileDir时，自动匹配
@@ -40,7 +40,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 		fd, err := os.Executable()
 		if err != nil {
 			LogPrint(UUID, EnStr, ErStr, "获取程序所在目录失败:", err)
-			return 0
+			return 0, &CommonError{Msg: "获取程序所在目录失败"}
 		}
 		fileDir = filepath.Dir(fd)
 	}
@@ -48,7 +48,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 	// 检查输入文件夹是否存在
 	if _, err := os.Stat(fileDir); os.IsNotExist(err) {
 		LogPrint(UUID, EnStr, ErStr, "输入文件夹不存在:", err)
-		return 0
+		return 0, &CommonError{Msg: "输入文件夹不存在"}
 	}
 
 	LogPrint(UUID, EnStr, "当前目录:", fileDir)
@@ -56,13 +56,13 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 	fileDict, err := GenerateFileDxDictionary(fileDir, ".fec")
 	if err != nil {
 		LogPrint(UUID, EnStr, ErStr, "无法生成文件列表:", err)
-		return 0
+		return 0, &CommonError{Msg: "无法生成文件列表"}
 	}
 	filePathList := make([]string, 0)
 	for {
 		if len(fileDict) == 0 {
 			LogPrint(UUID, EnStr, ErStr, "当前目录下没有.fec文件，请将需要编码的文件放到当前目录下")
-			return 0
+			return 0, &CommonError{Msg: "当前目录下没有.fec文件，请将需要编码的文件放到当前目录下"}
 		}
 		LogPrint(UUID, EnStr, "请选择需要编码的.fec文件，输入索引并回车来选择")
 		LogPrint(UUID, EnStr, "如果需要编码当前目录下的所有.fec文件，请直接输入回车")
@@ -408,7 +408,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 
 				bar.SetCurrent(int64(fileNowLength))
 				if i%30000 == 0 {
-					fmt.Printf("\nEncode: 构建帧 %d, 已构建数据 %d, 总数据 %d\n", i, fileNowLength, fileLength)
+					LogPrintf("", "\nEncode: 构建帧 %d, 已构建数据 %d, 总数据 %d\n", i, fileNowLength, fileLength)
 				}
 			}
 			bar.Finish()
@@ -445,6 +445,8 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 			for kp, kq := range AddTaskList {
 				if kq.UUID == UUID {
 					AddTaskList[kp].ProgressRate++
+					// 计算正确的 progressNum
+					AddTaskList[kp].ProgressNum = float64(AddTaskList[kp].ProgressRate) / float64(len(filePathList)) * 100
 					break
 				}
 			}
@@ -470,7 +472,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 	isRuntime = false
 	allEndTime := time.Now()
 	allDuration := allEndTime.Sub(allStartTime)
-	fmt.Printf(EnStr+" 总共耗时%f秒\n", allDuration.Seconds())
+	LogPrintf("", EnStr+" 总共耗时%f秒\n", allDuration.Seconds())
 	LogPrint(UUID, EnStr, "所有选择的.fec文件已编码完成，编码结束")
-	return segmentLength
+	return segmentLength, nil
 }

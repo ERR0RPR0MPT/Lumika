@@ -77,11 +77,20 @@ func GetFileFromURL(c *gin.Context) {
 	if fileName == "" {
 		fileName = GetFileNameFromURL(url)
 	}
-	useSingleThreadToDownload := c.PostForm("useSingleThreadToDownload")
-	LogPrint("", "读取到 useSingleThreadToDownload:", useSingleThreadToDownload)
+	DownloadThreadNumInputData := c.PostForm("DownloadThreadNumInputData")
+	LogPrint("", "读取到 DownloadThreadNumInputData:", DownloadThreadNumInputData)
 	gor := DefaultBiliDownloadGoRoutines
-	if useSingleThreadToDownload == "true" {
-		gor = 1
+	gors, err := strconv.Atoi(DownloadThreadNumInputData)
+	if err != nil {
+		if DownloadThreadNumInputData == "" {
+			gors = DefaultBiliDownloadGoRoutines
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "线程参数错误"})
+			return
+		}
+	}
+	if gors > 0 {
+		gor = gors
 	}
 	fileName = ReplaceInvalidCharacters(fileName, '-')
 	filePath := filepath.Join(LumikaEncodePath, fileName)
@@ -100,7 +109,7 @@ func GetFileFromBiliID(c *gin.Context) {
 }
 
 func GetDlTaskList(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"data": DlTaskList})
+	c.JSON(http.StatusOK, gin.H{"dlTaskList": DlTaskList, "bdlTaskList": BDlTaskList})
 }
 
 func GetFileList(c *gin.Context) {
@@ -181,10 +190,37 @@ func GetAddTaskList(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"encodeTaskList": AddTaskList})
 }
 
+func AddDecodeTask(c *gin.Context) {
+	var ed *GetTaskInfo
+	if err := c.ShouldBindJSON(&ed); err != nil {
+		c.JSON(400, gin.H{"msg": "AddDecodeTask JSON 解析错误", "error": err.Error()})
+		return
+	}
+	if ed.DirName == "" {
+		c.JSON(400, gin.H{"msg": "AddDecodeTask: DirName 参数错误，任务创建失败"})
+		return
+	}
+	if ed.DecodeThread <= 0 {
+		LogPrint("", AddStr, ErStr, "错误: 处理使用的线程数量不能小于等于 0，自动设置处理使用的线程数量为", runtime.NumCPU())
+		ed.DecodeThread = runtime.NumCPU()
+	}
+	AddGetTask(ed.DirName, ed.DecodeThread, ed.BaseStr)
+	c.JSON(http.StatusOK, gin.H{"msg": fmt.Sprintf("成功添加解码任务")})
+}
+
+func GetGetTaskList(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"decodeTaskList": GetTaskList})
+}
+
+func GetLogCat(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"logcat": LogVariable.String()})
+}
+
 func TaskWorkerInit() {
 	DlTaskWorkerInit()
 	BDlTaskWorkerInit()
 	AddTaskWorkerInit()
+	GetTaskWorkerInit()
 }
 
 func WebServerInit() {
@@ -206,6 +242,9 @@ func WebServerInit() {
 	r.GET("/api/get-file-list", GetFileList)
 	r.POST("/api/add-encode-task", AddEncodeTask)
 	r.GET("/api/get-add-task-list", GetAddTaskList)
+	r.POST("/api/add-decode-task", AddDecodeTask)
+	r.GET("/api/get-get-task-list", GetGetTaskList)
+	r.GET("/api/get-logcat", GetLogCat)
 	LogPrint("", WebStr, "Web Server 在 "+DefaultWebServerBindAddress+" 上监听")
 	LogPrint("", WebStr, "尝试访问管理面板: http://127.0.0.1:7860/")
 	err := r.Run(DefaultWebServerBindAddress)

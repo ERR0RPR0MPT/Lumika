@@ -12,7 +12,6 @@ import (
 )
 
 func MainInit() {
-	utils.LogVariable = ""
 	est, err := os.Executable()
 	if err != nil {
 		utils.LogPrint("", utils.InitStr, "工作目录获取失败")
@@ -172,7 +171,7 @@ func main() {
 			utils.LogPrint("", utils.GetStr, utils.ErStr, "参数解析错误")
 			return
 		}
-		utils.Get()
+		utils.GetInput()
 		return
 	case "dl":
 		err := dlFlag.Parse(os.Args[2:])
@@ -184,7 +183,11 @@ func main() {
 			utils.LogPrint("", utils.BDlStr, utils.ErStr, "参数解析错误，请输入正确的av/BV号")
 			return
 		}
-		utils.BDl(os.Args[2])
+		err = utils.BDl(os.Args[2], "")
+		if err != nil {
+			utils.LogPrint("", utils.BDlStr, utils.ErStr, "从哔哩源下载失败:", err)
+			return
+		}
 		return
 	case "encode":
 		err := encodeFlag.Parse(os.Args[2:])
@@ -192,7 +195,11 @@ func main() {
 			utils.LogPrint("", utils.EnStr, utils.ErStr, "参数解析错误")
 			return
 		}
-		utils.Encode(*encodeInput, *encodeQrcodeSize, *encodeOutputFPS, *encodeMaxSeconds, *encodeMGValue, *encodeKGValue, *encodeThread, *encodeFFmpegMode, false, "")
+		_, err = utils.Encode(*encodeInput, *encodeQrcodeSize, *encodeOutputFPS, *encodeMaxSeconds, *encodeMGValue, *encodeKGValue, *encodeThread, *encodeFFmpegMode, false, "")
+		if err != nil {
+			utils.LogPrint("", utils.EnStr, utils.ErStr, "编码失败:", err)
+			return
+		}
 		return
 	case "decode":
 		err := decodeFlag.Parse(os.Args[2:])
@@ -200,7 +207,7 @@ func main() {
 			utils.LogPrint("", utils.DeStr, utils.ErStr, "参数解析错误")
 			return
 		}
-		utils.Decode(*decodeInputDir, 0, nil, *decodeMGValue, *decodeKGValue, *decodeThread)
+		utils.Decode(*decodeInputDir, 0, nil, *decodeMGValue, *decodeKGValue, *decodeThread, "")
 		return
 	case "help":
 		flag.Usage()
