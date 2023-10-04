@@ -1,12 +1,15 @@
 package utils
 
 import (
+	"archive/zip"
 	"bufio"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"image"
 	"image/color"
 	"io"
+	"net"
 	"net/url"
 	"os"
 	"os/exec"
@@ -19,7 +22,7 @@ import (
 )
 
 func PressEnterToContinue() {
-	LogPrint("", "请按回车键继续...")
+	LogPrintln("", "请按回车键继续...")
 	reader := bufio.NewReader(os.Stdin)
 	_, _ = reader.ReadString('\n')
 }
@@ -34,7 +37,7 @@ func clearScreen() {
 	cmd.Stdout = os.Stdout
 	err := cmd.Run()
 	if err != nil {
-		LogPrint("", "clearScreen: 清屏失败:", err)
+		LogPrintln("", "clearScreen: 清屏失败:", err)
 		return
 	}
 }
@@ -161,15 +164,15 @@ func DeleteFecFiles(fileDir string) {
 	if DefaultDeleteFecFiles {
 		fileDict, err := GenerateFileDxDictionary(fileDir, ".fec")
 		if err != nil {
-			LogPrint("", "DeleteFecFiles:", ErStr, "无法生成文件列表:", err)
+			LogPrintln("", "DeleteFecFiles:", ErStr, "无法生成文件列表:", err)
 			return
 		}
 		if len(fileDict) != 0 {
-			LogPrint("", "DeleteFecFiles:", "删除临时文件")
+			LogPrintln("", "DeleteFecFiles:", "删除临时文件")
 			for _, filePath := range fileDict {
 				err = os.Remove(filePath)
 				if err != nil {
-					LogPrint("", "DeleteFecFiles:", ErStr, "删除文件失败:", err)
+					LogPrintln("", "DeleteFecFiles:", ErStr, "删除文件失败:", err)
 					return
 				}
 			}
@@ -276,7 +279,7 @@ func Data2Image(data []byte, size int) image.Image {
 		padding := make([]byte, paddingLength)
 		data = append(data, padding...)
 	} else if len(data) > maxDataLength {
-		LogPrint("", "Data2Image:", ErStr, "警告: 数据过长，将进行截断")
+		LogPrintln("", "Data2Image:", ErStr, "警告: 数据过长，将进行截断")
 		data = data[:maxDataLength]
 	}
 	// 创建新的RGBA图像对象
@@ -367,10 +370,10 @@ func GetUserInput(s string) string {
 		s = "请输入内容: "
 	}
 	reader := bufio.NewReader(os.Stdin)
-	LogPrint("", s)
+	LogPrintln("", s)
 	input, err := reader.ReadString('\n')
 	if err != nil {
-		LogPrint("", "GetUserInput:", ErStr, "获取用户输入失败:", err)
+		LogPrintln("", "GetUserInput:", ErStr, "获取用户输入失败:", err)
 		return ""
 	}
 	return strings.TrimSpace(input)
@@ -465,7 +468,7 @@ func GetSubDirectories(path string) ([]string, error) {
 func IsFileExistsInDir(directory, filename string) bool {
 	files, err := os.ReadDir(directory)
 	if err != nil {
-		LogPrint("", "IsFileExistsInDir:", ErStr, "无法读取目录:", err)
+		LogPrintln("", "IsFileExistsInDir:", ErStr, "无法读取目录:", err)
 		return false
 	}
 	for _, file := range files {
@@ -479,7 +482,7 @@ func IsFileExistsInDir(directory, filename string) bool {
 func SearchFileNameInDir(directory, filename string) string {
 	files, err := os.ReadDir(directory)
 	if err != nil {
-		LogPrint("", "SearchFileNameInDir:", ErStr, "无法读取目录:", err)
+		LogPrintln("", "SearchFileNameInDir:", ErStr, "无法读取目录:", err)
 		return ""
 	}
 	for _, file := range files {
@@ -550,10 +553,106 @@ func GetDirectoryJSON(directoryPath string) ([]FileInfo, error) {
 		if file.IsDir() {
 			fileType = "dir"
 		}
+		filePath := filepath.Join(directoryPath, file.Name())
+		fileInfo, err := os.Stat(filePath)
+		if err != nil {
+			return nil, err
+		}
 		fileList = append(fileList, FileInfo{
-			Filename: file.Name(),
-			Type:     fileType,
+			Filename:  file.Name(),
+			ParentDir: filepath.Base(directoryPath),
+			Type:      fileType,
+			SizeNum:   fileInfo.Size(),
+			SizeStr:   FormatFileSize(fileInfo.Size()),
+			Timestamp: fileInfo.ModTime().Format("2006-01-02 15:04:05"),
 		})
 	}
 	return fileList, nil
+}
+
+func CheckPort(port int) bool {
+	address := fmt.Sprintf(":%d", port)
+	conn, err := net.Dial("tcp", address)
+	if err != nil {
+		return false
+	}
+	defer conn.Close()
+	return true
+}
+
+func FormatFileSize(size int64) string {
+	const (
+		B  = 1
+		KB = 1024 * B
+		MB = 1024 * KB
+		GB = 1024 * MB
+	)
+
+	switch {
+	case size >= GB:
+		return fmt.Sprintf("%.2f GB", float64(size)/GB)
+	case size >= MB:
+		return fmt.Sprintf("%.2f MB", float64(size)/MB)
+	case size >= KB:
+		return fmt.Sprintf("%.2f KB", float64(size)/KB)
+	default:
+		return fmt.Sprintf("%d B", size)
+	}
+}
+
+func ZipDirectory(dir string, zipFile string) error {
+	// 创建一个新的压缩文件
+	zipWriter, err := os.Create(zipFile)
+	if err != nil {
+		return err
+	}
+	defer zipWriter.Close()
+	// 创建一个zip.Writer来写入压缩文件
+	zipWriterObj := zip.NewWriter(zipWriter)
+	defer zipWriterObj.Close()
+	// 遍历目录及其子目录和文件
+	err = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		// 获取文件的相对路径（相对于要压缩的目录）
+		relPath, err := filepath.Rel(dir, path)
+		if err != nil {
+			return err
+		}
+		// 创建一个文件头
+		header, err := zip.FileInfoHeader(info)
+		if err != nil {
+			return err
+		}
+		// 设置文件头的名称为相对路径
+		header.Name = relPath
+		// 如果文件是一个目录，则不需要写入内容，只需添加文件头即可
+		if info.IsDir() {
+			header.Name += "/"
+			_, err = zipWriterObj.CreateHeader(header)
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+		// 创建一个zip.Writer来写入文件内容
+		writer, err := zipWriterObj.CreateHeader(header)
+		if err != nil {
+			return err
+		}
+		// 打开要压缩的文件
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		// 将文件内容复制到zip.Writer中
+		_, err = io.Copy(writer, file)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	return err
 }

@@ -14,79 +14,79 @@ import (
 func MainInit() {
 	est, err := os.Executable()
 	if err != nil {
-		utils.LogPrint("", utils.InitStr, "工作目录获取失败")
+		utils.LogPrintln("", utils.InitStr, "工作目录获取失败")
 		return
 	}
 	utils.EpPath = filepath.Dir(est)
 	utils.LumikaWorkDirPath = filepath.Join(utils.EpPath, utils.LumikaWorkDirName)
 	utils.LumikaEncodePath = filepath.Join(utils.EpPath, utils.LumikaWorkDirName, "encode")
 	utils.LumikaDecodePath = filepath.Join(utils.EpPath, utils.LumikaWorkDirName, "decode")
-	utils.LumikaEncodeOutputPath = filepath.Join(utils.EpPath, utils.LumikaWorkDirName, "encode_output")
-	utils.LumikaDecodeOutputPath = filepath.Join(utils.EpPath, utils.LumikaWorkDirName, "decode_output")
+	utils.LumikaEncodeOutputPath = filepath.Join(utils.EpPath, utils.LumikaWorkDirName, "encodeOutput")
+	utils.LumikaDecodeOutputPath = filepath.Join(utils.EpPath, utils.LumikaWorkDirName, "decodeOutput")
 	// 创建 Lumika 工作目录
 	if _, err := os.Stat(utils.LumikaWorkDirPath); err == nil {
-		utils.LogPrint("", utils.InitStr, "Lumika 工作目录已存在，跳过创建 Lumika 工作目录")
+		utils.LogPrintln("", utils.InitStr, "Lumika 工作目录已存在，跳过创建 Lumika 工作目录")
 		if _, err := os.Stat(utils.LumikaEncodePath); err != nil {
-			utils.LogPrint("", utils.InitStr, "创建 encode 工作目录")
+			utils.LogPrintln("", utils.InitStr, "创建 encode 工作目录")
 			err = os.Mkdir(utils.LumikaEncodePath, 0644)
 			if err != nil {
-				utils.LogPrint("", utils.InitStr, "创建 encode 目录失败:", err)
+				utils.LogPrintln("", utils.InitStr, "创建 encode 目录失败:", err)
 				return
 			}
 		}
 		if _, err := os.Stat(utils.LumikaDecodePath); err != nil {
-			utils.LogPrint("", utils.InitStr, "创建 decode 工作目录")
+			utils.LogPrintln("", utils.InitStr, "创建 decode 工作目录")
 			err = os.Mkdir(utils.LumikaDecodePath, 0644)
 			if err != nil {
-				utils.LogPrint("", utils.InitStr, "创建 decode 目录失败:", err)
+				utils.LogPrintln("", utils.InitStr, "创建 decode 目录失败:", err)
 				return
 			}
 		}
 		if _, err := os.Stat(utils.LumikaEncodeOutputPath); err != nil {
-			utils.LogPrint("", utils.InitStr, "创建 encode_output 工作目录")
+			utils.LogPrintln("", utils.InitStr, "创建 encodeOutput 工作目录")
 			err = os.Mkdir(utils.LumikaEncodeOutputPath, 0644)
 			if err != nil {
-				utils.LogPrint("", utils.InitStr, "创建 encode_output 目录失败:", err)
+				utils.LogPrintln("", utils.InitStr, "创建 encodeOutput 目录失败:", err)
 				return
 			}
 		}
 		if _, err := os.Stat(utils.LumikaDecodeOutputPath); err != nil {
-			utils.LogPrint("", utils.InitStr, "创建 decode_output 工作目录")
+			utils.LogPrintln("", utils.InitStr, "创建 decodeOutput 工作目录")
 			err = os.Mkdir(utils.LumikaDecodeOutputPath, 0644)
 			if err != nil {
-				utils.LogPrint("", utils.InitStr, "创建 decode_output 目录失败:", err)
+				utils.LogPrintln("", utils.InitStr, "创建 decodeOutput 目录失败:", err)
 				return
 			}
 		}
 	} else {
-		utils.LogPrint("", utils.InitStr, "Lumika 工作目录不存在，创建 Lumika 工作目录")
+		utils.LogPrintln("", utils.InitStr, "Lumika 工作目录不存在，创建 Lumika 工作目录")
 		err = os.Mkdir(utils.LumikaWorkDirPath, 0644)
 		if err != nil {
-			utils.LogPrint("", utils.InitStr, "创建 Lumika 工作目录失败:", err)
+			utils.LogPrintln("", utils.InitStr, "创建 Lumika 工作目录失败:", err)
 			return
 		}
-		utils.LogPrint("", utils.InitStr, "创建 encode 工作目录")
+		utils.LogPrintln("", utils.InitStr, "创建 encode 工作目录")
 		err = os.Mkdir(utils.LumikaEncodePath, 0644)
 		if err != nil {
-			utils.LogPrint("", utils.InitStr, "创建 encode 目录失败:", err)
+			utils.LogPrintln("", utils.InitStr, "创建 encode 目录失败:", err)
 			return
 		}
-		utils.LogPrint("", utils.InitStr, "创建 decode 工作目录")
+		utils.LogPrintln("", utils.InitStr, "创建 decode 工作目录")
 		err = os.Mkdir(utils.LumikaDecodePath, 0644)
 		if err != nil {
-			utils.LogPrint("", utils.InitStr, "创建 decode 目录失败:", err)
+			utils.LogPrintln("", utils.InitStr, "创建 decode 目录失败:", err)
 			return
 		}
-		utils.LogPrint("", utils.InitStr, "创建 encode_output 工作目录")
+		utils.LogPrintln("", utils.InitStr, "创建 encodeOutput 工作目录")
 		err = os.Mkdir(utils.LumikaEncodeOutputPath, 0644)
 		if err != nil {
-			utils.LogPrint("", utils.InitStr, "创建 encode_output 目录失败:", err)
+			utils.LogPrintln("", utils.InitStr, "创建 encodeOutput 目录失败:", err)
 			return
 		}
-		utils.LogPrint("", utils.InitStr, "创建 decode_output 工作目录")
+		utils.LogPrintln("", utils.InitStr, "创建 decodeOutput 工作目录")
 		err = os.Mkdir(utils.LumikaDecodeOutputPath, 0644)
 		if err != nil {
-			utils.LogPrint("", utils.InitStr, "创建 decode_output 目录失败:", err)
+			utils.LogPrintln("", utils.InitStr, "创建 decodeOutput 目录失败:", err)
 			return
 		}
 	}
@@ -160,7 +160,7 @@ func main() {
 	case "add":
 		err := addFlag.Parse(os.Args[2:])
 		if err != nil {
-			utils.LogPrint("", utils.AddStr, utils.ErStr, "参数解析错误")
+			utils.LogPrintln("", utils.AddStr, utils.ErStr, "参数解析错误")
 			return
 		}
 		utils.AddInput()
@@ -168,7 +168,7 @@ func main() {
 	case "get":
 		err := getFlag.Parse(os.Args[2:])
 		if err != nil {
-			utils.LogPrint("", utils.GetStr, utils.ErStr, "参数解析错误")
+			utils.LogPrintln("", utils.GetStr, utils.ErStr, "参数解析错误")
 			return
 		}
 		utils.GetInput()
@@ -176,35 +176,35 @@ func main() {
 	case "dl":
 		err := dlFlag.Parse(os.Args[2:])
 		if err != nil || len(os.Args) < 3 {
-			utils.LogPrint("", utils.BDlStr, utils.ErStr, "参数解析错误，请正确填写 av/BV 号，例如：", os.Args[0], "dl", "av2")
+			utils.LogPrintln("", utils.BDlStr, utils.ErStr, "参数解析错误，请正确填写 av/BV 号，例如：", os.Args[0], "dl", "av2")
 			return
 		}
 		if os.Args[2] == "" || (!strings.Contains(os.Args[2], "BV") && !strings.Contains(os.Args[2], "av")) {
-			utils.LogPrint("", utils.BDlStr, utils.ErStr, "参数解析错误，请输入正确的av/BV号")
+			utils.LogPrintln("", utils.BDlStr, utils.ErStr, "参数解析错误，请输入正确的av/BV号")
 			return
 		}
 		err = utils.BDl(os.Args[2], "")
 		if err != nil {
-			utils.LogPrint("", utils.BDlStr, utils.ErStr, "从哔哩源下载失败:", err)
+			utils.LogPrintln("", utils.BDlStr, utils.ErStr, "从哔哩源下载失败:", err)
 			return
 		}
 		return
 	case "encode":
 		err := encodeFlag.Parse(os.Args[2:])
 		if err != nil {
-			utils.LogPrint("", utils.EnStr, utils.ErStr, "参数解析错误")
+			utils.LogPrintln("", utils.EnStr, utils.ErStr, "参数解析错误")
 			return
 		}
 		_, err = utils.Encode(*encodeInput, *encodeQrcodeSize, *encodeOutputFPS, *encodeMaxSeconds, *encodeMGValue, *encodeKGValue, *encodeThread, *encodeFFmpegMode, false, "")
 		if err != nil {
-			utils.LogPrint("", utils.EnStr, utils.ErStr, "编码失败:", err)
+			utils.LogPrintln("", utils.EnStr, utils.ErStr, "编码失败:", err)
 			return
 		}
 		return
 	case "decode":
 		err := decodeFlag.Parse(os.Args[2:])
 		if err != nil {
-			utils.LogPrint("", utils.DeStr, utils.ErStr, "参数解析错误")
+			utils.LogPrintln("", utils.DeStr, utils.ErStr, "参数解析错误")
 			return
 		}
 		utils.Decode(*decodeInputDir, 0, nil, *decodeMGValue, *decodeKGValue, *decodeThread, "")
@@ -219,16 +219,16 @@ func main() {
 		flag.Usage()
 		return
 	case "version":
-		utils.LogPrint("", utils.LumikaVersionString)
+		utils.LogPrintln("", utils.LumikaVersionString)
 		return
 	case "-v":
-		utils.LogPrint("", utils.LumikaVersionString)
+		utils.LogPrintln("", utils.LumikaVersionString)
 		return
 	case "--version":
-		utils.LogPrint("", utils.LumikaVersionString)
+		utils.LogPrintln("", utils.LumikaVersionString)
 		return
 	default:
-		utils.LogPrint("", "Unknown command:", os.Args[1])
+		utils.LogPrintln("", "Unknown command:", os.Args[1])
 		flag.Usage()
 	}
 }

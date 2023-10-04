@@ -4,7 +4,7 @@ import "strings"
 
 const (
 	LumikaVersionNum                = 3
-	LumikaVersionString             = "v3.8.0.beta7"
+	LumikaVersionString             = "v3.8.0.beta8"
 	LumikaWorkDirName               = "lumika_data"
 	LumikaConfigFileName            = "lumika_config"
 	InitStr                         = "Init:"
@@ -38,7 +38,10 @@ const (
 	DefaultBiliDownloadReferer      = "https://www.bilibili.com"
 	DefaultUserAgent                = "Mozilla/5.0 (Windows NT 10.0; WOW64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.5666.197 Safari/537.36"
 	DefaultWebServerDebugMode       = false
-	DefaultWebServerBindAddress     = ":7860"
+	DefaultWebServerHost            = ""
+	DefaultWebServerPort            = 7860
+	DefaultWebServerRandomPortMin   = 10000
+	DefaultWebServerRandomPortMax   = 65535
 )
 
 var (
@@ -80,8 +83,12 @@ type ThreadInfo struct {
 }
 
 type FileInfo struct {
-	Filename string `json:"filename"`
-	Type     string `json:"type"`
+	Filename  string `json:"filename"`
+	ParentDir string `json:"parentDir"`
+	Type      string `json:"type"`
+	SizeNum   int64  `json:"sizeNum"`
+	SizeStr   string `json:"sizeStr"`
+	Timestamp string `json:"timestamp"`
 }
 
 type DlTaskInfo struct {
@@ -140,6 +147,7 @@ type AddTaskListData struct {
 	TaskInfo     *AddTaskInfo `json:"taskInfo"`
 	LogCat       string       `json:"logCat"`
 	BaseStr      string       `json:"baseStr"`
+	IsPaused     bool         `json:"isPaused"`
 	ProgressRate int          `json:"progressRate"`
 	ProgressNum  float64      `json:"progressNum"`
 	Status       string       `json:"status"`
@@ -157,6 +165,7 @@ type GetTaskListData struct {
 	TimeStamp    string       `json:"timestamp"`
 	TaskInfo     *GetTaskInfo `json:"taskInfo"`
 	LogCat       string       `json:"logCat"`
+	IsPaused     bool         `json:"isPaused"`
 	ProgressRate int          `json:"progressRate"`
 	ProgressNum  float64      `json:"progressNum"`
 	Status       string       `json:"status"`

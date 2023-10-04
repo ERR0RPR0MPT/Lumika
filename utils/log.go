@@ -17,7 +17,7 @@ func formatString(format string, args ...interface{}) string {
 	return fmt.Sprintf(format, args...)
 }
 
-func LogPrint(UUID string, a ...any) {
+func LogPrintln(UUID string, a ...any) {
 	result := concatToString(a...)
 	// 为全局 Web API Log 输出
 	LogVariable.WriteString(result + "\n")
@@ -47,7 +47,7 @@ func LogPrint(UUID string, a ...any) {
 			}
 		}
 	}
-	fmt.Println(result)
+	fmt.Println("", result)
 }
 
 func LogPrintf(UUID string, format string, a ...any) {
