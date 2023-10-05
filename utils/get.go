@@ -61,6 +61,16 @@ func GetTaskWorker(id int) {
 func GetTaskWorkerInit() {
 	GetTaskQueue = make(chan *GetTaskListData)
 	GetTaskList = make(map[string]*GetTaskListData)
+	if len(database.GetTaskList) != 0 {
+		GetTaskList = database.GetTaskList
+		for kp, kq := range GetTaskList {
+			if kq.Status == "正在执行" {
+				GetTaskList[kp].Status = "执行失败"
+				GetTaskList[kp].StatusMsg = "任务执行时服务器后端被终止，无法继续执行任务"
+				GetTaskList[kp].ProgressNum = 0.0
+			}
+		}
+	}
 	// 启动多个 GetTaskWorker 协程来处理任务
 	for i := 0; i < DefaultTaskWorkerGoRoutines; i++ {
 		go GetTaskWorker(i)

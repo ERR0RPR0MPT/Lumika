@@ -38,6 +38,10 @@ func LogPrintln(UUID string, a ...any) {
 		if exist {
 			GetTaskList[UUID].LogCat += result + "\n"
 		}
+		_, exist = BUlTaskList[UUID]
+		if exist {
+			BUlTaskList[UUID].LogCat += result + "\n"
+		}
 	}
 	fmt.Println("", result)
 }
@@ -62,6 +66,10 @@ func LogPrintf(UUID string, format string, a ...any) {
 		_, exist = GetTaskList[UUID]
 		if exist {
 			GetTaskList[UUID].LogCat += result + "\n"
+		}
+		_, exist = BUlTaskList[UUID]
+		if exist {
+			BUlTaskList[UUID].LogCat += result + "\n"
 		}
 	}
 	fmt.Printf(format, a...)

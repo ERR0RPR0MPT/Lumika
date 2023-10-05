@@ -76,6 +76,16 @@ func DlTaskWorker(id int) {
 func DlTaskWorkerInit() {
 	DlTaskQueue = make(chan *DlTaskListData)
 	DlTaskList = make(map[string]*DlTaskListData)
+	if len(database.DlTaskList) != 0 {
+		DlTaskList = database.DlTaskList
+		for kp, kq := range DlTaskList {
+			if kq.Status == "正在执行" {
+				DlTaskList[kp].Status = "执行失败"
+				DlTaskList[kp].StatusMsg = "任务执行时服务器后端被终止，无法继续执行任务"
+				DlTaskList[kp].ProgressNum = 0.0
+			}
+		}
+	}
 	// 启动多个 DlTaskWorker 协程来处理任务
 	for i := 0; i < DefaultTaskWorkerGoRoutines; i++ {
 		go DlTaskWorker(i)

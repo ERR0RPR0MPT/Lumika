@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"github.com/ERR0RPR0MPT/Lumika/biliup"
 	"github.com/gin-gonic/gin"
 	"math/rand"
 	"mime"
@@ -19,12 +20,17 @@ func UploadEncode(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, fmt.Sprintf("出现错误: %s", err.Error()))
 		return
 	}
+	parentDir := c.PostForm("parentDir")
+	if parentDir != "encode" && parentDir != "encodeOutput" && parentDir != "decode" && parentDir != "decodeOutput" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "父目录参数不正确"})
+		return
+	}
 	// 获取所有文件
 	files := form.File["files"]
 	// 遍历所有文件
 	for _, file := range files {
 		// 上传文件至指定目录
-		dst := filepath.Join(LumikaEncodePath, file.Filename)
+		dst := filepath.Join(LumikaWorkDirPath, parentDir, file.Filename)
 		if err := c.SaveUploadedFile(file, dst); err != nil {
 			c.JSON(http.StatusBadRequest, fmt.Sprintf("上传失败: %s", err.Error()))
 			return
@@ -39,6 +45,11 @@ func UploadDecode(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("出现错误: %s", err.Error())})
 		return
 	}
+	parentDir := c.PostForm("parentDir")
+	if parentDir != "encode" && parentDir != "encodeOutput" && parentDir != "decode" && parentDir != "decodeOutput" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "父目录参数不正确"})
+		return
+	}
 
 	folderName := c.PostForm("folderName")
 	if folderName == "" {
@@ -48,7 +59,7 @@ func UploadDecode(c *gin.Context) {
 	folderName = ReplaceInvalidCharacters(folderName, '-')
 
 	// 创建目标文件夹（如果不存在）
-	targetDir := filepath.Join(LumikaDecodePath, folderName)
+	targetDir := filepath.Join(LumikaWorkDirPath, parentDir, folderName)
 	if _, err := os.Stat(targetDir); os.IsNotExist(err) {
 		err := os.Mkdir(targetDir, 0644)
 		if err != nil {
@@ -61,7 +72,7 @@ func UploadDecode(c *gin.Context) {
 	// 遍历所有文件
 	for _, file := range files {
 		// 上传文件至指定目录
-		dst := filepath.Join(LumikaDecodePath, folderName, file.Filename)
+		dst := filepath.Join(LumikaWorkDirPath, parentDir, folderName, file.Filename)
 		if err := c.SaveUploadedFile(file, dst); err != nil {
 			c.JSON(http.StatusBadRequest, fmt.Sprintf("上传失败: %s", err.Error()))
 			return
@@ -74,6 +85,11 @@ func GetFileFromURL(c *gin.Context) {
 	url := c.PostForm("url")
 	if url == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "URL 不能为空"})
+		return
+	}
+	parentDir := c.PostForm("parentDir")
+	if parentDir != "encode" && parentDir != "encodeOutput" && parentDir != "decode" && parentDir != "decodeOutput" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "父目录参数不正确"})
 		return
 	}
 	fileName := c.PostForm("fileName")
@@ -96,7 +112,7 @@ func GetFileFromURL(c *gin.Context) {
 		gor = gors
 	}
 	fileName = ReplaceInvalidCharacters(fileName, '-')
-	filePath := filepath.Join(LumikaEncodePath, fileName)
+	filePath := filepath.Join(LumikaWorkDirPath, parentDir, fileName)
 	DlAddTask(url, filePath, "", DefaultUserAgent, gor)
 	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("成功添加下载任务: %s, 使用线程数: %d", fileName, gor)})
 }
@@ -107,7 +123,12 @@ func GetFileFromBiliID(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "BV/av号不能为空"})
 		return
 	}
-	BDlAddTask(AVOrBVStr)
+	parentDir := c.PostForm("parentDir")
+	if parentDir != "encode" && parentDir != "encodeOutput" && parentDir != "decode" && parentDir != "decodeOutput" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "父目录参数不正确"})
+		return
+	}
+	BDlAddTask(AVOrBVStr, parentDir)
 	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("成功添加下载任务: %s", AVOrBVStr)})
 }
 
@@ -504,14 +525,78 @@ func RestartServer(c *gin.Context) {
 	return
 }
 
+func GetBUlTaskList(c *gin.Context) {
+	var BUlTaskListArray []*BUlTaskListData
+	for _, kq := range BUlTaskList {
+		BUlTaskListArray = append(BUlTaskListArray, kq)
+	}
+	c.JSON(http.StatusOK, gin.H{"bulTaskList": BUlTaskListArray})
+}
+
+func DeleteBUlTask(c *gin.Context) {
+	uuidd := c.PostForm("uuid")
+	if uuidd == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "任务的 UUID 不能为空"})
+		return
+	}
+	_, exist := BUlTaskList[uuidd]
+	if !exist {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "没有找到指定的任务"})
+		return
+	}
+	delete(BUlTaskList, uuidd)
+	c.JSON(http.StatusOK, gin.H{"message": "成功删除任务"})
+	return
+}
+
+func AddBUlTask(c *gin.Context) {
+	var ed *BUlTaskInfo
+	if err := c.ShouldBindJSON(&ed); err != nil {
+		c.JSON(400, gin.H{"msg": "AddBUlTask JSON 解析错误", "error": err.Error()})
+		return
+	}
+	if ed.FileName == "" {
+		c.JSON(400, gin.H{"msg": "AddBUlTask: FileName 参数错误，任务创建失败"})
+		return
+	}
+	if ed.UploadLines == "" {
+		ed.UploadLines = biliup.Qn
+	}
+	if ed.Threads <= 0 || ed.Threads > 256 {
+		ed.Threads = 5
+	}
+	if ed.VideoInfos.Title == "" {
+		c.JSON(400, gin.H{"msg": "AddBUlTask: VideoInfos.Title 参数错误，任务创建失败"})
+		return
+	}
+	if ed.VideoInfos.Copyright != 1 && ed.VideoInfos.Copyright != 2 {
+		ed.VideoInfos.Copyright = 1
+	}
+	BUlAddTask(ed)
+	c.JSON(http.StatusOK, gin.H{"msg": fmt.Sprintf("成功添加解码任务")})
+}
+
+func ClearBUlTaskList(c *gin.Context) {
+	//for _, kq := range BUlTaskList {
+	//	if kq.Status == "正在执行" || kq.Status == "已暂停" {
+	//		c.JSON(http.StatusBadRequest, gin.H{"error": "有正在执行的任务，无法清除解码任务列表"})
+	//		return
+	//	}
+	//}
+	BUlTaskList = make(map[string]*BUlTaskListData)
+	c.JSON(http.StatusOK, gin.H{"message": "任务列表清除成功"})
+}
+
 func TaskWorkerInit() {
 	DlTaskWorkerInit()
 	BDlTaskWorkerInit()
 	AddTaskWorkerInit()
 	GetTaskWorkerInit()
+	BUlTaskWorkerInit()
 }
 
 func WebServerInit() {
+	DbInit()
 	TaskWorkerInit()
 	if !DefaultWebServerDebugMode {
 		gin.SetMode(gin.ReleaseMode)
@@ -548,6 +633,10 @@ func WebServerInit() {
 	r.POST("/api/delete-get-task", DeleteGetTask)
 	r.GET("/api/get-server-status", GetServerStatus)
 	r.GET("/api/restart-server", RestartServer)
+	r.GET("/api/get-bul-task-list", GetBUlTaskList)
+	r.POST("/api/delete-bul-task", DeleteBUlTask)
+	r.POST("/api/add-bul-task", AddBUlTask)
+	r.GET("/api/clear-bul-task-list", ClearBUlTaskList)
 
 	p := DefaultWebServerPort
 	for {

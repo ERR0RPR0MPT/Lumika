@@ -183,7 +183,7 @@ func main() {
 			utils.LogPrintln("", utils.BDlStr, utils.ErStr, "参数解析错误，请输入正确的av/BV号")
 			return
 		}
-		err = utils.BDl(os.Args[2], "")
+		err = utils.BDl(os.Args[2], "encode", "")
 		if err != nil {
 			utils.LogPrintln("", utils.BDlStr, utils.ErStr, "从哔哩源下载失败:", err)
 			return

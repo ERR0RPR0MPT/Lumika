@@ -1,6 +1,9 @@
 package utils
 
-import "strings"
+import (
+	"github.com/ERR0RPR0MPT/Lumika/biliup"
+	"strings"
+)
 
 const (
 	LumikaVersionNum                = 3
@@ -43,6 +46,7 @@ const (
 	DefaultWebServerPort            = 7860
 	DefaultWebServerRandomPortMin   = 10000
 	DefaultWebServerRandomPortMax   = 65535
+	DefaultDbCrontabSeconds         = 10
 )
 
 var (
@@ -60,6 +64,14 @@ type CommonError struct {
 
 func (e *CommonError) Error() string {
 	return e.Msg
+}
+
+type Database struct {
+	DlTaskList  map[string]*DlTaskListData  `json:"dlTaskList"`
+	BDlTaskList map[string]*BDlTaskListData `json:"bDlTaskList"`
+	AddTaskList map[string]*AddTaskListData `json:"addTaskList"`
+	GetTaskList map[string]*GetTaskListData `json:"getTaskList"`
+	BUlTaskList map[string]*BUlTaskListData `json:"bUlTaskList"`
 }
 
 type FecFileConfig struct {
@@ -120,6 +132,7 @@ type DlTaskListData struct {
 
 type BDlTaskInfo struct {
 	ResourceID string `json:"resourceID"`
+	ParentDir  string `json:"parentDir"`
 }
 
 type BDlTaskListData struct {
@@ -179,6 +192,28 @@ type GetTaskListData struct {
 	StatusMsg    string       `json:"statusMsg"`
 }
 
+type BUlTaskInfo struct {
+	FileName    string            `json:"fileName"`
+	Cookie      *biliup.User      `json:"cookie"`
+	UploadLines string            `json:"uploadLines"`
+	Threads     int               `json:"threads"`
+	VideoInfos  biliup.VideoInfos `json:"videoInfos"`
+}
+
+type BUlTaskListData struct {
+	UUID         string       `json:"uuid"`
+	TimeStamp    string       `json:"timestamp"`
+	FileName     string       `json:"fileName"`
+	TaskInfo     *BUlTaskInfo `json:"taskInfo"`
+	LogCat       string       `json:"logCat"`
+	ProgressRate int          `json:"progressRate"`
+	ProgressNum  float64      `json:"progressNum"`
+	Status       string       `json:"status"`
+	StatusMsg    string       `json:"statusMsg"`
+}
+
+var database Database
+
 var LogVariable strings.Builder
 
 var DlTaskQueue chan *DlTaskListData
@@ -192,3 +227,6 @@ var AddTaskList map[string]*AddTaskListData
 
 var GetTaskQueue chan *GetTaskListData
 var GetTaskList map[string]*GetTaskListData
+
+var BUlTaskQueue chan *BUlTaskListData
+var BUlTaskList map[string]*BUlTaskListData

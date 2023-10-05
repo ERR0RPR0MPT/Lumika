@@ -70,6 +70,16 @@ func AddTaskWorker(id int) {
 func AddTaskWorkerInit() {
 	AddTaskQueue = make(chan *AddTaskListData)
 	AddTaskList = make(map[string]*AddTaskListData)
+	if len(database.AddTaskList) != 0 {
+		AddTaskList = database.AddTaskList
+		for kp, kq := range AddTaskList {
+			if kq.Status == "正在执行" {
+				AddTaskList[kp].Status = "执行失败"
+				AddTaskList[kp].StatusMsg = "任务执行时服务器后端被终止，无法继续执行任务"
+				AddTaskList[kp].ProgressNum = 0.0
+			}
+		}
+	}
 	// 启动多个 AddTaskWorker 协程来处理任务
 	for i := 0; i < DefaultTaskWorkerGoRoutines; i++ {
 		go AddTaskWorker(i)

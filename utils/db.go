@@ -1,25 +1,53 @@
 package utils
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 )
 
+func DbCrontab() {
+	// 每隔 DefaultDbCrontabSeconds 秒存储一次数据库
+	wd := filepath.Join(LumikaWorkDirPath, "db.json")
+	for {
+		time.Sleep(time.Second * DefaultDbCrontabSeconds)
+		db := &Database{
+			DlTaskList:  DlTaskList,
+			BDlTaskList: BDlTaskList,
+			AddTaskList: AddTaskList,
+			GetTaskList: GetTaskList,
+			BUlTaskList: BUlTaskList,
+		}
+		jsonData, err := json.Marshal(db)
+		if err != nil {
+			LogPrintln("", DbStr, "转换为JSON时发生错误:", err)
+			return
+		}
+		err = os.WriteFile(wd, jsonData, 0644)
+		if err != nil {
+			LogPrintln("", DbStr, "保存JSON文件时发生错误:", err)
+			return
+		}
+	}
+}
+
 func DbInit() {
-	// 获取程序数据目录
-	est, err := os.Executable()
-	if err != nil {
-		LogPrintln("", DbStr, InitStr, "获取程序目录失败：", err)
-		return
-	}
-	WorkDir := filepath.Dir(est)
-	LumikaWorkDir := filepath.Join(WorkDir, LumikaWorkDirName)
-	// 检查是否存在数据库文件
-	if _, err := os.Stat(filepath.Join(LumikaWorkDir, "db.json")); err == nil {
-		// 读取数据库文件
+	LogPrintln("", DbStr, InitStr, "初始化数据库")
+	wd := filepath.Join(LumikaWorkDirPath, "db.json")
+	if _, err := os.Stat(wd); err == nil {
 		LogPrintln("", DbStr, InitStr, "读取数据库文件")
-	} else {
-		// 创建新的数据库文件
-		LogPrintln("", DbStr, InitStr, "创建新的数据库文件")
+		jsonData, err := os.ReadFile(wd)
+		if err != nil {
+			fmt.Println("读取JSON文件时发生错误:", err)
+			return
+		}
+		err = json.Unmarshal(jsonData, &database)
+		if err != nil {
+			fmt.Println("解析JSON数据时发生错误:", err)
+			return
+		}
 	}
+	go DbCrontab()
 }
