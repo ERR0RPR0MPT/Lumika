@@ -41,38 +41,41 @@ func DlAddTask(url string, filePath string, referer string, userAgent string, nu
 		FileName:     filepath.Base(filePath),
 		ProgressRate: 0,
 	}
-	DlTaskList = append(DlTaskList, dt)
+	DlTaskList[uuidd] = dt
 	DlTaskQueue <- dt
 }
 
 func DlTaskWorker(id int) {
 	for task := range DlTaskQueue {
 		LogPrintf(task.UUID, "DlTaskWorker %d 处理下载任务：%v\n", id, task.TaskInfo.Url)
-		i := 0
-		for kp, kq := range DlTaskList {
-			if kq.UUID == task.UUID {
-				i = kp
-				break
-			}
+		_, exist := DlTaskList[task.UUID]
+		if !exist {
+			LogPrintf(task.UUID, "DlTaskWorker %d 编码任务被用户删除\n", id)
+			return
 		}
-		DlTaskList[i].Status = "正在执行"
-		DlTaskList[i].StatusMsg = "正在执行"
+		DlTaskList[task.UUID].Status = "正在执行"
+		DlTaskList[task.UUID].StatusMsg = "正在执行"
 		err := Dl(task.TaskInfo.Url, task.TaskInfo.FileName, task.TaskInfo.Referer, task.TaskInfo.UserAgent, task.TaskInfo.NumThreads, task.UUID)
+		_, exist = DlTaskList[task.UUID]
+		if !exist {
+			LogPrintf(task.UUID, "DlTaskWorker %d 编码任务被用户删除\n", id)
+			return
+		}
 		if err != nil {
 			LogPrintf(task.UUID, "DlTaskWorker %d 处理下载任务(%v)失败：%v\n", id, task.TaskInfo.Url, err)
-			DlTaskList[i].Status = "执行失败"
-			DlTaskList[i].StatusMsg = err.Error()
+			DlTaskList[task.UUID].Status = "执行失败"
+			DlTaskList[task.UUID].StatusMsg = err.Error()
 			continue
 		}
-		DlTaskList[i].Status = "已完成"
-		DlTaskList[i].StatusMsg = "已完成"
-		DlTaskList[i].ProgressNum = 100.0
+		DlTaskList[task.UUID].Status = "已完成"
+		DlTaskList[task.UUID].StatusMsg = "已完成"
+		DlTaskList[task.UUID].ProgressNum = 100.0
 	}
 }
 
 func DlTaskWorkerInit() {
 	DlTaskQueue = make(chan *DlTaskListData)
-	DlTaskList = make([]*DlTaskListData, 0)
+	DlTaskList = make(map[string]*DlTaskListData)
 	// 启动多个 DlTaskWorker 协程来处理任务
 	for i := 0; i < DefaultTaskWorkerGoRoutines; i++ {
 		go DlTaskWorker(i)
@@ -138,11 +141,11 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 
 				tempFile, err := os.Create(thread.tempFilePath)
 				if err != nil {
-					LogPrintln(UUID, "临时文件创建失败")
+					LogPrintln(UUID, DlStr, "临时文件创建失败")
 					// 尝试删除临时文件
 					err := os.Remove(thread.tempFilePath)
 					if err != nil {
-						LogPrintln(UUID, "尝试删除临时文件时出现错误，删除失败")
+						LogPrintln(UUID, DlStr, "尝试删除临时文件时出现错误，删除失败")
 						tempFile.Close()
 						return
 					}
@@ -152,7 +155,7 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 				// 创建一个新的HTTP请求
 				req2, err := http.NewRequest("GET", url, nil)
 				if err != nil {
-					LogPrintln(UUID, "创建新的HTTP请求时出现错误:", err)
+					LogPrintln(UUID, DlStr, "创建新的HTTP请求时出现错误:", err)
 					continue
 				}
 
@@ -163,7 +166,7 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 
 				resp2, err := client.Do(req2)
 				if err != nil {
-					LogPrintln(UUID, "下载中出现错误:", err)
+					LogPrintln(UUID, DlStr, "下载中出现错误:", err)
 					continue
 				}
 
@@ -178,7 +181,7 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 
 				_, err = io.Copy(writer, resp2.Body)
 				if err != nil {
-					LogPrintln(UUID, "下载中出现 io.Copy 错误:", err)
+					LogPrintln(UUID, DlStr, "下载中出现 io.Copy 错误:", err)
 					tempFile.Close()
 					progressBar.Finish()
 					continue
@@ -190,13 +193,16 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 				break
 			}
 
-			// 为全局 ProgressRate 变量赋值
-			for kp, kq := range DlTaskList {
-				if kq.UUID == UUID {
-					DlTaskList[kp].ProgressRate++
+			if UUID != "" {
+				_, exist := DlTaskList[UUID]
+				if exist {
+					// 为全局 ProgressRate 变量赋值
+					DlTaskList[UUID].ProgressRate++
 					// 计算正确的 progressNum
-					DlTaskList[kp].ProgressNum = float64(DlTaskList[kp].ProgressRate) / float64(numThreads) * 100
-					break
+					DlTaskList[UUID].ProgressNum = float64(DlTaskList[UUID].ProgressRate) / float64(numThreads) * 100
+				} else {
+					LogPrintln(UUID, DlStr, ErStr, "当前任务被用户删除", err)
+					return
 				}
 			}
 
@@ -206,9 +212,18 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 	// 等待所有线程下载完成
 	wg.Wait()
 
+	if UUID != "" {
+		_, exist := DlTaskList[UUID]
+		if !exist {
+			LogPrintln(UUID, DlStr, ErStr, "当前任务被用户删除", err)
+			return &CommonError{Msg: "当前任务被用户删除"}
+		}
+	}
+
 	file, err := os.Create(filePath)
 	if err != nil {
-		return &CommonError{Msg: err.Error()}
+		LogPrintln(UUID, DlStr, "文件创建错误:", err)
+		return &CommonError{Msg: "文件创建错误:" + err.Error()}
 	}
 	defer file.Close()
 
@@ -216,20 +231,20 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 		// 读取临时文件
 		tempFile, err := os.Open(thread.tempFilePath)
 		if err != nil {
-			LogPrintln(UUID, "尝试打开临时文件时出现错误：", err)
-			return &CommonError{Msg: err.Error()}
+			LogPrintln(UUID, DlStr, "尝试打开临时文件时出现错误：", err)
+			return &CommonError{Msg: "尝试打开临时文件时出现错误:" + err.Error()}
 		}
 
 		_, err = tempFile.Seek(0, 0)
 		if err != nil {
-			LogPrintln(UUID, "尝试将临时文件指针移动到文件开头时出现错误：", err)
-			return &CommonError{Msg: err.Error()}
+			LogPrintln(UUID, DlStr, "尝试将临时文件指针移动到文件开头时出现错误：", err)
+			return &CommonError{Msg: "尝试将临时文件指针移动到文件开头时出现错误:" + err.Error()}
 		}
 
 		_, err = io.Copy(file, tempFile)
 		if err != nil {
-			LogPrintln(UUID, "从临时文件复制数据到目标文件时出现错误：", err)
-			return &CommonError{Msg: err.Error()}
+			LogPrintln(UUID, DlStr, "从临时文件复制数据到目标文件时出现错误：", err)
+			return &CommonError{Msg: "从临时文件复制数据到目标文件时出现错误:" + err.Error()}
 		}
 
 		for di := 0; di < DefaultBiliDownloadMaxRetries; di++ {
@@ -237,7 +252,7 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 			err = os.Remove(tempFile.Name())
 			if err != nil {
 				if di >= 10 {
-					LogPrintln(UUID, "下载完成后尝试删除临时文件时出现错误，准备重试：", err)
+					LogPrintln(UUID, DlStr, "下载完成后尝试删除临时文件时出现错误，准备重试：", err)
 				}
 				time.Sleep(250 * time.Millisecond)
 				continue

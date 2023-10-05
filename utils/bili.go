@@ -22,38 +22,41 @@ func BDlAddTask(AVOrBVStr string) {
 		},
 		ProgressRate: 0,
 	}
-	BDlTaskList = append(BDlTaskList, dt)
+	BDlTaskList[uuidd] = dt
 	BDlTaskQueue <- dt
 }
 
 func BDlTaskWorker(id int) {
 	for task := range BDlTaskQueue {
 		LogPrintf(task.UUID, "BDlTaskWorker %d 处理哔哩源下载任务：%v\n", id, task)
-		i := 0
-		for kp, kq := range BDlTaskList {
-			if kq.UUID == task.UUID {
-				i = kp
-				break
-			}
-		}
-		BDlTaskList[i].Status = "正在执行"
-		BDlTaskList[i].StatusMsg = "正在执行"
-		err := BDl(task.ResourceID, task.UUID)
-		if err != nil {
-			LogPrintf(task.UUID, "BDlTaskWorker %d 哔哩源下载任务执行失败\n", id)
-			BDlTaskList[i].Status = "执行失败"
-			BDlTaskList[i].StatusMsg = err.Error()
+		_, exist := BDlTaskList[task.UUID]
+		if !exist {
+			LogPrintf(task.UUID, "BDlTaskWorker %d 编码任务被用户删除\n", id)
 			return
 		}
-		BDlTaskList[i].Status = "已完成"
-		BDlTaskList[i].StatusMsg = "已完成"
-		BDlTaskList[i].ProgressNum = 100.0
+		BDlTaskList[task.UUID].Status = "正在执行"
+		BDlTaskList[task.UUID].StatusMsg = "正在执行"
+		err := BDl(task.ResourceID, task.UUID)
+		_, exist = BDlTaskList[task.UUID]
+		if !exist {
+			LogPrintf(task.UUID, "BDlTaskWorker %d 编码任务被用户删除\n", id)
+			return
+		}
+		if err != nil {
+			LogPrintf(task.UUID, "BDlTaskWorker %d 哔哩源下载任务执行失败\n", id)
+			BDlTaskList[task.UUID].Status = "执行失败"
+			BDlTaskList[task.UUID].StatusMsg = err.Error()
+			return
+		}
+		BDlTaskList[task.UUID].Status = "已完成"
+		BDlTaskList[task.UUID].StatusMsg = "已完成"
+		BDlTaskList[task.UUID].ProgressNum = 100.0
 	}
 }
 
 func BDlTaskWorkerInit() {
 	BDlTaskQueue = make(chan *BDlTaskListData)
-	BDlTaskList = make([]*BDlTaskListData, 0)
+	BDlTaskList = make(map[string]*BDlTaskListData)
 	// 启动多个 BDlTaskWorker 协程来处理任务
 	for i := 0; i < DefaultTaskWorkerGoRoutines; i++ {
 		go BDlTaskWorker(i)
@@ -136,18 +139,28 @@ func BDl(AVOrBVStr string, UUID string) error {
 				LogPrintln(UUID, BDlStr, "下载视频("+videoName+")失败，跳过本分P视频:", err)
 				return
 			}
-			// 为全局 ProgressRate 变量赋值
-			for kp, kq := range BDlTaskList {
-				if kq.UUID == UUID {
-					BDlTaskList[kp].ProgressRate++
+			if UUID != "" {
+				_, exist := BDlTaskList[UUID]
+				if exist {
+					// 为全局 ProgressRate 变量赋值
+					BDlTaskList[UUID].ProgressRate++
 					// 计算正确的 progressNum
-					BDlTaskList[kp].ProgressNum = float64(BDlTaskList[kp].ProgressRate) / float64(len(info.Pages)) * 100
-					break
+					BDlTaskList[UUID].ProgressNum = float64(BDlTaskList[UUID].ProgressRate) / float64(len(info.Pages)) * 100
+				} else {
+					LogPrintln(UUID, BDlStr, ErStr, "当前任务被用户删除", err)
+					return
 				}
 			}
 		}(pi)
 	}
 	wg.Wait()
+	if UUID != "" {
+		_, exist := BDlTaskList[UUID]
+		if !exist {
+			LogPrintln(UUID, BDlStr, ErStr, "当前任务被用户删除", err)
+			return &CommonError{Msg: "当前任务被用户删除"}
+		}
+	}
 	allEndTime := time.Now()
 	allDuration := allEndTime.Sub(allStartTime)
 	LogPrintf(UUID, BDlStr+" 总共耗时%f秒\n", allDuration.Seconds())

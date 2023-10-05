@@ -96,18 +96,9 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 		}
 	}
 
-	indexU := 0
 	isPaused := false
 	isRuntime := true
-	if UUID != "" {
-		for kp, kq := range AddTaskList {
-			if kq.UUID == UUID {
-				indexU = kp
-				break
-			}
-		}
-	} else {
-		// 启动监控进程
+	if UUID == "" {
 		go func() {
 			LogPrintln(UUID, EnStr, "按下回车键暂停/继续运行")
 			for {
@@ -274,9 +265,15 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 			for {
 				// 检测是否暂停
 				if UUID != "" {
-					if AddTaskList[indexU].IsPaused {
-						time.Sleep(time.Second)
-						continue
+					_, exist := AddTaskList[UUID]
+					if exist {
+						if AddTaskList[UUID].IsPaused {
+							time.Sleep(time.Second)
+							continue
+						}
+					} else {
+						LogPrintln(UUID, EnStr, ErStr, "当前任务被用户删除", err)
+						return
 					}
 				} else {
 					if isPaused {
@@ -457,13 +454,16 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 				return
 			}
 
-			// 为全局 ProgressRate 变量赋值
-			for kp, kq := range AddTaskList {
-				if kq.UUID == UUID {
-					AddTaskList[kp].ProgressRate++
+			if UUID != "" {
+				_, exist := AddTaskList[UUID]
+				if exist {
+					// 为全局 ProgressRate 变量赋值
+					AddTaskList[UUID].ProgressRate++
 					// 计算正确的 progressNum
-					AddTaskList[kp].ProgressNum = float64(AddTaskList[kp].ProgressRate) / float64(len(filePathList)) * 100
-					break
+					AddTaskList[UUID].ProgressNum = float64(AddTaskList[UUID].ProgressRate) / float64(len(filePathList)) * 100
+				} else {
+					LogPrintln(UUID, EnStr, ErStr, "当前任务被用户删除", err)
+					return
 				}
 			}
 

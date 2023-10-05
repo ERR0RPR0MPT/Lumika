@@ -6,6 +6,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"github.com/shirou/gopsutil/cpu"
+	"github.com/shirou/gopsutil/disk"
+	"github.com/shirou/gopsutil/mem"
 	"image"
 	"image/color"
 	"io"
@@ -18,8 +21,20 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"syscall"
+	"time"
 	"unicode"
 )
+
+func RestartProgram() error {
+	executablePath, _ := os.Executable()
+	err := syscall.Exec(executablePath, os.Args, os.Environ())
+	if err != nil {
+		LogPrintln("", "RestartProgram:", ErStr, "重启程序失败:", err)
+		return err
+	}
+	return nil
+}
 
 func PressEnterToContinue() {
 	LogPrintln("", "请按回车键继续...")
@@ -655,4 +670,17 @@ func ZipDirectory(dir string, zipFile string) error {
 		return nil
 	})
 	return err
+}
+
+func GetSystemResourceUsage() (*SystemResourceUsage, error) {
+	percent, _ := cpu.Percent(time.Second, false)
+	memInfo, _ := mem.VirtualMemory()
+	parts, _ := disk.Partitions(true)
+	diskInfo, _ := disk.Usage(parts[0].Mountpoint)
+	usage := &SystemResourceUsage{
+		CpuUsagePercent:  percent[0],
+		MemUsagePercent:  memInfo.UsedPercent,
+		DiskUsagePercent: diskInfo.UsedPercent,
+	}
+	return usage, nil
 }

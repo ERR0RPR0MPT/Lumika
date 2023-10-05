@@ -4,7 +4,7 @@ import "strings"
 
 const (
 	LumikaVersionNum                = 3
-	LumikaVersionString             = "v3.8.0.beta8"
+	LumikaVersionString             = "v3.8.0.beta9"
 	LumikaWorkDirName               = "lumika_data"
 	LumikaConfigFileName            = "lumika_config"
 	InitStr                         = "Init:"
@@ -14,6 +14,7 @@ const (
 	DeStr                           = "Decode:"
 	AddStr                          = "AddInput:"
 	GetStr                          = "GetInput:"
+	DlStr                           = "Dl:"
 	BDlStr                          = "BDl:"
 	ArStr                           = "AutoRun:"
 	ErStr                           = "Error:"
@@ -89,6 +90,12 @@ type FileInfo struct {
 	SizeNum   int64  `json:"sizeNum"`
 	SizeStr   string `json:"sizeStr"`
 	Timestamp string `json:"timestamp"`
+}
+
+type SystemResourceUsage struct {
+	CpuUsagePercent  float64 `json:"cpuUsagePercent"`
+	MemUsagePercent  float64 `json:"memUsagePercent"`
+	DiskUsagePercent float64 `json:"diskUsagePercent"`
 }
 
 type DlTaskInfo struct {
@@ -175,13 +182,13 @@ type GetTaskListData struct {
 var LogVariable strings.Builder
 
 var DlTaskQueue chan *DlTaskListData
-var DlTaskList []*DlTaskListData
+var DlTaskList map[string]*DlTaskListData
 
 var BDlTaskQueue chan *BDlTaskListData
-var BDlTaskList []*BDlTaskListData
+var BDlTaskList map[string]*BDlTaskListData
 
 var AddTaskQueue chan *AddTaskListData
-var AddTaskList []*AddTaskListData
+var AddTaskList map[string]*AddTaskListData
 
 var GetTaskQueue chan *GetTaskListData
-var GetTaskList []*GetTaskListData
+var GetTaskList map[string]*GetTaskListData

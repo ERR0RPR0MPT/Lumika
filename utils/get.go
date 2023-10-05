@@ -25,7 +25,7 @@ func AddGetTask(dirName string, decodeThread int, basestr string) {
 		ProgressRate: 0,
 		ProgressNum:  0,
 	}
-	GetTaskList = append(GetTaskList, dt)
+	GetTaskList[uuidd] = dt
 	GetTaskQueue <- dt
 }
 
@@ -33,31 +33,34 @@ func GetTaskWorker(id int) {
 	for task := range GetTaskQueue {
 		// 处理任务
 		LogPrintf(task.UUID, "GetTaskWorker %d 处理编码任务：%v\n", id, task.UUID)
-		i := 0
-		for kp, kq := range GetTaskList {
-			if kq.UUID == task.UUID {
-				i = kp
-				break
-			}
-		}
-		GetTaskList[i].Status = "正在执行"
-		GetTaskList[i].StatusMsg = "正在执行"
-		err := GetExec(filepath.Join(LumikaDecodePath, task.TaskInfo.DirName), task.TaskInfo.BaseStr, task.TaskInfo.DecodeThread, task.UUID)
-		if err != nil {
-			LogPrintf(task.UUID, "GetTaskWorker %d 编码任务执行失败\n", id)
-			GetTaskList[i].Status = "执行失败"
-			GetTaskList[i].StatusMsg = err.Error()
+		_, exist := GetTaskList[task.UUID]
+		if !exist {
+			LogPrintf(task.UUID, "GetTaskWorker %d 编码任务被用户删除\n", id)
 			return
 		}
-		GetTaskList[i].Status = "已完成"
-		GetTaskList[i].StatusMsg = "已完成"
-		GetTaskList[i].ProgressNum = 100.0
+		GetTaskList[task.UUID].Status = "正在执行"
+		GetTaskList[task.UUID].StatusMsg = "正在执行"
+		err := GetExec(filepath.Join(LumikaDecodePath, task.TaskInfo.DirName), task.TaskInfo.BaseStr, task.TaskInfo.DecodeThread, task.UUID)
+		_, exist = GetTaskList[task.UUID]
+		if !exist {
+			LogPrintf(task.UUID, "GetTaskWorker %d 编码任务被用户删除\n", id)
+			return
+		}
+		if err != nil {
+			LogPrintf(task.UUID, "GetTaskWorker %d 编码任务执行失败\n", id)
+			GetTaskList[task.UUID].Status = "执行失败"
+			GetTaskList[task.UUID].StatusMsg = err.Error()
+			return
+		}
+		GetTaskList[task.UUID].Status = "已完成"
+		GetTaskList[task.UUID].StatusMsg = "已完成"
+		GetTaskList[task.UUID].ProgressNum = 100.0
 	}
 }
 
 func GetTaskWorkerInit() {
 	GetTaskQueue = make(chan *GetTaskListData)
-	GetTaskList = make([]*GetTaskListData, 0)
+	GetTaskList = make(map[string]*GetTaskListData)
 	// 启动多个 GetTaskWorker 协程来处理任务
 	for i := 0; i < DefaultTaskWorkerGoRoutines; i++ {
 		go GetTaskWorker(i)
@@ -179,7 +182,11 @@ func GetExec(fileDir string, base64Config string, decodeThread int, UUID string)
 	}
 
 	LogPrintln(UUID, GetStr, "开始解码")
-	Decode(fileDir, fecFileConfig.SegmentLength, fileDictList, fecFileConfig.MG, fecFileConfig.KG, decodeThread, UUID)
+	err = Decode(fileDir, fecFileConfig.SegmentLength, fileDictList, fecFileConfig.MG, fecFileConfig.KG, decodeThread, UUID)
+	if err != nil {
+		LogPrintln(UUID, GetStr, ErStr, "解码失败:", err)
+		return err
+	}
 	LogPrintln(UUID, GetStr, "解码完成")
 
 	// 查找生成的 .fec 文件

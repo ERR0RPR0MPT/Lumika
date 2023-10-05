@@ -112,7 +112,15 @@ func GetFileFromBiliID(c *gin.Context) {
 }
 
 func GetDlTaskList(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"dlTaskList": DlTaskList, "bdlTaskList": BDlTaskList})
+	var DlTaskListArray []*DlTaskListData
+	for _, kq := range DlTaskList {
+		DlTaskListArray = append(DlTaskListArray, kq)
+	}
+	var BDlTaskListArray []*BDlTaskListData
+	for _, kq := range BDlTaskList {
+		BDlTaskListArray = append(BDlTaskListArray, kq)
+	}
+	c.JSON(http.StatusOK, gin.H{"dlTaskList": DlTaskListArray, "bdlTaskList": BDlTaskListArray})
 }
 
 func GetFileList(c *gin.Context) {
@@ -190,7 +198,11 @@ func AddEncodeTask(c *gin.Context) {
 }
 
 func GetAddTaskList(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"encodeTaskList": AddTaskList})
+	var AddTaskListArray []*AddTaskListData
+	for _, kq := range AddTaskList {
+		AddTaskListArray = append(AddTaskListArray, kq)
+	}
+	c.JSON(http.StatusOK, gin.H{"encodeTaskList": AddTaskListArray})
 }
 
 func AddDecodeTask(c *gin.Context) {
@@ -212,7 +224,11 @@ func AddDecodeTask(c *gin.Context) {
 }
 
 func GetGetTaskList(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"decodeTaskList": GetTaskList})
+	var GetTaskListArray []*GetTaskListData
+	for _, kq := range GetTaskList {
+		GetTaskListArray = append(GetTaskListArray, kq)
+	}
+	c.JSON(http.StatusOK, gin.H{"decodeTaskList": GetTaskListArray})
 }
 
 func GetLogCat(c *gin.Context) {
@@ -312,41 +328,41 @@ func ClearLogCat(c *gin.Context) {
 }
 
 func ClearDlTaskList(c *gin.Context) {
-	for _, kq := range DlTaskList {
-		if kq.Status == "正在执行" || kq.Status == "已暂停" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "有正在执行的任务，无法清除下载任务列表"})
-			return
-		}
-	}
-	for _, kq := range BDlTaskList {
-		if kq.Status == "正在执行" || kq.Status == "已暂停" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "有正在执行的任务，无法清除下载任务列表"})
-			return
-		}
-	}
-	DlTaskList = make([]*DlTaskListData, 0)
-	BDlTaskList = make([]*BDlTaskListData, 0)
+	//for _, kq := range DlTaskList {
+	//	if kq.Status == "正在执行" || kq.Status == "已暂停" {
+	//		c.JSON(http.StatusBadRequest, gin.H{"error": "有正在执行的任务，无法清除下载任务列表"})
+	//		return
+	//	}
+	//}
+	//for _, kq := range BDlTaskList {
+	//	if kq.Status == "正在执行" || kq.Status == "已暂停" {
+	//		c.JSON(http.StatusBadRequest, gin.H{"error": "有正在执行的任务，无法清除下载任务列表"})
+	//		return
+	//	}
+	//}
+	DlTaskList = make(map[string]*DlTaskListData)
+	BDlTaskList = make(map[string]*BDlTaskListData)
 	c.JSON(http.StatusOK, gin.H{"message": "下载任务列表清除成功"})
 }
 func ClearAddTaskList(c *gin.Context) {
-	for _, kq := range AddTaskList {
-		if kq.Status == "正在执行" || kq.Status == "已暂停" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "有正在执行的任务，无法清除编码任务列表"})
-			return
-		}
-	}
-	AddTaskList = make([]*AddTaskListData, 0)
+	//for _, kq := range AddTaskList {
+	//	if kq.Status == "正在执行" || kq.Status == "已暂停" {
+	//		c.JSON(http.StatusBadRequest, gin.H{"error": "有正在执行的任务，无法清除编码任务列表"})
+	//		return
+	//	}
+	//}
+	AddTaskList = make(map[string]*AddTaskListData)
 	c.JSON(http.StatusOK, gin.H{"message": "编码任务列表清除成功"})
 }
 
 func ClearGetTaskList(c *gin.Context) {
-	for _, kq := range GetTaskList {
-		if kq.Status == "正在执行" || kq.Status == "已暂停" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "有正在执行的任务，无法清除解码任务列表"})
-			return
-		}
-	}
-	GetTaskList = make([]*GetTaskListData, 0)
+	//for _, kq := range GetTaskList {
+	//	if kq.Status == "正在执行" || kq.Status == "已暂停" {
+	//		c.JSON(http.StatusBadRequest, gin.H{"error": "有正在执行的任务，无法清除解码任务列表"})
+	//		return
+	//	}
+	//}
+	GetTaskList = make(map[string]*GetTaskListData)
 	c.JSON(http.StatusOK, gin.H{"message": "解码任务列表清除成功"})
 }
 
@@ -356,25 +372,24 @@ func PauseAddTask(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "任务的 UUID 不能为空"})
 		return
 	}
-	for kp, kq := range AddTaskList {
-		if kq.UUID == uuidd {
-			if AddTaskList[kp].IsPaused {
-				AddTaskList[kp].IsPaused = false
-				AddTaskList[kp].Status = "正在执行"
-				AddTaskList[kp].StatusMsg = "正在执行"
-				c.JSON(http.StatusOK, gin.H{"message": "成功启动任务"})
-				return
-			} else {
-				AddTaskList[kp].IsPaused = true
-				AddTaskList[kp].Status = "已暂停"
-				AddTaskList[kp].StatusMsg = "任务已暂停"
-				c.JSON(http.StatusOK, gin.H{"message": "成功暂停任务"})
-				return
-			}
-		}
+	_, exist := AddTaskList[uuidd]
+	if !exist {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "没有找到指定的任务"})
+		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "没有找到指定的任务"})
-	return
+	if AddTaskList[uuidd].IsPaused {
+		AddTaskList[uuidd].IsPaused = false
+		AddTaskList[uuidd].Status = "正在执行"
+		AddTaskList[uuidd].StatusMsg = "正在执行"
+		c.JSON(http.StatusOK, gin.H{"message": "成功启动任务"})
+		return
+	} else {
+		AddTaskList[uuidd].IsPaused = true
+		AddTaskList[uuidd].Status = "已暂停"
+		AddTaskList[uuidd].StatusMsg = "任务已暂停"
+		c.JSON(http.StatusOK, gin.H{"message": "成功暂停任务"})
+		return
+	}
 }
 
 func PauseGetTask(c *gin.Context) {
@@ -383,24 +398,109 @@ func PauseGetTask(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "任务的 UUID 不能为空"})
 		return
 	}
-	for kp, kq := range GetTaskList {
-		if kq.UUID == uuidd {
-			if GetTaskList[kp].IsPaused {
-				GetTaskList[kp].IsPaused = false
-				GetTaskList[kp].Status = "正在执行"
-				GetTaskList[kp].StatusMsg = "正在执行"
-				c.JSON(http.StatusOK, gin.H{"message": "成功启动任务"})
-				return
-			} else {
-				GetTaskList[kp].IsPaused = true
-				GetTaskList[kp].Status = "已暂停"
-				GetTaskList[kp].StatusMsg = "任务已暂停"
-				c.JSON(http.StatusOK, gin.H{"message": "成功暂停任务"})
-				return
-			}
-		}
+	_, exist := GetTaskList[uuidd]
+	if !exist {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "没有找到指定的任务"})
+		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "没有找到指定的任务"})
+	if GetTaskList[uuidd].IsPaused {
+		GetTaskList[uuidd].IsPaused = false
+		GetTaskList[uuidd].Status = "正在执行"
+		GetTaskList[uuidd].StatusMsg = "正在执行"
+		c.JSON(http.StatusOK, gin.H{"message": "成功启动任务"})
+		return
+	} else {
+		GetTaskList[uuidd].IsPaused = true
+		GetTaskList[uuidd].Status = "已暂停"
+		GetTaskList[uuidd].StatusMsg = "任务已暂停"
+		c.JSON(http.StatusOK, gin.H{"message": "成功暂停任务"})
+		return
+	}
+}
+
+func DeleteDlTask(c *gin.Context) {
+	uuidd := c.PostForm("uuid")
+	if uuidd == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "任务的 UUID 不能为空"})
+		return
+	}
+	_, exist := DlTaskList[uuidd]
+	if !exist {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "没有找到指定的任务"})
+		return
+	}
+	delete(DlTaskList, uuidd)
+	c.JSON(http.StatusOK, gin.H{"message": "成功删除任务"})
+	return
+}
+
+func DeleteBDlTask(c *gin.Context) {
+	uuidd := c.PostForm("uuid")
+	if uuidd == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "任务的 UUID 不能为空"})
+		return
+	}
+	_, exist := BDlTaskList[uuidd]
+	if !exist {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "没有找到指定的任务"})
+		return
+	}
+	delete(BDlTaskList, uuidd)
+	c.JSON(http.StatusOK, gin.H{"message": "成功删除任务"})
+	return
+}
+
+func DeleteAddTask(c *gin.Context) {
+	uuidd := c.PostForm("uuid")
+	if uuidd == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "任务的 UUID 不能为空"})
+		return
+	}
+	_, exist := AddTaskList[uuidd]
+	if !exist {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "没有找到指定的任务"})
+		return
+	}
+	delete(AddTaskList, uuidd)
+	c.JSON(http.StatusOK, gin.H{"message": "成功删除任务"})
+	return
+}
+
+func DeleteGetTask(c *gin.Context) {
+	uuidd := c.PostForm("uuid")
+	if uuidd == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "任务的 UUID 不能为空"})
+		return
+	}
+	_, exist := GetTaskList[uuidd]
+	if !exist {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "没有找到指定的任务"})
+		return
+	}
+	delete(GetTaskList, uuidd)
+	c.JSON(http.StatusOK, gin.H{"message": "成功删除任务"})
+	return
+}
+
+func GetServerStatus(c *gin.Context) {
+	usage, err := GetSystemResourceUsage()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取服务器资源使用情况失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": usage})
+	return
+}
+
+func RestartServer(c *gin.Context) {
+	err := RestartProgram()
+	if err != nil {
+		LogPrintln("", WebStr, "重启服务器后端进程失败：", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "重启服务器后端进程失败"})
+		return
+	}
+	LogPrintln("", WebStr, "服务器后端进程重启成功")
+	c.JSON(http.StatusOK, gin.H{"error": "服务器后端进程重启成功"})
 	return
 }
 
@@ -442,6 +542,12 @@ func WebServerInit() {
 	r.GET("/api/clear-get-task-list", ClearGetTaskList)
 	r.POST("/api/pause-add-task", PauseAddTask)
 	r.POST("/api/pause-get-task", PauseGetTask)
+	r.POST("/api/delete-dl-task", DeleteDlTask)
+	r.POST("/api/delete-bdl-task", DeleteBDlTask)
+	r.POST("/api/delete-add-task", DeleteAddTask)
+	r.POST("/api/delete-get-task", DeleteGetTask)
+	r.GET("/api/get-server-status", GetServerStatus)
+	r.GET("/api/restart-server", RestartServer)
 
 	p := DefaultWebServerPort
 	for {

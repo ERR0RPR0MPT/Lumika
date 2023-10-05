@@ -34,7 +34,7 @@ func AddAddTask(fileNameList []string, defaultM int, defaultK int, MGValue int, 
 		},
 		ProgressRate: 0,
 	}
-	AddTaskList = append(AddTaskList, dt)
+	AddTaskList[uuidd] = dt
 	AddTaskQueue <- dt
 }
 
@@ -42,31 +42,34 @@ func AddTaskWorker(id int) {
 	for task := range AddTaskQueue {
 		// 处理任务
 		LogPrintf(task.UUID, "AddTaskWorker %d 处理编码任务：%v\n", id, task.UUID)
-		i := 0
-		for kp, kq := range AddTaskList {
-			if kq.UUID == task.UUID {
-				i = kp
-				break
-			}
-		}
-		AddTaskList[i].Status = "正在执行"
-		AddTaskList[i].StatusMsg = "正在执行"
-		err := AddExec(task.TaskInfo.FileNameList, task.TaskInfo.DefaultM, task.TaskInfo.DefaultK, task.TaskInfo.MGValue, task.TaskInfo.KGValue, task.TaskInfo.VideoSize, task.TaskInfo.OutputFPS, task.TaskInfo.EncodeMaxSeconds, task.TaskInfo.EncodeThread, task.TaskInfo.EncodeFFmpegMode, task.TaskInfo.DefaultSummary, task.UUID)
-		if err != nil {
-			LogPrintf(task.UUID, "AddTaskWorker %d 编码任务执行失败\n", id)
-			AddTaskList[i].Status = "执行失败"
-			AddTaskList[i].StatusMsg = err.Error()
+		_, exist := AddTaskList[task.UUID]
+		if !exist {
+			LogPrintf(task.UUID, "AddTaskWorker %d 编码任务被用户删除\n", id)
 			return
 		}
-		AddTaskList[i].Status = "已完成"
-		AddTaskList[i].StatusMsg = "已完成"
-		AddTaskList[i].ProgressNum = 100.0
+		AddTaskList[task.UUID].Status = "正在执行"
+		AddTaskList[task.UUID].StatusMsg = "正在执行"
+		err := AddExec(task.TaskInfo.FileNameList, task.TaskInfo.DefaultM, task.TaskInfo.DefaultK, task.TaskInfo.MGValue, task.TaskInfo.KGValue, task.TaskInfo.VideoSize, task.TaskInfo.OutputFPS, task.TaskInfo.EncodeMaxSeconds, task.TaskInfo.EncodeThread, task.TaskInfo.EncodeFFmpegMode, task.TaskInfo.DefaultSummary, task.UUID)
+		_, exist = AddTaskList[task.UUID]
+		if !exist {
+			LogPrintf(task.UUID, "AddTaskWorker %d 编码任务被用户删除\n", id)
+			return
+		}
+		if err != nil {
+			LogPrintf(task.UUID, "AddTaskWorker %d 编码任务执行失败\n", id)
+			AddTaskList[task.UUID].Status = "执行失败"
+			AddTaskList[task.UUID].StatusMsg = err.Error()
+			return
+		}
+		AddTaskList[task.UUID].Status = "已完成"
+		AddTaskList[task.UUID].StatusMsg = "已完成"
+		AddTaskList[task.UUID].ProgressNum = 100.0
 	}
 }
 
 func AddTaskWorkerInit() {
 	AddTaskQueue = make(chan *AddTaskListData)
-	AddTaskList = make([]*AddTaskListData, 0)
+	AddTaskList = make(map[string]*AddTaskListData)
 	// 启动多个 AddTaskWorker 协程来处理任务
 	for i := 0; i < DefaultTaskWorkerGoRoutines; i++ {
 		go AddTaskWorker(i)
@@ -374,11 +377,12 @@ func AddExec(fileNameList []string, defaultM int, defaultK int, MGValue int, KGV
 
 		// 将 Base64 配置对接到 Web API
 		if UUID != "" {
-			for kp, kq := range AddTaskList {
-				if kq.UUID == UUID {
-					AddTaskList[kp].BaseStr = fecFileConfigBase64
-					break
-				}
+			_, exist := AddTaskList[UUID]
+			if exist {
+				AddTaskList[UUID].BaseStr = fecFileConfigBase64
+			} else {
+				LogPrintln(UUID, AddStr, ErStr, "当前任务被用户删除")
+				return &CommonError{Msg: "当前任务被用户删除"}
 			}
 		}
 

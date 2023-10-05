@@ -13,10 +13,10 @@ import (
 	"time"
 )
 
-func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGValue int, KGValue int, decodeThread int, UUID string) {
+func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGValue int, KGValue int, decodeThread int, UUID string) error {
 	if KGValue > MGValue {
 		LogPrintln(UUID, DeStr, ErStr, "KG值不能大于MG值")
-		return
+		return &CommonError{Msg: "KG值不能大于MG值"}
 	}
 
 	// 当没有检测到videoFileDir时，自动匹配
@@ -25,7 +25,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 		fd, err := os.Executable()
 		if err != nil {
 			LogPrintln(UUID, DeStr, ErStr, "获取程序所在目录失败:", err)
-			return
+			return &CommonError{Msg: "获取程序所在目录失败:" + err.Error()}
 		}
 		videoFileDir = filepath.Dir(fd)
 	}
@@ -33,7 +33,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 	// 检查输入文件夹是否存在
 	if _, err := os.Stat(videoFileDir); os.IsNotExist(err) {
 		LogPrintln(UUID, DeStr, ErStr, "输入文件夹不存在:", err)
-		return
+		return &CommonError{Msg: "输入文件夹不存在:" + err.Error()}
 	}
 
 	// 创建输出目录
@@ -43,7 +43,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 		err = os.Mkdir(videoFileOutputDir, 0644)
 		if err != nil {
 			LogPrintln(UUID, DeStr, ErStr, "创建输出目录失败:", err)
-			return
+			return &CommonError{Msg: "创建输出目录失败:" + err.Error()}
 		}
 	}
 
@@ -53,7 +53,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 	fileDict, err := GenerateFileDxDictionary(videoFileDir, ".mp4")
 	if err != nil {
 		LogPrintln(UUID, DeStr, ErStr, "无法生成视频列表:", err)
-		return
+		return &CommonError{Msg: "无法生成视频列表:" + err.Error()}
 	}
 
 	if filePathList == nil {
@@ -61,7 +61,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 		for {
 			if len(fileDict) == 0 {
 				LogPrintln(UUID, DeStr, ErStr, "当前目录下没有.mp4文件，请将需要解码的视频文件放到当前目录下")
-				return
+				return &CommonError{Msg: "当前目录下没有.mp4文件，请将需要解码的视频文件放到当前目录下"}
 			}
 			LogPrintln(UUID, DeStr, "请选择需要编码的.mp4文件，输入索引并回车来选择")
 			LogPrintln(UUID, DeStr, "如果需要编码当前目录下的所有.mp4文件，请直接输入回车")
@@ -94,17 +94,9 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 	// 错误数据数量
 	errorDataNum := 0
 
-	indexU := 0
 	isPaused := false
 	isRuntime := true
-	if UUID != "" {
-		for kp, kq := range GetTaskList {
-			if kq.UUID == UUID {
-				indexU = kp
-				break
-			}
-		}
-	} else {
+	if UUID == "" {
 		// 启动监控进程
 		go func() {
 			LogPrintln(UUID, EnStr, "按下回车键暂停/继续运行")
@@ -243,9 +235,15 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 			for {
 				// 检测是否暂停
 				if UUID != "" {
-					if GetTaskList[indexU].IsPaused {
-						time.Sleep(time.Second)
-						continue
+					_, exist := GetTaskList[UUID]
+					if exist {
+						if GetTaskList[UUID].IsPaused {
+							time.Sleep(time.Second)
+							continue
+						}
+					} else {
+						LogPrintln(UUID, DeStr, ErStr, "当前任务被用户删除", err)
+						return
 					}
 				} else {
 					if isPaused {
@@ -744,14 +742,16 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 					return
 				}
 			}
-
-			// 为全局 ProgressRate 变量赋值
-			for kp, kq := range GetTaskList {
-				if kq.UUID == UUID {
-					GetTaskList[kp].ProgressRate++
+			if UUID != "" {
+				_, exist := GetTaskList[UUID]
+				if exist {
+					// 为全局 ProgressRate 变量赋值
+					GetTaskList[UUID].ProgressRate++
 					// 计算正确的 progressNum
-					GetTaskList[kp].ProgressNum = float64(GetTaskList[kp].ProgressRate) / float64(len(filePathList)) * 100
-					break
+					GetTaskList[UUID].ProgressNum = float64(GetTaskList[UUID].ProgressRate) / float64(len(filePathList)) * 100
+				} else {
+					LogPrintln(UUID, DeStr, ErStr, "当前任务被用户删除", err)
+					return
 				}
 			}
 
@@ -770,7 +770,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 
 	if errorDataNum > MGValue-KGValue {
 		LogPrintln(UUID, DeStr, ErStr, "恢复失败")
-		return
+		return &CommonError{Msg: "恢复失败"}
 	}
 
 	isRuntime = false
@@ -778,4 +778,5 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 	allDuration := allEndTime.Sub(allStartTime)
 	LogPrintln(UUID, DeStr, "全部完成")
 	LogPrintf(UUID, DeStr+" 总共耗时%f秒\n", allDuration.Seconds())
+	return nil
 }

@@ -22,29 +22,21 @@ func LogPrintln(UUID string, a ...any) {
 	// 为全局 Web API Log 输出
 	LogVariable.WriteString(result + "\n")
 	if UUID != "" {
-		for kp, kq := range DlTaskList {
-			if kq.UUID == UUID {
-				DlTaskList[kp].LogCat += result + "\n"
-				break
-			}
+		_, exist := DlTaskList[UUID]
+		if exist {
+			DlTaskList[UUID].LogCat += result + "\n"
 		}
-		for kp, kq := range BDlTaskList {
-			if kq.UUID == UUID {
-				BDlTaskList[kp].LogCat += result + "\n"
-				break
-			}
+		_, exist = BDlTaskList[UUID]
+		if exist {
+			BDlTaskList[UUID].LogCat += result + "\n"
 		}
-		for kp, kq := range AddTaskList {
-			if kq.UUID == UUID {
-				AddTaskList[kp].LogCat += result + "\n"
-				break
-			}
+		_, exist = AddTaskList[UUID]
+		if exist {
+			AddTaskList[UUID].LogCat += result + "\n"
 		}
-		for kp, kq := range GetTaskList {
-			if kq.UUID == UUID {
-				GetTaskList[kp].LogCat += result + "\n"
-				break
-			}
+		_, exist = GetTaskList[UUID]
+		if exist {
+			GetTaskList[UUID].LogCat += result + "\n"
 		}
 	}
 	fmt.Println("", result)
@@ -55,29 +47,21 @@ func LogPrintf(UUID string, format string, a ...any) {
 	// 为全局 Web API Log 输出
 	LogVariable.WriteString(result + "\n")
 	if UUID != "" {
-		for kp, kq := range DlTaskList {
-			if kq.UUID == UUID {
-				DlTaskList[kp].LogCat += result + "\n"
-				break
-			}
+		_, exist := DlTaskList[UUID]
+		if exist {
+			DlTaskList[UUID].LogCat += result + "\n"
 		}
-		for kp, kq := range BDlTaskList {
-			if kq.UUID == UUID {
-				BDlTaskList[kp].LogCat += result + "\n"
-				break
-			}
+		_, exist = BDlTaskList[UUID]
+		if exist {
+			BDlTaskList[UUID].LogCat += result + "\n"
 		}
-		for kp, kq := range AddTaskList {
-			if kq.UUID == UUID {
-				AddTaskList[kp].LogCat += result + "\n"
-				break
-			}
+		_, exist = AddTaskList[UUID]
+		if exist {
+			AddTaskList[UUID].LogCat += result + "\n"
 		}
-		for kp, kq := range GetTaskList {
-			if kq.UUID == UUID {
-				GetTaskList[kp].LogCat += result + "\n"
-				break
-			}
+		_, exist = GetTaskList[UUID]
+		if exist {
+			GetTaskList[UUID].LogCat += result + "\n"
 		}
 	}
 	fmt.Printf(format, a...)
