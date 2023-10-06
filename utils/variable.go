@@ -37,8 +37,8 @@ const (
 	DefaultBlankStartByte           = 86
 	DefaultBlankEndByte             = 87
 	DefaultDeleteFecFiles           = true
-	DefaultBiliDownloadGoRoutines   = 20
-	DefaultBiliDownloadsMaxQueueNum = 5
+	DefaultBiliDownloadGoRoutines   = 5
+	DefaultBiliDownloadsMaxQueueNum = 3
 	DefaultTaskWorkerGoRoutines     = 5
 	DefaultBiliDownloadMaxRetries   = 100
 	DefaultBiliDownloadReferer      = "https://www.bilibili.com"
