@@ -63,7 +63,7 @@ func UploadDecode(c *gin.Context) {
 	// 创建目标文件夹（如果不存在）
 	targetDir := filepath.Join(LumikaWorkDirPath, parentDir, folderName)
 	if _, err := os.Stat(targetDir); os.IsNotExist(err) {
-		err := os.Mkdir(targetDir, 0644)
+		err := os.Mkdir(targetDir, 0755)
 		if err != nil {
 			return
 		}

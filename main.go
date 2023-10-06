@@ -39,7 +39,7 @@ func MainInit() {
 		utils.LogPrintln("", utils.InitStr, "Lumika 工作目录已存在，跳过创建 Lumika 工作目录")
 		if _, err := os.Stat(utils.LumikaEncodePath); err != nil {
 			utils.LogPrintln("", utils.InitStr, "创建 encode 工作目录")
-			err = os.Mkdir(utils.LumikaEncodePath, 0644)
+			err = os.Mkdir(utils.LumikaEncodePath, 0755)
 			if err != nil {
 				utils.LogPrintln("", utils.InitStr, "创建 encode 目录失败:", err)
 				return
@@ -47,7 +47,7 @@ func MainInit() {
 		}
 		if _, err := os.Stat(utils.LumikaDecodePath); err != nil {
 			utils.LogPrintln("", utils.InitStr, "创建 decode 工作目录")
-			err = os.Mkdir(utils.LumikaDecodePath, 0644)
+			err = os.Mkdir(utils.LumikaDecodePath, 0755)
 			if err != nil {
 				utils.LogPrintln("", utils.InitStr, "创建 decode 目录失败:", err)
 				return
@@ -55,7 +55,7 @@ func MainInit() {
 		}
 		if _, err := os.Stat(utils.LumikaEncodeOutputPath); err != nil {
 			utils.LogPrintln("", utils.InitStr, "创建 encodeOutput 工作目录")
-			err = os.Mkdir(utils.LumikaEncodeOutputPath, 0644)
+			err = os.Mkdir(utils.LumikaEncodeOutputPath, 0755)
 			if err != nil {
 				utils.LogPrintln("", utils.InitStr, "创建 encodeOutput 目录失败:", err)
 				return
@@ -63,7 +63,7 @@ func MainInit() {
 		}
 		if _, err := os.Stat(utils.LumikaDecodeOutputPath); err != nil {
 			utils.LogPrintln("", utils.InitStr, "创建 decodeOutput 工作目录")
-			err = os.Mkdir(utils.LumikaDecodeOutputPath, 0644)
+			err = os.Mkdir(utils.LumikaDecodeOutputPath, 0755)
 			if err != nil {
 				utils.LogPrintln("", utils.InitStr, "创建 decodeOutput 目录失败:", err)
 				return
@@ -71,31 +71,31 @@ func MainInit() {
 		}
 	} else {
 		utils.LogPrintln("", utils.InitStr, "Lumika 工作目录不存在，创建 Lumika 工作目录")
-		err = os.Mkdir(utils.LumikaWorkDirPath, 0644)
+		err = os.Mkdir(utils.LumikaWorkDirPath, 0755)
 		if err != nil {
 			utils.LogPrintln("", utils.InitStr, "创建 Lumika 工作目录失败:", err)
 			return
 		}
 		utils.LogPrintln("", utils.InitStr, "创建 encode 工作目录")
-		err = os.Mkdir(utils.LumikaEncodePath, 0644)
+		err = os.Mkdir(utils.LumikaEncodePath, 0755)
 		if err != nil {
 			utils.LogPrintln("", utils.InitStr, "创建 encode 目录失败:", err)
 			return
 		}
 		utils.LogPrintln("", utils.InitStr, "创建 decode 工作目录")
-		err = os.Mkdir(utils.LumikaDecodePath, 0644)
+		err = os.Mkdir(utils.LumikaDecodePath, 0755)
 		if err != nil {
 			utils.LogPrintln("", utils.InitStr, "创建 decode 目录失败:", err)
 			return
 		}
 		utils.LogPrintln("", utils.InitStr, "创建 encodeOutput 工作目录")
-		err = os.Mkdir(utils.LumikaEncodeOutputPath, 0644)
+		err = os.Mkdir(utils.LumikaEncodeOutputPath, 0755)
 		if err != nil {
 			utils.LogPrintln("", utils.InitStr, "创建 encodeOutput 目录失败:", err)
 			return
 		}
 		utils.LogPrintln("", utils.InitStr, "创建 decodeOutput 工作目录")
-		err = os.Mkdir(utils.LumikaDecodeOutputPath, 0644)
+		err = os.Mkdir(utils.LumikaDecodeOutputPath, 0755)
 		if err != nil {
 			utils.LogPrintln("", utils.InitStr, "创建 decodeOutput 目录失败:", err)
 			return

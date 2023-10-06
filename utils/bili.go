@@ -218,7 +218,7 @@ func BDl(AVOrBVStr string, parentDir, UUID string) error {
 	} else if os.IsNotExist(err) {
 		LogPrintln(UUID, BDlStr, "下载目录不存在，创建下载目录")
 		// 创建目录
-		err = os.Mkdir(filepath.Join(LumikaWorkDirPath, parentDir, SuitableDirName), 0644)
+		err = os.Mkdir(filepath.Join(LumikaWorkDirPath, parentDir, SuitableDirName), 0755)
 		if err != nil {
 			LogPrintln(UUID, BDlStr, "创建下载目录失败:", err)
 			return &CommonError{Msg: "创建下载目录失败:" + err.Error()}

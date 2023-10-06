@@ -143,7 +143,7 @@ func GetExec(fileDir string, base64Config string, decodeThread int, UUID string)
 	fileOutputDir := filepath.Join(LumikaDecodeOutputPath, filepath.Base(fileDir))
 	if _, err := os.Stat(fileOutputDir); os.IsNotExist(err) {
 		LogPrintln(UUID, DeStr, "创建输出目录:", fileOutputDir)
-		err = os.Mkdir(fileOutputDir, 0644)
+		err = os.Mkdir(fileOutputDir, 0755)
 		if err != nil {
 			LogPrintln(UUID, DeStr, ErStr, "创建输出目录失败:", err)
 			return &CommonError{Msg: "创建输出目录失败:" + err.Error()}

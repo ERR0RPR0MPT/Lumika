@@ -23,12 +23,12 @@ func DbCrontab() {
 		jsonData, err := json.Marshal(db)
 		if err != nil {
 			LogPrintln("", DbStr, "转换为JSON时发生错误:", err)
-			return
+			continue
 		}
-		err = os.WriteFile(wd, jsonData, 0644)
+		err = os.WriteFile(wd, jsonData, 0755)
 		if err != nil {
 			LogPrintln("", DbStr, "保存JSON文件时发生错误:", err)
-			return
+			continue
 		}
 	}
 }

@@ -30,6 +30,10 @@ apt install ffmpeg
 
 项目默认启动 Lumika Web 作为前端页面，使用默认的本地地址 `http://localhost:7860/ui/` 进行访问.
 
+### 示例
+
+这是项目的运行示例，部署在 HuggingFace Space，各项功能正常使用：[https://weclont-lumika.hf.space/ui/#/](https://weclont-lumika.hf.space/ui/#/)
+
 ## 哔哩源
 
 项目目前支持哔哩哔哩的视频下载和上传，用户可以方便地通过本项目在哔哩源上存取文件/资源.

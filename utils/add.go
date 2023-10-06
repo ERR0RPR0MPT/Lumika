@@ -290,7 +290,7 @@ func AddExec(fileNameList []string, defaultM int, defaultK int, MGValue int, KGV
 		defaultOutputDirName := "output_" + strings.ReplaceAll(fileName, ".", "_")
 		defaultOutputDir := filepath.Join(fileEncodeOutputDir, defaultOutputDirName)
 		// 创建输出目录
-		err := os.Mkdir(defaultOutputDir, 0644)
+		err := os.Mkdir(defaultOutputDir, 0755)
 		if err != nil {
 			LogPrintln(UUID, AddStr, ErStr, "创建输出目录失败:", err)
 			return &CommonError{Msg: "创建输出目录失败:" + err.Error()}
@@ -335,7 +335,7 @@ func AddExec(fileNameList []string, defaultM int, defaultK int, MGValue int, KGV
 			outfn := fmt.Sprintf("%s.%d_%d.fec", filepath.Base(filePath), i, len(shards))
 			outfnPath := filepath.Join(defaultOutputDir, outfn)
 			LogPrintln(UUID, AddStr, "写入 .fec 文件:", outfn)
-			err = os.WriteFile(outfnPath, shard, 0644)
+			err = os.WriteFile(outfnPath, shard, 0755)
 			if err != nil {
 				LogPrintln(UUID, AddStr, ErStr, ".fec 文件写入失败:", err)
 				return &CommonError{Msg: ".fec 文件写入失败:" + err.Error()}
@@ -377,7 +377,7 @@ func AddExec(fileNameList []string, defaultM int, defaultK int, MGValue int, KGV
 		fecFileConfigBase64 := base64.StdEncoding.EncodeToString(fecFileConfigJson)
 		fecFileConfigFilePath := filepath.Join(LumikaEncodeOutputPath, "lumika_config_"+strings.ReplaceAll(fileName, ".", "_")+".txt")
 		LogPrintln(UUID, AddStr, "Base64 配置生成完成，开始写入文件:", fecFileConfigFilePath)
-		err = os.WriteFile(fecFileConfigFilePath, []byte(fecFileConfigBase64), 0644)
+		err = os.WriteFile(fecFileConfigFilePath, []byte(fecFileConfigBase64), 0755)
 		if err != nil {
 			LogPrintln(UUID, AddStr, ErStr, "写入文件失败:", err)
 			return &CommonError{Msg: "写入文件失败:" + err.Error()}

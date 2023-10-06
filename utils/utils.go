@@ -224,7 +224,7 @@ func GetFileSize(filePath string) int64 {
 // RemoveTrailingZerosFromFile 从文件中删除末尾的连续零字节
 func RemoveTrailingZerosFromFile(filename string) error {
 	// 打开文件进行读取和写入
-	file, err := os.OpenFile(filename, os.O_RDWR, 0644)
+	file, err := os.OpenFile(filename, os.O_RDWR, 0755)
 	if err != nil {
 		return err
 	}
@@ -270,7 +270,7 @@ func RemoveTrailingZerosFromFile(filename string) error {
 
 func TruncateFile(dataLength int64, filePath string) error {
 	// 打开文件以读写模式
-	file, err := os.OpenFile(filePath, os.O_RDWR, 0644)
+	file, err := os.OpenFile(filePath, os.O_RDWR, 0755)
 	if err != nil {
 		return err
 	}

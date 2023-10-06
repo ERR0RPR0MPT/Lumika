@@ -40,7 +40,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 	videoFileOutputDir := filepath.Join(LumikaDecodeOutputPath, filepath.Base(videoFileDir))
 	if _, err := os.Stat(videoFileOutputDir); os.IsNotExist(err) {
 		LogPrintln(UUID, DeStr, "创建输出目录:", videoFileOutputDir)
-		err = os.Mkdir(videoFileOutputDir, 0644)
+		err = os.Mkdir(videoFileOutputDir, 0755)
 		if err != nil {
 			LogPrintln(UUID, DeStr, ErStr, "创建输出目录失败:", err)
 			return &CommonError{Msg: "创建输出目录失败:" + err.Error()}
