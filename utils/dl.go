@@ -51,7 +51,7 @@ func DlTaskWorker(id int) {
 		_, exist := DlTaskList[task.UUID]
 		if !exist {
 			LogPrintf(task.UUID, "DlTaskWorker %d 编码任务被用户删除\n", id)
-			return
+			continue
 		}
 		DlTaskList[task.UUID].Status = "正在执行"
 		DlTaskList[task.UUID].StatusMsg = "正在执行"
@@ -59,7 +59,7 @@ func DlTaskWorker(id int) {
 		_, exist = DlTaskList[task.UUID]
 		if !exist {
 			LogPrintf(task.UUID, "DlTaskWorker %d 编码任务被用户删除\n", id)
-			return
+			continue
 		}
 		if err != nil {
 			LogPrintf(task.UUID, "DlTaskWorker %d 处理下载任务(%v)失败：%v\n", id, task.TaskInfo.Url, err)

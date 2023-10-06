@@ -40,7 +40,11 @@ func AutoRun() {
 			break
 		} else if input == "4" {
 			clearScreen()
-			Decode("", 0, nil, AddMGLevel, AddKGLevel, runtime.NumCPU(), "")
+			err := Decode("", 0, nil, AddMGLevel, AddKGLevel, runtime.NumCPU(), "")
+			if err != nil {
+				LogPrintln("", ArStr, ErStr, "错误: 解码失败:", err)
+				return
+			}
 			break
 		} else if input == "5" {
 			os.Exit(0)

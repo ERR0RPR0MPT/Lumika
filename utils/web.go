@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"github.com/ERR0RPR0MPT/Lumika/biliup"
 	"github.com/gin-gonic/gin"
+	"io"
 	"math/rand"
 	"mime"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -82,8 +84,8 @@ func UploadDecode(c *gin.Context) {
 }
 
 func GetFileFromURL(c *gin.Context) {
-	url := c.PostForm("url")
-	if url == "" {
+	urla := c.PostForm("urla")
+	if urla == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "URL 不能为空"})
 		return
 	}
@@ -94,7 +96,7 @@ func GetFileFromURL(c *gin.Context) {
 	}
 	fileName := c.PostForm("fileName")
 	if fileName == "" {
-		fileName = GetFileNameFromURL(url)
+		fileName = GetFileNameFromURL(urla)
 	}
 	DownloadThreadNumInputData := c.PostForm("DownloadThreadNumInputData")
 	LogPrintln("", "读取到 DownloadThreadNumInputData:", DownloadThreadNumInputData)
@@ -113,22 +115,23 @@ func GetFileFromURL(c *gin.Context) {
 	}
 	fileName = ReplaceInvalidCharacters(fileName, '-')
 	filePath := filepath.Join(LumikaWorkDirPath, parentDir, fileName)
-	DlAddTask(url, filePath, "", DefaultUserAgent, gor)
+	go DlAddTask(urla, filePath, "", DefaultUserAgent, gor)
 	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("成功添加下载任务: %s, 使用线程数: %d", fileName, gor)})
 }
 
 func GetFileFromBiliID(c *gin.Context) {
-	AVOrBVStr := c.PostForm("bili-id")
+	AVOrBVStr := c.PostForm("biliId")
 	if AVOrBVStr == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "BV/av号不能为空"})
 		return
 	}
+	baseStr := c.PostForm("baseStr")
 	parentDir := c.PostForm("parentDir")
 	if parentDir != "encode" && parentDir != "encodeOutput" && parentDir != "decode" && parentDir != "decodeOutput" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "父目录参数不正确"})
 		return
 	}
-	BDlAddTask(AVOrBVStr, parentDir)
+	go BDlAddTask(AVOrBVStr, baseStr, parentDir)
 	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("成功添加下载任务: %s", AVOrBVStr)})
 }
 
@@ -214,7 +217,7 @@ func AddEncodeTask(c *gin.Context) {
 		LogPrintln("", AddStr, ErStr, "错误: 处理使用的线程数量不能小于等于 0，自动设置处理使用的线程数量为", runtime.NumCPU())
 		ed.EncodeThread = runtime.NumCPU()
 	}
-	AddAddTask(ed.FileNameList, ed.DefaultM, ed.DefaultK, ed.MGValue, ed.KGValue, ed.VideoSize, ed.OutputFPS, ed.EncodeMaxSeconds, ed.EncodeThread, ed.EncodeFFmpegMode, ed.DefaultSummary)
+	go AddAddTask(ed.FileNameList, ed.DefaultM, ed.DefaultK, ed.MGValue, ed.KGValue, ed.VideoSize, ed.OutputFPS, ed.EncodeMaxSeconds, ed.EncodeThread, ed.EncodeFFmpegMode, ed.DefaultSummary)
 	c.JSON(http.StatusOK, gin.H{"msg": fmt.Sprintf("成功添加编码任务")})
 }
 
@@ -240,7 +243,7 @@ func AddDecodeTask(c *gin.Context) {
 		LogPrintln("", AddStr, ErStr, "错误: 处理使用的线程数量不能小于等于 0，自动设置处理使用的线程数量为", runtime.NumCPU())
 		ed.DecodeThread = runtime.NumCPU()
 	}
-	AddGetTask(ed.DirName, ed.DecodeThread, ed.BaseStr)
+	go AddGetTask(ed.DirName, ed.DecodeThread, ed.BaseStr)
 	c.JSON(http.StatusOK, gin.H{"msg": fmt.Sprintf("成功添加解码任务")})
 }
 
@@ -572,7 +575,7 @@ func AddBUlTask(c *gin.Context) {
 	if ed.VideoInfos.Copyright != 1 && ed.VideoInfos.Copyright != 2 {
 		ed.VideoInfos.Copyright = 1
 	}
-	BUlAddTask(ed)
+	go BUlAddTask(ed)
 	c.JSON(http.StatusOK, gin.H{"msg": fmt.Sprintf("成功添加解码任务")})
 }
 
@@ -585,6 +588,65 @@ func ClearBUlTaskList(c *gin.Context) {
 	//}
 	BUlTaskList = make(map[string]*BUlTaskListData)
 	c.JSON(http.StatusOK, gin.H{"message": "任务列表清除成功"})
+}
+
+func GetBilibiliQRCode(c *gin.Context) {
+	values := url.Values{}
+	values.Set("local_id", "0")
+	values.Set("ts", strconv.FormatInt(time.Now().Unix(), 10))
+
+	// 添加 sign (使用云视听版本的 appKey 和 appsec)
+	appkey := "4409e2ce8ffd12b8"
+	appsec := "59b43e04ad6965f34319062b478f83dd"
+	signedValues := GetBilibiliAppSign(values, appkey, appsec)
+
+	resp, err := http.PostForm("https://passport.bilibili.com/x/passport-tv-login/qrcode/auth_code", signedValues)
+	if err != nil {
+		fmt.Println("获取哔哩哔哩二维码数据 POST 请求出错:", err)
+		return
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println("获取哔哩哔哩二维码数据 POST 请求出错:", err)
+		return
+	}
+	c.String(http.StatusOK, string(body))
+}
+
+func GetBilibiliPoll(c *gin.Context) {
+	authCode := c.Param("ac")
+	if authCode == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "auth_code 参数错误"})
+		return
+	}
+	values := url.Values{}
+	values.Set("auth_code", authCode)
+	values.Set("local_id", "0")
+	values.Set("ts", strconv.FormatInt(time.Now().Unix(), 10))
+
+	// 添加 sign (使用云视听版本的 appKey 和 appsec)
+	appkey := "4409e2ce8ffd12b8"
+	appsec := "59b43e04ad6965f34319062b478f83dd"
+	signedValues := GetBilibiliAppSign(values, appkey, appsec)
+
+	resp, err := http.PostForm("https://passport.bilibili.com/x/passport-tv-login/qrcode/poll", signedValues)
+	if err != nil {
+		fmt.Println("获取 Poll 登录数据 POST 请求出错:", err)
+		return
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println("获取 Poll 登录数据 POST 请求出错:", err)
+		return
+	}
+	c.String(http.StatusOK, string(body))
+}
+
+func GetVersion(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"version": LumikaVersionString})
+	return
 }
 
 func TaskWorkerInit() {
@@ -607,11 +669,11 @@ func WebServerInit() {
 	r.GET("/", func(c *gin.Context) {
 		c.Redirect(http.StatusFound, "/ui")
 	})
-	r.StaticFS("/ui", http.Dir("./ui"))
+	r.StaticFS("/ui", http.FS(UIFiles))
 	r.POST("/api/upload/encode", UploadEncode)
 	r.POST("/api/upload/decode", UploadDecode)
 	r.POST("/api/get-file-from-url", GetFileFromURL)
-	r.POST("/api/get-encoded-video-files", GetFileFromBiliID)
+	r.POST("/api/get-bili-encoded-video-files", GetFileFromBiliID)
 	r.GET("/api/get-dl-task-list", GetDlTaskList)
 	r.GET("/api/get-file-list", GetFileList)
 	r.POST("/api/add-encode-task", AddEncodeTask)
@@ -637,6 +699,9 @@ func WebServerInit() {
 	r.POST("/api/delete-bul-task", DeleteBUlTask)
 	r.POST("/api/add-bul-task", AddBUlTask)
 	r.GET("/api/clear-bul-task-list", ClearBUlTaskList)
+	r.GET("/api/bilibili/qrcode", GetBilibiliQRCode)
+	r.GET("/api/bilibili/poll/:ac", GetBilibiliPoll)
+	r.GET("/api/version", GetVersion)
 
 	p := DefaultWebServerPort
 	for {

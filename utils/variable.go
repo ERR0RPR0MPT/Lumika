@@ -2,12 +2,13 @@ package utils
 
 import (
 	"github.com/ERR0RPR0MPT/Lumika/biliup"
+	"io/fs"
 	"strings"
 )
 
 const (
 	LumikaVersionNum                = 3
-	LumikaVersionString             = "v3.8.0.beta9"
+	LumikaVersionString             = "v3.8.1"
 	LumikaWorkDirName               = "lumika_data"
 	LumikaConfigFileName            = "lumika_config"
 	InitStr                         = "Init:"
@@ -19,6 +20,7 @@ const (
 	GetStr                          = "GetInput:"
 	DlStr                           = "Dl:"
 	BDlStr                          = "BDl:"
+	BUlStr                          = "BUl:"
 	ArStr                           = "AutoRun:"
 	ErStr                           = "Error:"
 	AddMLevel                       = 90
@@ -47,6 +49,7 @@ const (
 	DefaultWebServerRandomPortMin   = 10000
 	DefaultWebServerRandomPortMax   = 65535
 	DefaultDbCrontabSeconds         = 10
+	DefaultMaxConcurrencyTimes      = 16
 )
 
 var (
@@ -56,6 +59,7 @@ var (
 	LumikaDecodePath       string
 	LumikaEncodeOutputPath string
 	LumikaDecodeOutputPath string
+	UIFiles                fs.FS
 )
 
 type CommonError struct {
@@ -105,9 +109,12 @@ type FileInfo struct {
 }
 
 type SystemResourceUsage struct {
-	CpuUsagePercent  float64 `json:"cpuUsagePercent"`
-	MemUsagePercent  float64 `json:"memUsagePercent"`
-	DiskUsagePercent float64 `json:"diskUsagePercent"`
+	CpuUsagePercent      float64 `json:"cpuUsagePercent"`
+	MemUsagePercent      float64 `json:"memUsagePercent"`
+	DiskUsagePercent     float64 `json:"diskUsagePercent"`
+	NetworkInterfaceName string  `json:"networkInterfaceName"`
+	UploadSpeed          string  `json:"uploadSpeed"`
+	DownloadSpeed        string  `json:"downloadSpeed"`
 }
 
 type DlTaskInfo struct {
@@ -133,6 +140,7 @@ type DlTaskListData struct {
 type BDlTaskInfo struct {
 	ResourceID string `json:"resourceID"`
 	ParentDir  string `json:"parentDir"`
+	BaseStr    string `json:"baseStr"`
 }
 
 type BDlTaskListData struct {
@@ -140,6 +148,7 @@ type BDlTaskListData struct {
 	TimeStamp    string       `json:"timestamp"`
 	ResourceID   string       `json:"resourceId"`
 	TaskInfo     *BDlTaskInfo `json:"taskInfo"`
+	BaseStr      string       `json:"baseStr"`
 	LogCat       string       `json:"logCat"`
 	ProgressRate int          `json:"progressRate"`
 	ProgressNum  float64      `json:"progressNum"`
@@ -204,6 +213,7 @@ type BUlTaskListData struct {
 	UUID         string       `json:"uuid"`
 	TimeStamp    string       `json:"timestamp"`
 	FileName     string       `json:"fileName"`
+	BVID         string       `json:"bvid"`
 	TaskInfo     *BUlTaskInfo `json:"taskInfo"`
 	LogCat       string       `json:"logCat"`
 	ProgressRate int          `json:"progressRate"`

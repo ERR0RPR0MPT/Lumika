@@ -3,15 +3,18 @@ package utils
 import (
 	"archive/zip"
 	"bufio"
+	"crypto/md5"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/disk"
 	"github.com/shirou/gopsutil/mem"
+	psnet "github.com/shirou/gopsutil/net"
 	"image"
 	"image/color"
 	"io"
+	"math"
 	"net"
 	"net/url"
 	"os"
@@ -672,15 +675,173 @@ func ZipDirectory(dir string, zipFile string) error {
 	return err
 }
 
+func GetBilibiliAppSign(params url.Values, appkey string, appsec string) url.Values {
+	// 为了修改原始参数，创建一个新的副本
+	newParams := url.Values{}
+	for key, values := range params {
+		newParams[key] = values
+	}
+
+	// 添加 appkey
+	newParams.Set("appkey", appkey)
+
+	// 按照 key 重排参数
+	keys := make([]string, 0, len(newParams))
+	for key := range newParams {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	// 序列化参数
+	query := ""
+	for _, key := range keys {
+		values := newParams[key]
+		for _, value := range values {
+			if query != "" {
+				query += "&"
+			}
+			query += key + "=" + value
+		}
+	}
+
+	// 计算 API 签名
+	sign := md5.Sum([]byte(query + appsec))
+	signStr := hex.EncodeToString(sign[:])
+
+	// 添加 sign 参数
+	newParams.Set("sign", signStr)
+
+	return newParams
+}
+
+func InterfaceToString(value interface{}) (string, error) {
+	str, ok := value.(string)
+	if !ok {
+		return "", &CommonError{Msg: "无法将接口转换为字符串"}
+	}
+	return str, nil
+}
+
+func InterfaceToBytes(value interface{}) ([]byte, error) {
+	bytes, ok := value.([]byte)
+	if !ok {
+		return nil, fmt.Errorf("无法将接口转换为 []byte")
+	}
+	return bytes, nil
+}
+
 func GetSystemResourceUsage() (*SystemResourceUsage, error) {
-	percent, _ := cpu.Percent(time.Second, false)
+	percent, _ := cpu.Percent(time.Millisecond*50, false)
 	memInfo, _ := mem.VirtualMemory()
 	parts, _ := disk.Partitions(true)
 	diskInfo, _ := disk.Usage(parts[0].Mountpoint)
+	iface, err := GetDefaultNetworkInterface()
+	var uploadSpeed string
+	var downloadSpeed string
+	if err != nil {
+		iface = "未知"
+		uploadSpeed = "未知"
+		downloadSpeed = "未知"
+	} else {
+		uploadSpeed, downloadSpeed, err = GetNetworkSpeed(iface)
+		if err != nil {
+			uploadSpeed = "未知"
+			downloadSpeed = "未知"
+		}
+	}
 	usage := &SystemResourceUsage{
-		CpuUsagePercent:  percent[0],
-		MemUsagePercent:  memInfo.UsedPercent,
-		DiskUsagePercent: diskInfo.UsedPercent,
+		CpuUsagePercent:      percent[0],
+		MemUsagePercent:      memInfo.UsedPercent,
+		DiskUsagePercent:     diskInfo.UsedPercent,
+		NetworkInterfaceName: iface,
+		UploadSpeed:          uploadSpeed,
+		DownloadSpeed:        downloadSpeed,
 	}
 	return usage, nil
+}
+
+func GetDefaultNetworkInterface() (string, error) {
+	// 获取所有网络接口信息
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return "", fmt.Errorf("无法获取网络接口信息：%v", err)
+	}
+	// 查找默认网卡
+	for _, iface := range interfaces {
+		if iface.Flags&net.FlagLoopback == 0 && iface.Flags&net.FlagUp != 0 {
+			return iface.Name, nil
+		}
+	}
+	return "", fmt.Errorf("找不到默认网卡")
+}
+
+func FormatBytesPerSecond(bytesPerSecond float64) string {
+	units := []string{"b/s", "KB/s", "MB/s", "GB/s", "TB/s"}
+	base := 1024.0
+
+	if bytesPerSecond < base {
+		return fmt.Sprintf("%.2f %s", bytesPerSecond, units[0])
+	}
+
+	// 计算对应的单位
+	div := int(math.Log(bytesPerSecond) / math.Log(base))
+	value := bytesPerSecond / math.Pow(base, float64(div))
+
+	return fmt.Sprintf("%.2f %s", value, units[div])
+}
+
+func GetNetworkSpeed(interfaceName string) (string, string, error) {
+	// 获取所有网络接口的统计信息
+	netIOCounters, err := psnet.IOCounters(true)
+	if err != nil {
+		return "", "", fmt.Errorf("无法获取网络接口统计信息：%v", err)
+	}
+
+	// 查找指定名称的网络接口统计信息
+	var selectedNetIOCounter psnet.IOCountersStat
+	for _, counter := range netIOCounters {
+		if counter.Name == interfaceName {
+			selectedNetIOCounter = counter
+			break
+		}
+	}
+
+	// 如果找不到指定的网络接口，返回错误信息
+	if selectedNetIOCounter.Name == "" {
+		return "", "", fmt.Errorf("找不到网络接口'%s'的统计信息", interfaceName)
+	}
+
+	// 获取当前时间
+	startTime := time.Now()
+
+	// 等待一段时间（例如1秒）
+	time.Sleep(time.Second)
+
+	// 获取当前网络接口的统计信息
+	netIOCounter, err := psnet.IOCounters(true)
+	if err != nil {
+		return "", "", fmt.Errorf("无法获取网络接口统计信息：%v", err)
+	}
+
+	// 查找指定名称的网络接口统计信息
+	var currentNetIOCounter psnet.IOCountersStat
+	for _, counter := range netIOCounter {
+		if counter.Name == interfaceName {
+			currentNetIOCounter = counter
+			break
+		}
+	}
+
+	// 如果找不到指定的网络接口，返回错误信息
+	if currentNetIOCounter.Name == "" {
+		return "", "", fmt.Errorf("找不到网络接口'%s'的统计信息", interfaceName)
+	}
+
+	// 计算上传和下载速度
+	uploadSpeed := float64(currentNetIOCounter.BytesSent-selectedNetIOCounter.BytesSent) /
+		time.Since(startTime).Seconds()
+	downloadSpeed := float64(currentNetIOCounter.BytesRecv-selectedNetIOCounter.BytesRecv) /
+		time.Since(startTime).Seconds()
+
+	return FormatBytesPerSecond(uploadSpeed), FormatBytesPerSecond(downloadSpeed), nil
 }

@@ -4,6 +4,7 @@ import (
 	"github.com/ERR0RPR0MPT/Lumika/biliup"
 	"github.com/google/uuid"
 	bg "github.com/iyear/biligo"
+	"github.com/tidwall/gjson"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -25,7 +26,7 @@ func BUlAddTask(bulTaskInfo *BUlTaskInfo) {
 	BUlTaskQueue <- dt
 }
 
-func BDlAddTask(AVOrBVStr string, parentDir string) {
+func BDlAddTask(AVOrBVStr string, baseStr string, parentDir string) {
 	uuidd := uuid.New().String()
 	dt := &BDlTaskListData{
 		UUID:       uuidd,
@@ -34,7 +35,9 @@ func BDlAddTask(AVOrBVStr string, parentDir string) {
 		TaskInfo: &BDlTaskInfo{
 			ResourceID: AVOrBVStr,
 			ParentDir:  parentDir,
+			BaseStr:    baseStr,
 		},
+		BaseStr:      baseStr,
 		ProgressRate: 0,
 	}
 	BDlTaskList[uuidd] = dt
@@ -47,22 +50,24 @@ func BUlTaskWorker(id int) {
 		_, exist := BUlTaskList[task.UUID]
 		if !exist {
 			LogPrintf(task.UUID, "BUlTaskWorker %d 上传任务被用户删除\n", id)
-			return
+			continue
 		}
 		BUlTaskList[task.UUID].Status = "正在执行"
 		BUlTaskList[task.UUID].StatusMsg = "正在执行"
-		err := BUl(filepath.Join(LumikaEncodeOutputPath, task.FileName), *task.TaskInfo.Cookie, task.TaskInfo.UploadLines, task.TaskInfo.Threads, task.TaskInfo.VideoInfos, task.UUID)
+		bvid, err := BUl(filepath.Join(LumikaEncodeOutputPath, task.FileName), *task.TaskInfo.Cookie, task.TaskInfo.UploadLines, task.TaskInfo.Threads, task.TaskInfo.VideoInfos, task.UUID)
 		_, exist = BUlTaskList[task.UUID]
 		if !exist {
 			LogPrintf(task.UUID, "BUlTaskWorker %d 上传任务被用户删除\n", id)
-			return
+			continue
 		}
 		if err != nil {
 			LogPrintf(task.UUID, "BUlTaskWorker %d 哔哩源上传任务执行失败\n", id)
 			BUlTaskList[task.UUID].Status = "执行失败"
 			BUlTaskList[task.UUID].StatusMsg = err.Error()
-			return
+			continue
 		}
+		LogPrintln(task.UUID, "BUlTaskWorker", "获取到上传视频的 BV 号:", bvid)
+		BUlTaskList[task.UUID].BVID = bvid
 		BUlTaskList[task.UUID].Status = "已完成"
 		BUlTaskList[task.UUID].StatusMsg = "已完成"
 		BUlTaskList[task.UUID].ProgressNum = 100.0
@@ -75,7 +80,7 @@ func BDlTaskWorker(id int) {
 		_, exist := BDlTaskList[task.UUID]
 		if !exist {
 			LogPrintf(task.UUID, "BDlTaskWorker %d 编码任务被用户删除\n", id)
-			return
+			continue
 		}
 		BDlTaskList[task.UUID].Status = "正在执行"
 		BDlTaskList[task.UUID].StatusMsg = "正在执行"
@@ -83,13 +88,13 @@ func BDlTaskWorker(id int) {
 		_, exist = BDlTaskList[task.UUID]
 		if !exist {
 			LogPrintf(task.UUID, "BDlTaskWorker %d 编码任务被用户删除\n", id)
-			return
+			continue
 		}
 		if err != nil {
 			LogPrintf(task.UUID, "BDlTaskWorker %d 哔哩源下载任务执行失败\n", id)
 			BDlTaskList[task.UUID].Status = "执行失败"
 			BDlTaskList[task.UUID].StatusMsg = err.Error()
-			return
+			continue
 		}
 		BDlTaskList[task.UUID].Status = "已完成"
 		BDlTaskList[task.UUID].StatusMsg = "已完成"
@@ -135,29 +140,47 @@ func BDlTaskWorkerInit() {
 	}
 }
 
-func BUl(filePath string, bu biliup.User, uploadLines string, threads int, videoInfos biliup.VideoInfos, UUID string) error {
+func BUl(filePath string, bu biliup.User, uploadLines string, threads int, videoInfos biliup.VideoInfos, UUID string) (string, error) {
 	b, err := biliup.New(bu)
 	if err != nil {
-		LogPrintln(UUID, "Cookie 校验失败，请检查 Cookie 是否失效:", err)
-		return &CommonError{Msg: "Cookie 校验失败，请检查 Cookie 是否失效: " + err.Error()}
+		LogPrintln(UUID, BUlStr, "Cookie 校验失败，请检查 Cookie 是否失效:", err)
+		return "", &CommonError{Msg: "Cookie 校验失败，请检查 Cookie 是否失效: " + err.Error()}
 	}
 	b.UploadLines = uploadLines
 	b.Threads = threads
 	b.VideoInfos = videoInfos
 
-	LogPrintln(UUID, "Cookie 校验成功，开始上传编码视频列表")
-	LogPrintln(UUID, "注意：此过程没有进度回显，请耐心等待执行完毕")
-	_, err = biliup.UploadFolderWithSubmit(filePath, *b)
+	LogPrintln(UUID, BUlStr, "Cookie 校验成功，开始上传编码视频列表")
+	LogPrintln(UUID, BUlStr, "注意：此过程没有进度回显，请耐心等待执行完毕")
+	reqBody, _, err := biliup.UploadFolderWithSubmit(filePath, *b)
 	if err != nil {
-		LogPrintln(UUID, "BUl 上传失败", err)
-		return &CommonError{Msg: "BUl 上传失败: " + err.Error()}
+		LogPrintln(UUID, BUlStr, "上传失败", err)
+		return "", &CommonError{Msg: "上传失败: " + err.Error()}
 	}
-	LogPrintln(UUID, "BUl 上传成功")
-	return nil
+	reqBodyBytes, err := InterfaceToBytes(reqBody)
+	if err != nil {
+		LogPrintln(UUID, BUlStr, "获取视频 BV 号失败", err)
+		return "", &CommonError{Msg: "获取视频 BV 号失败: " + err.Error()}
+	}
+	bvidStr := ""
+	result := gjson.Get(string(reqBodyBytes), "data.bvid")
+	if result.Exists() {
+		bvidStr = result.String()
+		LogPrintln(UUID, BUlStr, "上传成功，获取到 BV 号:", bvidStr)
+	} else {
+		bvidStr = "未知"
+		LogPrintln(UUID, BUlStr, "上传出错，没有获取到 BV 号")
+	}
+	LogPrintln(UUID, BUlStr, "上传成功")
+	return bvidStr, nil
 }
 
 func BDl(AVOrBVStr string, parentDir, UUID string) error {
 	var aid int64
+	if len(AVOrBVStr) <= 2 {
+		LogPrintln(UUID, BDlStr, "未知的视频编号:", AVOrBVStr)
+		return &CommonError{Msg: "未知的视频编号"}
+	}
 	if !strings.Contains(AVOrBVStr[:2], "av") {
 		if len(AVOrBVStr) != 12 {
 			LogPrintln(UUID, BDlStr, "未知的视频编号:", AVOrBVStr)
@@ -187,14 +210,15 @@ func BDl(AVOrBVStr string, parentDir, UUID string) error {
 	LogPrintln(UUID, BDlStr, "视频分 P 数量:", len(info.Pages))
 
 	LogPrintln(UUID, BDlStr, "创建下载目录...")
+	SuitableDirName := ReplaceInvalidCharacters(info.BVID, '-')
 	SuitableFileName := ReplaceInvalidCharacters(info.Title, '-')
 	// 检查是否已经存在下载目录
-	if _, err := os.Stat(filepath.Join(LumikaWorkDirPath, parentDir, SuitableFileName)); err == nil {
+	if _, err := os.Stat(filepath.Join(LumikaWorkDirPath, parentDir, SuitableDirName)); err == nil {
 		LogPrintln(UUID, BDlStr, "下载目录已存在，跳过创建下载目录")
 	} else if os.IsNotExist(err) {
 		LogPrintln(UUID, BDlStr, "下载目录不存在，创建下载目录")
 		// 创建目录
-		err = os.Mkdir(filepath.Join(LumikaWorkDirPath, parentDir, SuitableFileName), 0644)
+		err = os.Mkdir(filepath.Join(LumikaWorkDirPath, parentDir, SuitableDirName), 0644)
 		if err != nil {
 			LogPrintln(UUID, BDlStr, "创建下载目录失败:", err)
 			return &CommonError{Msg: "创建下载目录失败:" + err.Error()}
@@ -225,7 +249,7 @@ func BDl(AVOrBVStr string, parentDir, UUID string) error {
 			}
 			durl := videoPlayURLResult.DURL[0].URL
 			videoName := strconv.Itoa(pi+1) + "-" + SuitableFileName + ".mp4"
-			filePath := filepath.Join(LumikaWorkDirPath, parentDir, SuitableFileName, videoName)
+			filePath := filepath.Join(LumikaWorkDirPath, parentDir, SuitableDirName, videoName)
 			LogPrintln(UUID, BDlStr, "视频地址:", durl)
 			LogPrintln(UUID, BDlStr, "尝试下载视频...")
 			err = Dl(durl, filePath, DefaultBiliDownloadReferer, DefaultUserAgent, DefaultBiliDownloadGoRoutines, "")

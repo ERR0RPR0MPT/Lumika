@@ -88,32 +88,33 @@ func Verify(params *submitParams, f bool) error {
 	}
 	return nil
 }
-func submit(token string, params *submitParams) (*submitResponse, error) {
+func submit(token string, params *submitParams) (*submitResponse, []byte, error) {
 	paramsStr, _ := json.Marshal(params)
 	var client http.Client
 	req, _ := http.NewRequest("POST", "https://member.bilibili.com/x/vu/client/add?access_key="+token, bytes.NewBuffer(paramsStr))
 	req.Header = DefaultHeader
 	res, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	body, err := io.ReadAll(res.Body)
 	defer res.Body.Close()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	fmt.Println("成功提交视频并获取到原始数据:", string(body))
 	var t submitResponse
 	err = json.Unmarshal(body, &t)
 	if err != nil {
-		return nil, errors.New("B站返回的数据格式不正确" + string(body))
+		return nil, nil, errors.New("B站返回的数据格式不正确" + string(body))
 	}
 	if t.Code != 0 {
-		return &t, errors.New(string(body))
+		return &t, nil, errors.New(string(body))
 	}
-	return nil, nil
+	return nil, body, nil
 }
 
-func (b *Bilibili) Submit(v []*UploadRes) (interface{}, error) {
+func (b *Bilibili) Submit(v []*UploadRes) (bvid interface{}, err error) {
 	if b.Title == "" {
 		b.Title = v[0].Title
 	}
@@ -124,7 +125,7 @@ func (b *Bilibili) Submit(v []*UploadRes) (interface{}, error) {
 				b.Cover = ""
 				fmt.Printf("设置封面失败，原因：%s\n，使用b站自动生成封面", err.Error())
 			} else {
-				return nil, err
+				return "", err
 			}
 
 		}
@@ -134,7 +135,7 @@ func (b *Bilibili) Submit(v []*UploadRes) (interface{}, error) {
 				b.Cover = ""
 				fmt.Printf("设置封面失败，原因：%s\n，使用b站自动生成封面", err.Error())
 			} else {
-				return nil, err
+				return "", err
 			}
 
 		}
@@ -159,12 +160,12 @@ func (b *Bilibili) Submit(v []*UploadRes) (interface{}, error) {
 		},
 		Dtime: 0,
 	}
-	err := Verify(&params, b.CheckParams)
+	err = Verify(&params, b.CheckParams)
 	if err != nil {
 		if b.CheckParams {
 			fmt.Println(err)
 		} else {
-			return nil, err
+			return "", err
 		}
 	}
 	for i := range v {
@@ -175,11 +176,11 @@ func (b *Bilibili) Submit(v []*UploadRes) (interface{}, error) {
 		params.Videos = append(params.Videos, *v[i])
 	}
 	for i := 0; ; i++ {
-		rep, err := submit(b.User.AccessToken, &params)
+		rep, reqBody, err := submit(b.User.AccessToken, &params)
 		if err != nil {
 			if rep == nil {
 				if i == BilibiliMaxRetryTimes {
-					return nil, fmt.Errorf("已达到最大重试次数%s", err.Error())
+					return "", fmt.Errorf("已达到最大重试次数%s", err.Error())
 				}
 				fmt.Printf("第%d投稿过程中出现错误：%s,正在重试", i, err)
 				time.Sleep(time.Second * 5)
@@ -201,7 +202,7 @@ func (b *Bilibili) Submit(v []*UploadRes) (interface{}, error) {
 						fmt.Println("稿件数超过100,分开投稿")
 						_, err := b.Submit(v[:100])
 						if err != nil {
-							return nil, err
+							return "", err
 						}
 						time.Sleep(time.Minute)
 						params.Title = string([]rune(params.Title)[:utf8.RuneCountInString(params.Title)-1])
@@ -214,16 +215,12 @@ func (b *Bilibili) Submit(v []*UploadRes) (interface{}, error) {
 						time.Sleep(time.Minute)
 					}
 				} else {
-					return nil, err
+					return "", err
 				}
 			}
 		} else {
-			return &SubmitRes{
-				0,
-				"",
-			}, nil
+			return reqBody, nil
 		}
-
 	}
 }
 

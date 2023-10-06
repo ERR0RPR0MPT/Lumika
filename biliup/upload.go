@@ -361,7 +361,7 @@ func (b *Bilibili) FolderUpload(folder string) ([]*UploadRes, []UploadedFile, er
 	}
 	return submitFiles, uploadedFiles, nil
 }
-func UploadFolderWithSubmit(uploadPath string, Biliup Bilibili) ([]UploadedFile, error) {
+func UploadFolderWithSubmit(uploadPath string, Biliup Bilibili) (reqBody interface{}, uf []UploadedFile, err error) {
 	var submitFiles []*UploadRes
 	if !filepath.IsAbs(uploadPath) {
 		pwd, _ := os.Getwd()
@@ -371,14 +371,14 @@ func UploadFolderWithSubmit(uploadPath string, Biliup Bilibili) ([]UploadedFile,
 	submitFiles, uploadedFile, err := Biliup.FolderUpload(uploadPath)
 	if err != nil {
 		fmt.Printf("UploadFile file error:%s", err)
-		return nil, err
+		return "", nil, err
 	}
-	_, err = Biliup.Submit(submitFiles)
+	reqBody, err = Biliup.Submit(submitFiles)
 	if err != nil {
 		fmt.Printf("Submit file error:%s", err)
-		return nil, err
+		return "", nil, err
 	}
-	return uploadedFile, nil
+	return reqBody, uploadedFile, nil
 }
 
 func (b *Bilibili) GetBiliCoverUrl(base64 string) (string, error) {

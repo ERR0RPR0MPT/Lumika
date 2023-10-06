@@ -1,9 +1,11 @@
 package main
 
 import (
+	"embed"
 	"flag"
 	"fmt"
 	"github.com/ERR0RPR0MPT/Lumika/utils"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -11,7 +13,16 @@ import (
 	"strings"
 )
 
+//go:embed ui/*
+var uiFiles embed.FS
+
 func MainInit() {
+	UIFiles, err := fs.Sub(uiFiles, "ui")
+	if err != nil {
+		fmt.Println("静态文件加载失败:", err)
+		return
+	}
+	utils.UIFiles = UIFiles
 	est, err := os.Executable()
 	if err != nil {
 		utils.LogPrintln("", utils.InitStr, "工作目录获取失败")
@@ -93,7 +104,7 @@ func MainInit() {
 }
 
 func main() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
+	runtime.GOMAXPROCS(runtime.NumCPU() * utils.DefaultMaxConcurrencyTimes)
 	MainInit()
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stdout, "Usage: %s [command] [options]\n", os.Args[0])
@@ -207,7 +218,11 @@ func main() {
 			utils.LogPrintln("", utils.DeStr, utils.ErStr, "参数解析错误")
 			return
 		}
-		utils.Decode(*decodeInputDir, 0, nil, *decodeMGValue, *decodeKGValue, *decodeThread, "")
+		err = utils.Decode(*decodeInputDir, 0, nil, *decodeMGValue, *decodeKGValue, *decodeThread, "")
+		if err != nil {
+			utils.LogPrintln("", utils.DeStr, utils.ErStr, "解码失败:", err)
+			return
+		}
 		return
 	case "help":
 		flag.Usage()

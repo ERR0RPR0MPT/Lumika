@@ -6,7 +6,6 @@ main_old1.go.bak
 build.bat
 /lumika.exe
 /lumika_data
-/ui
 db.json
 /build_2.bat
 /biliuptest.go

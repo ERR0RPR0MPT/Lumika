@@ -45,7 +45,7 @@ func AddTaskWorker(id int) {
 		_, exist := AddTaskList[task.UUID]
 		if !exist {
 			LogPrintf(task.UUID, "AddTaskWorker %d 编码任务被用户删除\n", id)
-			return
+			continue
 		}
 		AddTaskList[task.UUID].Status = "正在执行"
 		AddTaskList[task.UUID].StatusMsg = "正在执行"
@@ -53,13 +53,13 @@ func AddTaskWorker(id int) {
 		_, exist = AddTaskList[task.UUID]
 		if !exist {
 			LogPrintf(task.UUID, "AddTaskWorker %d 编码任务被用户删除\n", id)
-			return
+			continue
 		}
 		if err != nil {
 			LogPrintf(task.UUID, "AddTaskWorker %d 编码任务执行失败\n", id)
 			AddTaskList[task.UUID].Status = "执行失败"
 			AddTaskList[task.UUID].StatusMsg = err.Error()
-			return
+			continue
 		}
 		AddTaskList[task.UUID].Status = "已完成"
 		AddTaskList[task.UUID].StatusMsg = "已完成"
