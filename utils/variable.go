@@ -8,7 +8,7 @@ import (
 
 const (
 	LumikaVersionNum                = 3
-	LumikaVersionString             = "v3.8.4"
+	LumikaVersionString             = "v3.8.5"
 	LumikaWorkDirName               = "lumika_data"
 	LumikaConfigFileName            = "lumika_config"
 	InitStr                         = "Init:"
