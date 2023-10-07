@@ -242,32 +242,35 @@ func BDl(AVOrBVStr string, parentDir, UUID string) error {
 				<-semaphore // 协程释放信号量
 				wg.Done()
 			}()
-			videoPlayURLResult, err := b.VideoGetPlayURL(aid, info.Pages[pi].CID, 16, 1)
-			if err != nil {
-				LogPrintln(UUID, BDlStr, "获取视频地址失败，跳过本分P视频")
-				return
-			}
-			durl := videoPlayURLResult.DURL[0].URL
-			videoName := strconv.Itoa(pi+1) + "-" + SuitableFileName + ".mp4"
-			filePath := filepath.Join(LumikaWorkDirPath, parentDir, SuitableDirName, videoName)
-			LogPrintln(UUID, BDlStr, "视频地址:", durl)
-			LogPrintln(UUID, BDlStr, "尝试下载视频...")
-			err = Dl(durl, filePath, DefaultBiliDownloadReferer, "", VarSettingsVariable.DefaultBiliDownloadGoRoutines, "")
-			if err != nil {
-				LogPrintln(UUID, BDlStr, "下载视频("+videoName+")失败，跳过本分P视频:", err)
-				return
-			}
-			if UUID != "" {
-				_, exist := BDlTaskList[UUID]
-				if exist {
-					// 为全局 ProgressRate 变量赋值
-					BDlTaskList[UUID].ProgressRate++
-					// 计算正确的 progressNum
-					BDlTaskList[UUID].ProgressNum = float64(BDlTaskList[UUID].ProgressRate) / float64(len(info.Pages)) * 100
-				} else {
-					LogPrintln(UUID, BDlStr, ErStr, "当前任务被用户删除", err)
-					return
+			for {
+				videoPlayURLResult, err := b.VideoGetPlayURL(aid, info.Pages[pi].CID, 16, 1)
+				if err != nil {
+					LogPrintln(UUID, BDlStr, "获取视频地址失败")
+					continue
 				}
+				durl := videoPlayURLResult.DURL[0].URL
+				videoName := strconv.Itoa(pi+1) + "-" + SuitableFileName + ".mp4"
+				filePath := filepath.Join(LumikaWorkDirPath, parentDir, SuitableDirName, videoName)
+				LogPrintln(UUID, BDlStr, "视频地址:", durl)
+				LogPrintln(UUID, BDlStr, "尝试下载视频...")
+				err = Dl(durl, filePath, DefaultBiliDownloadReferer, "", VarSettingsVariable.DefaultBiliDownloadGoRoutines, "")
+				if err != nil {
+					LogPrintln(UUID, BDlStr, "下载视频("+videoName+")失败，准备重试:", err)
+					continue
+				}
+				if UUID != "" {
+					_, exist := BDlTaskList[UUID]
+					if exist {
+						// 为全局 ProgressRate 变量赋值
+						BDlTaskList[UUID].ProgressRate++
+						// 计算正确的 progressNum
+						BDlTaskList[UUID].ProgressNum = float64(BDlTaskList[UUID].ProgressRate) / float64(len(info.Pages)) * 100
+					} else {
+						LogPrintln(UUID, BDlStr, ErStr, "当前任务被用户删除", err)
+						return
+					}
+				}
+				break
 			}
 		}(pi)
 	}

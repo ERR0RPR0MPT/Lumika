@@ -108,14 +108,31 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 	req.Header.Set("Referer", referer)
 	req.Header.Set("User-Agent", userAgent)
 
-	resp, err := client.Do(req)
-	if err != nil {
-		return &CommonError{Msg: err.Error()}
-	}
-	defer resp.Body.Close()
+	var totalSize int64
+	var threadSize int64
+	isOK := false
+	for di := 0; di < DefaultDlMaxRetries; di++ {
+		resp, err := client.Do(req)
+		if err != nil {
+			return &CommonError{Msg: err.Error()}
+		}
 
-	totalSize := resp.ContentLength
-	threadSize := totalSize / int64(numThreads)
+		statusCode := resp.StatusCode
+		if (statusCode/100) != 2 && (statusCode/100) != 3 {
+			LogPrintln(UUID, DlStr, "请求异常，出现非正常返回码:", statusCode, "，等待 1 秒后重试")
+			time.Sleep(time.Second)
+			continue
+		}
+
+		totalSize = resp.ContentLength
+		threadSize = totalSize / int64(numThreads)
+		resp.Body.Close()
+		isOK = true
+		break
+	}
+	if !isOK {
+		return &CommonError{Msg: "请求异常，出现非正常返回码"}
+	}
 
 	// 创建临时文件和线程信息
 	threads := make([]ThreadInfo, numThreads)
@@ -143,11 +160,12 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 
 	for i := 0; i < numThreads; i++ {
 		wg.Add(1)
-		go func(threadIndex int) {
+		proc := func(threadIndex int) error {
 			defer wg.Done()
 
 			// 重试机制
-			for di := 0; di < DefaultBiliDownloadMaxRetries; di++ {
+			isOK = false
+			for di := 0; di < DefaultDlMaxRetries; di++ {
 				thread := threads[threadIndex]
 
 				tempFile, err := os.Create(thread.tempFilePath)
@@ -158,7 +176,7 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 					if err != nil {
 						LogPrintln(UUID, DlStr, "尝试删除临时文件时出现错误，删除失败")
 						tempFile.Close()
-						return
+						return &CommonError{Msg: "尝试删除临时文件时出现错误，删除失败"}
 					}
 					continue
 				}
@@ -178,6 +196,13 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 				resp2, err := client.Do(req2)
 				if err != nil {
 					LogPrintln(UUID, DlStr, "下载中出现错误:", err)
+					continue
+				}
+
+				statusCode := resp2.StatusCode
+				if (statusCode/100) != 2 && (statusCode/100) != 3 {
+					LogPrintln(UUID, DlStr, "请求异常，出现非正常返回码:", statusCode, "，等待 1 秒后重试")
+					time.Sleep(time.Second)
 					continue
 				}
 
@@ -201,7 +226,12 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 				tempFile.Close()
 				resp2.Body.Close()
 				progressBar.Finish()
+				isOK = true
 				break
+			}
+
+			if !isOK {
+				return &CommonError{Msg: "请求异常，出现非正常返回码"}
 			}
 
 			if UUID != "" {
@@ -213,11 +243,15 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 					DlTaskList[UUID].ProgressNum = float64(DlTaskList[UUID].ProgressRate) / float64(numThreads) * 100
 				} else {
 					LogPrintln(UUID, DlStr, ErStr, "当前任务被用户删除", err)
-					return
+					return &CommonError{Msg: "当前任务被用户删除"}
 				}
 			}
-
+			return nil
 		}(i)
+		if proc != nil {
+			LogPrintln(UUID, DlStr, "下载中出现错误:", proc)
+			return proc
+		}
 	}
 
 	// 等待所有线程下载完成
@@ -258,7 +292,7 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 			return &CommonError{Msg: "从临时文件复制数据到目标文件时出现错误:" + err.Error()}
 		}
 
-		for di := 0; di < DefaultBiliDownloadMaxRetries; di++ {
+		for di := 0; di < 100; di++ {
 			tempFile.Close()
 			err = os.Remove(tempFile.Name())
 			if err != nil {

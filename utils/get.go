@@ -21,6 +21,7 @@ func AddGetTask(dirName string, decodeThread int, basestr string) {
 			DecodeThread: decodeThread,
 			BaseStr:      basestr,
 		},
+		Filename:     "",
 		ProgressRate: 0,
 		ProgressNum:  0,
 	}
@@ -39,7 +40,7 @@ func GetTaskWorker(id int) {
 		}
 		GetTaskList[task.UUID].Status = "正在执行"
 		GetTaskList[task.UUID].StatusMsg = "正在执行"
-		err := GetExec(filepath.Join(LumikaDecodePath, task.TaskInfo.DirName), task.TaskInfo.BaseStr, task.TaskInfo.DecodeThread, task.UUID)
+		outputFileName, err := GetExec(filepath.Join(LumikaDecodePath, task.TaskInfo.DirName), task.TaskInfo.BaseStr, task.TaskInfo.DecodeThread, task.UUID)
 		_, exist = GetTaskList[task.UUID]
 		if !exist {
 			LogPrintf(task.UUID, "GetTaskWorker %d 编码任务被用户删除\n", id)
@@ -53,6 +54,7 @@ func GetTaskWorker(id int) {
 		}
 		GetTaskList[task.UUID].Status = "已完成"
 		GetTaskList[task.UUID].StatusMsg = "已完成"
+		GetTaskList[task.UUID].Filename = outputFileName
 		GetTaskList[task.UUID].ProgressNum = 100.0
 	}
 }
@@ -129,7 +131,7 @@ func GetInput() {
 			return
 		}
 		base64Config = string(configBase64Bytes)
-		err = GetExec(fileDir, base64Config, decodeThread, "")
+		_, err = GetExec(fileDir, base64Config, decodeThread, "")
 		if err != nil {
 			LogPrintln("", GetStr, ErStr, "解码失败:", err)
 			return
@@ -137,7 +139,7 @@ func GetInput() {
 	}
 }
 
-func GetExec(fileDir string, base64Config string, decodeThread int, UUID string) error {
+func GetExec(fileDir string, base64Config string, decodeThread int, UUID string) (string, error) {
 	// 创建输出目录
 	fileOutputDir := filepath.Join(LumikaDecodeOutputPath, filepath.Base(fileDir))
 	if _, err := os.Stat(fileOutputDir); os.IsNotExist(err) {
@@ -145,7 +147,7 @@ func GetExec(fileDir string, base64Config string, decodeThread int, UUID string)
 		err = os.Mkdir(fileOutputDir, 0755)
 		if err != nil {
 			LogPrintln(UUID, DeStr, ErStr, "创建输出目录失败:", err)
-			return &CommonError{Msg: "创建输出目录失败:" + err.Error()}
+			return "", &CommonError{Msg: "创建输出目录失败:" + err.Error()}
 		}
 	}
 
@@ -153,25 +155,25 @@ func GetExec(fileDir string, base64Config string, decodeThread int, UUID string)
 	fecFileConfigJson, err := base64.StdEncoding.DecodeString(base64Config)
 	if err != nil {
 		LogPrintln(UUID, GetStr, ErStr, "解析 Base64 配置失败:", err)
-		return &CommonError{Msg: "解析 Base64 配置失败:" + err.Error()}
+		return "", &CommonError{Msg: "解析 Base64 配置失败:" + err.Error()}
 	}
 	err = json.Unmarshal(fecFileConfigJson, &fecFileConfig)
 	if err != nil {
 		LogPrintln(UUID, GetStr, ErStr, "解析 JSON 配置失败:", err)
-		return &CommonError{Msg: "解析 JSON 配置失败:" + err.Error()}
+		return "", &CommonError{Msg: "解析 JSON 配置失败:" + err.Error()}
 	}
 
 	// 检测是否与当前版本匹配
 	if fecFileConfig.Version != LumikaVersionNum {
 		LogPrintln(UUID, GetStr, ErStr, "错误: 版本不匹配，无法进行解码。编码文件版本:", fecFileConfig.Version, "当前版本:", LumikaVersionNum)
-		return &CommonError{Msg: "版本不匹配，无法进行解码。"}
+		return "", &CommonError{Msg: "版本不匹配，无法进行解码。"}
 	}
 
 	// 查找 .mp4 文件
 	fileDict, err := GenerateFileDxDictionary(fileDir, ".mp4")
 	if err != nil {
 		LogPrintln(UUID, GetStr, ErStr, "无法生成文件列表:", err)
-		return &CommonError{Msg: "无法生成文件列表:" + err.Error()}
+		return "", &CommonError{Msg: "无法生成文件列表:" + err.Error()}
 	}
 
 	LogPrintln(UUID, GetStr, "文件名:", fecFileConfig.Name)
@@ -194,7 +196,7 @@ func GetExec(fileDir string, base64Config string, decodeThread int, UUID string)
 	err = Decode(fileDir, fecFileConfig.SegmentLength, fileDictList, fecFileConfig.MG, fecFileConfig.KG, decodeThread, UUID)
 	if err != nil {
 		LogPrintln(UUID, GetStr, ErStr, "解码失败:", err)
-		return err
+		return "", err
 	}
 	LogPrintln(UUID, GetStr, "解码完成")
 
@@ -202,7 +204,7 @@ func GetExec(fileDir string, base64Config string, decodeThread int, UUID string)
 	fileDict, err = GenerateFileDxDictionary(fileOutputDir, ".fec")
 	if err != nil {
 		LogPrintln(UUID, GetStr, ErStr, "无法生成文件列表:", err)
-		return &CommonError{Msg: "无法生成文件列表:" + err.Error()}
+		return "", &CommonError{Msg: "无法生成文件列表:" + err.Error()}
 	}
 
 	// 遍历索引的 FecHashList
@@ -243,7 +245,7 @@ func GetExec(fileDir string, base64Config string, decodeThread int, UUID string)
 	enc, err := reedsolomon.New(fecFileConfig.K, fecFileConfig.M-fecFileConfig.K)
 	if err != nil {
 		LogPrintln(UUID, GetStr, ErStr, "无法构建RS解码器:", err)
-		return &CommonError{Msg: "无法构建RS解码器:" + err.Error()}
+		return "", &CommonError{Msg: "无法构建RS解码器:" + err.Error()}
 	}
 	shards := make([][]byte, fecFileConfig.M)
 	for i := range shards {
@@ -271,7 +273,7 @@ func GetExec(fileDir string, base64Config string, decodeThread int, UUID string)
 			if UUID == "" {
 				GetUserInput("请按回车键继续...")
 			}
-			return &CommonError{Msg: "恢复失败:" + err.Error()}
+			return "", &CommonError{Msg: "恢复失败:" + err.Error()}
 		}
 		ok, err = enc.Verify(shards)
 		if !ok {
@@ -280,7 +282,7 @@ func GetExec(fileDir string, base64Config string, decodeThread int, UUID string)
 			if UUID == "" {
 				GetUserInput("请按回车键继续...")
 			}
-			return &CommonError{Msg: "恢复失败，数据可能已损坏"}
+			return "", &CommonError{Msg: "恢复失败，数据可能已损坏"}
 		}
 		if err != nil {
 			LogPrintln(UUID, GetStr, ErStr, "恢复失败 -", err)
@@ -288,7 +290,7 @@ func GetExec(fileDir string, base64Config string, decodeThread int, UUID string)
 			if UUID == "" {
 				GetUserInput("请按回车键继续...")
 			}
-			return &CommonError{Msg: "恢复失败:" + err.Error()}
+			return "", &CommonError{Msg: "恢复失败:" + err.Error()}
 		}
 		LogPrintln(UUID, GetStr, "恢复成功")
 	}
@@ -296,18 +298,18 @@ func GetExec(fileDir string, base64Config string, decodeThread int, UUID string)
 	f, err := os.Create(filepath.Join(LumikaDecodeOutputPath, fecFileConfig.Name))
 	if err != nil {
 		LogPrintln(UUID, GetStr, ErStr, "创建文件失败:", err)
-		return &CommonError{Msg: "创建文件失败:" + err.Error()}
+		return "", &CommonError{Msg: "创建文件失败:" + err.Error()}
 	}
 	err = enc.Join(f, shards, len(shards[0])*fecFileConfig.K)
 	if err != nil {
 		LogPrintln(UUID, GetStr, ErStr, "写入文件失败:", err)
-		return &CommonError{Msg: "写入文件失败:" + err.Error()}
+		return "", &CommonError{Msg: "写入文件失败:" + err.Error()}
 	}
 	f.Close()
 	err = TruncateFile(fecFileConfig.Length, filepath.Join(LumikaDecodeOutputPath, fecFileConfig.Name))
 	if err != nil {
 		LogPrintln(UUID, GetStr, ErStr, "截断解码文件失败:", err)
-		return &CommonError{Msg: "截断解码文件失败:" + err.Error()}
+		return "", &CommonError{Msg: "截断解码文件失败:" + err.Error()}
 	}
 	zunfecEndTime := time.Now()
 	zunfecDuration := zunfecEndTime.Sub(zunfecStartTime)
@@ -328,5 +330,5 @@ func GetExec(fileDir string, base64Config string, decodeThread int, UUID string)
 		LogPrintln(UUID, GetStr, "文件成功解码")
 	}
 	LogPrintln(UUID, GetStr, "获取完成")
-	return nil
+	return fecFileConfig.Name, nil
 }

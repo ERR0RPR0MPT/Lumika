@@ -83,7 +83,7 @@ func UploadDecode(c *gin.Context) {
 }
 
 func GetFileFromURL(c *gin.Context) {
-	urla := c.PostForm("urla")
+	urla := c.PostForm("url")
 	if urla == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "URL 不能为空"})
 		return

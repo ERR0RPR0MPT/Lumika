@@ -8,7 +8,7 @@ import (
 
 const (
 	LumikaVersionNum                = 3
-	LumikaVersionString             = "v3.8.3"
+	LumikaVersionString             = "v3.8.4"
 	LumikaWorkDirName               = "lumika_data"
 	LumikaConfigFileName            = "lumika_config"
 	InitStr                         = "Init:"
@@ -38,7 +38,7 @@ const (
 	DefaultBlankEndByte             = 87
 	DefaultDeleteFecFiles           = true
 	DefaultBiliDownloadReferer      = "https://www.bilibili.com"
-	DefaultBiliDownloadMaxRetries   = 100
+	DefaultDlMaxRetries             = 3
 	DefaultWebServerDebugMode       = false
 	DefaultWebServerHost            = ""
 	DefaultWebServerPort            = 7860
@@ -203,6 +203,7 @@ type GetTaskListData struct {
 	TaskInfo     *GetTaskInfo `json:"taskInfo"`
 	LogCat       string       `json:"logCat"`
 	IsPaused     bool         `json:"isPaused"`
+	Filename     string       `json:"filename"`
 	ProgressRate int          `json:"progressRate"`
 	ProgressNum  float64      `json:"progressNum"`
 	Status       string       `json:"status"`
