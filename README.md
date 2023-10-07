@@ -34,8 +34,6 @@ apt install ffmpeg
 
 ## 示例
 
-下面两家都是默认 2 vCPU，注意使用的时候线程不要开太高了，否则在解码大文件会出现部分依赖的进程无法启动的情况.
-
 ### HuggingFace Space
 
 这是项目最新版本的运行示例，部署在 HuggingFace Space，各项功能可正常使用.
@@ -44,7 +42,11 @@ apt install ffmpeg
 
 ### Colab
 
-[点此进入]()
+[点此进入](https://colab.research.google.com/drive/1ZBJPPmn4hMF1PLD075vBPBud1G2hvm0D?usp=sharing)
+
+### 百度飞桨
+
+[点此进入](https://aistudio.baidu.com/projectdetail/6844423?contributionType=1&sUid=2316552&shared=1&ts=1696704155060)
 
 ## 哔哩源
 
