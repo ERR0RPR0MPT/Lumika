@@ -8,7 +8,6 @@ import (
 	"github.com/klauspost/reedsolomon"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -81,7 +80,7 @@ func AddTaskWorkerInit() {
 		}
 	}
 	// 启动多个 AddTaskWorker 协程来处理任务
-	for i := 0; i < DefaultTaskWorkerGoRoutines; i++ {
+	for i := 0; i < VarSettingsVariable.DefaultTaskWorkerGoRoutines; i++ {
 		go AddTaskWorker(i)
 	}
 }
@@ -252,15 +251,15 @@ func AddInput() {
 	}
 
 	// 设置处理使用的线程数量
-	LogPrintln("", AddStr, "请输入处理使用的线程数量。默认(CPU核心数量)：\""+strconv.Itoa(runtime.NumCPU())+"\"")
+	LogPrintln("", AddStr, "请输入处理使用的线程数量。默认(CPU核心数量)：\""+strconv.Itoa(VarSettingsVariable.DefaultMaxThreads)+"\"")
 	encodeThread, err := strconv.Atoi(GetUserInput(""))
 	if err != nil {
-		LogPrintln("", AddStr, "自动设置处理使用的线程数量为", runtime.NumCPU())
-		encodeThread = runtime.NumCPU()
+		LogPrintln("", AddStr, "自动设置处理使用的线程数量为", VarSettingsVariable.DefaultMaxThreads)
+		encodeThread = VarSettingsVariable.DefaultMaxThreads
 	}
 	if encodeThread <= 0 {
-		LogPrintln("", AddStr, ErStr, "错误: 处理使用的线程数量不能小于等于 0，自动设置处理使用的线程数量为", runtime.NumCPU())
-		encodeThread = runtime.NumCPU()
+		LogPrintln("", AddStr, ErStr, "错误: 处理使用的线程数量不能小于等于 0，自动设置处理使用的线程数量为", VarSettingsVariable.DefaultMaxThreads)
+		encodeThread = VarSettingsVariable.DefaultMaxThreads
 	}
 
 	// 设置默认的摘要

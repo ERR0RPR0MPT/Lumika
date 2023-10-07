@@ -8,7 +8,7 @@ import (
 
 const (
 	LumikaVersionNum                = 3
-	LumikaVersionString             = "v3.8.2"
+	LumikaVersionString             = "v3.8.3"
 	LumikaWorkDirName               = "lumika_data"
 	LumikaConfigFileName            = "lumika_config"
 	InitStr                         = "Init:"
@@ -37,19 +37,17 @@ const (
 	DefaultBlankStartByte           = 86
 	DefaultBlankEndByte             = 87
 	DefaultDeleteFecFiles           = true
-	DefaultBiliDownloadGoRoutines   = 16
-	DefaultBiliDownloadsMaxQueueNum = 5
-	DefaultTaskWorkerGoRoutines     = 5
-	DefaultBiliDownloadMaxRetries   = 100
 	DefaultBiliDownloadReferer      = "https://www.bilibili.com"
-	DefaultUserAgent                = "Mozilla/5.0 (Windows NT 10.0; WOW64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.5666.197 Safari/537.36"
+	DefaultBiliDownloadMaxRetries   = 100
 	DefaultWebServerDebugMode       = false
 	DefaultWebServerHost            = ""
 	DefaultWebServerPort            = 7860
 	DefaultWebServerRandomPortMin   = 10000
 	DefaultWebServerRandomPortMax   = 65535
+	DefaultBiliDownloadGoRoutines   = 16
+	DefaultBiliDownloadsMaxQueueNum = 5
+	DefaultTaskWorkerGoRoutines     = 5
 	DefaultDbCrontabSeconds         = 10
-	DefaultMaxConcurrencyTimes      = 16
 )
 
 var (
@@ -59,7 +57,7 @@ var (
 	LumikaDecodePath       string
 	LumikaEncodeOutputPath string
 	LumikaDecodeOutputPath string
-	UIFiles                fs.FS
+	UISubFiles             fs.FS
 )
 
 type CommonError struct {
@@ -76,6 +74,15 @@ type Database struct {
 	AddTaskList map[string]*AddTaskListData `json:"addTaskList"`
 	GetTaskList map[string]*GetTaskListData `json:"getTaskList"`
 	BUlTaskList map[string]*BUlTaskListData `json:"bUlTaskList"`
+	VarSettings *VarSettings                `json:"VarSettingsVariable"`
+}
+
+type VarSettings struct {
+	DefaultMaxThreads               int `json:"defaultMaxThreads"`
+	DefaultBiliDownloadGoRoutines   int `json:"defaultBiliDownloadGoRoutines"`
+	DefaultBiliDownloadsMaxQueueNum int `json:"defaultBiliDownloadsMaxQueueNum"`
+	DefaultTaskWorkerGoRoutines     int `json:"defaultTaskWorkerGoRoutines"`
+	DefaultDbCrontabSeconds         int `json:"defaultDbCrontabSeconds"`
 }
 
 type FecFileConfig struct {
@@ -109,6 +116,7 @@ type FileInfo struct {
 }
 
 type SystemResourceUsage struct {
+	OSName               string  `json:"osName"`
 	CpuUsagePercent      float64 `json:"cpuUsagePercent"`
 	MemUsagePercent      float64 `json:"memUsagePercent"`
 	DiskUsagePercent     float64 `json:"diskUsagePercent"`
@@ -223,6 +231,8 @@ type BUlTaskListData struct {
 }
 
 var database Database
+
+var VarSettingsVariable VarSettings
 
 var LogVariable strings.Builder
 

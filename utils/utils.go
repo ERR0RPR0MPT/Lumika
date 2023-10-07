@@ -750,6 +750,7 @@ func GetSystemResourceUsage() (*SystemResourceUsage, error) {
 		}
 	}
 	usage := &SystemResourceUsage{
+		OSName:               runtime.GOOS,
 		CpuUsagePercent:      percent[0],
 		MemUsagePercent:      memInfo.UsedPercent,
 		DiskUsagePercent:     diskInfo.UsedPercent,
@@ -814,8 +815,8 @@ func GetNetworkSpeed(interfaceName string) (string, string, error) {
 	// 获取当前时间
 	startTime := time.Now()
 
-	// 等待一段时间（例如1秒）
-	time.Sleep(time.Second)
+	// 等待一段时间
+	time.Sleep(time.Millisecond * 50)
 
 	// 获取当前网络接口的统计信息
 	netIOCounter, err := psnet.IOCounters(true)

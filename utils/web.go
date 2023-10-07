@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"time"
 )
@@ -100,11 +99,11 @@ func GetFileFromURL(c *gin.Context) {
 	}
 	DownloadThreadNumInputData := c.PostForm("DownloadThreadNumInputData")
 	LogPrintln("", "读取到 DownloadThreadNumInputData:", DownloadThreadNumInputData)
-	gor := DefaultBiliDownloadGoRoutines
+	gor := VarSettingsVariable.DefaultBiliDownloadGoRoutines
 	gors, err := strconv.Atoi(DownloadThreadNumInputData)
 	if err != nil {
 		if DownloadThreadNumInputData == "" {
-			gors = DefaultBiliDownloadGoRoutines
+			gors = VarSettingsVariable.DefaultBiliDownloadGoRoutines
 		} else {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "线程参数错误"})
 			return
@@ -115,7 +114,7 @@ func GetFileFromURL(c *gin.Context) {
 	}
 	fileName = ReplaceInvalidCharacters(fileName, '-')
 	filePath := filepath.Join(LumikaWorkDirPath, parentDir, fileName)
-	go DlAddTask(urla, filePath, "", DefaultUserAgent, gor)
+	go DlAddTask(urla, filePath, "", "", gor)
 	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("成功添加下载任务: %s, 使用线程数: %d", fileName, gor)})
 }
 
@@ -214,8 +213,8 @@ func AddEncodeTask(c *gin.Context) {
 		ed.EncodeMaxSeconds = EncodeMaxSecondsLevel
 	}
 	if ed.EncodeThread <= 0 {
-		LogPrintln("", AddStr, ErStr, "错误: 处理使用的线程数量不能小于等于 0，自动设置处理使用的线程数量为", runtime.NumCPU())
-		ed.EncodeThread = runtime.NumCPU()
+		LogPrintln("", AddStr, ErStr, "错误: 处理使用的线程数量不能小于等于 0，自动设置处理使用的线程数量为", VarSettingsVariable.DefaultMaxThreads)
+		ed.EncodeThread = VarSettingsVariable.DefaultMaxThreads
 	}
 	go AddAddTask(ed.FileNameList, ed.DefaultM, ed.DefaultK, ed.MGValue, ed.KGValue, ed.VideoSize, ed.OutputFPS, ed.EncodeMaxSeconds, ed.EncodeThread, ed.EncodeFFmpegMode, ed.DefaultSummary)
 	c.JSON(http.StatusOK, gin.H{"msg": fmt.Sprintf("成功添加编码任务")})
@@ -240,8 +239,8 @@ func AddDecodeTask(c *gin.Context) {
 		return
 	}
 	if ed.DecodeThread <= 0 {
-		LogPrintln("", AddStr, ErStr, "错误: 处理使用的线程数量不能小于等于 0，自动设置处理使用的线程数量为", runtime.NumCPU())
-		ed.DecodeThread = runtime.NumCPU()
+		LogPrintln("", AddStr, ErStr, "错误: 处理使用的线程数量不能小于等于 0，自动设置处理使用的线程数量为", VarSettingsVariable.DefaultMaxThreads)
+		ed.DecodeThread = VarSettingsVariable.DefaultMaxThreads
 	}
 	go AddGetTask(ed.DirName, ed.DecodeThread, ed.BaseStr)
 	c.JSON(http.StatusOK, gin.H{"msg": fmt.Sprintf("成功添加解码任务")})
@@ -649,6 +648,41 @@ func GetVersion(c *gin.Context) {
 	return
 }
 
+func SetVarSettingsConfig(c *gin.Context) {
+	var vs *VarSettings
+	if err := c.ShouldBindJSON(&vs); err != nil {
+		c.JSON(400, gin.H{"msg": "SetVarSettingsConfig JSON 解析错误", "error": err.Error()})
+		return
+	}
+	if vs.DefaultMaxThreads <= 0 {
+		c.JSON(400, gin.H{"msg": "SetVarSettingsConfig: DefaultMaxThreads 参数错误，任务创建失败"})
+		return
+	}
+	if vs.DefaultBiliDownloadGoRoutines <= 0 {
+		c.JSON(400, gin.H{"msg": "SetVarSettingsConfig: DefaultBiliDownloadGoRoutines 参数错误，任务创建失败"})
+		return
+	}
+	if vs.DefaultBiliDownloadsMaxQueueNum <= 0 {
+		c.JSON(400, gin.H{"msg": "SetVarSettingsConfig: DefaultBiliDownloadsMaxQueueNum 参数错误，任务创建失败"})
+		return
+	}
+	if vs.DefaultTaskWorkerGoRoutines <= 0 {
+		c.JSON(400, gin.H{"msg": "SetVarSettingsConfig: DefaultTaskWorkerGoRoutines 参数错误，任务创建失败"})
+		return
+	}
+	if vs.DefaultDbCrontabSeconds <= 0 {
+		c.JSON(400, gin.H{"msg": "SetVarSettingsConfig: DefaultDbCrontabSeconds 参数错误，任务创建失败"})
+		return
+	}
+	VarSettingsVariable = *vs
+	c.JSON(http.StatusOK, gin.H{"msg": fmt.Sprintf("成功修改设置")})
+}
+
+func GetVarSettingsConfig(c *gin.Context) {
+	c.JSON(http.StatusOK, VarSettingsVariable)
+	return
+}
+
 func TaskWorkerInit() {
 	DlTaskWorkerInit()
 	BDlTaskWorkerInit()
@@ -657,7 +691,7 @@ func TaskWorkerInit() {
 	BUlTaskWorkerInit()
 }
 
-func WebServerInit() {
+func WebServerInit(host string, port int) {
 	DbInit()
 	TaskWorkerInit()
 	if !DefaultWebServerDebugMode {
@@ -669,7 +703,7 @@ func WebServerInit() {
 	r.GET("/", func(c *gin.Context) {
 		c.Redirect(http.StatusFound, "/ui")
 	})
-	r.StaticFS("/ui", http.FS(UIFiles))
+	r.StaticFS("/ui", http.FS(UISubFiles))
 	r.POST("/api/upload/encode", UploadEncode)
 	r.POST("/api/upload/decode", UploadDecode)
 	r.POST("/api/get-file-from-url", GetFileFromURL)
@@ -702,8 +736,10 @@ func WebServerInit() {
 	r.GET("/api/bilibili/qrcode", GetBilibiliQRCode)
 	r.GET("/api/bilibili/poll/:ac", GetBilibiliPoll)
 	r.GET("/api/version", GetVersion)
+	r.POST("/api/set-var-settings-config", SetVarSettingsConfig)
+	r.GET("/api/get-var-settings-config", GetVarSettingsConfig)
 
-	p := DefaultWebServerPort
+	p := port
 	for {
 		if CheckPort(p) {
 			LogPrintln("", WebStr, p, "端口已被占用")
@@ -714,16 +750,16 @@ func WebServerInit() {
 		}
 		break
 	}
-	LogPrintln("", WebStr, "Web Server 在端口 "+strconv.Itoa(p)+" 上监听")
-	LogPrintln("", WebStr, "尝试访问管理面板: http://127.0.0.1:"+strconv.Itoa(p)+"/ui/")
-	err := r.Run(DefaultWebServerHost + ":" + strconv.Itoa(p))
+	LogPrintln("", WebStr, "Web Server 在 "+host+":"+strconv.Itoa(p)+" 上监听")
+	LogPrintln("", WebStr, "尝试访问管理面板: http://localhost:"+strconv.Itoa(p)+"/ui/")
+	err := r.Run(host + ":" + strconv.Itoa(p))
 	if err != nil {
 		LogPrintln("", WebStr, "Web Server 启动失败：", err)
 		return
 	}
 }
 
-func WebServer() {
-	WebServerInit()
+func WebServer(host string, port int) {
+	WebServerInit(host, port)
 	<-make(chan int)
 }

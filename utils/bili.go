@@ -116,7 +116,7 @@ func BUlTaskWorkerInit() {
 		}
 	}
 	// 启动多个 BUlTaskWorker 协程来处理任务
-	for i := 0; i < DefaultTaskWorkerGoRoutines; i++ {
+	for i := 0; i < VarSettingsVariable.DefaultTaskWorkerGoRoutines; i++ {
 		go BUlTaskWorker(i)
 	}
 }
@@ -135,7 +135,7 @@ func BDlTaskWorkerInit() {
 		}
 	}
 	// 启动多个 BDlTaskWorker 协程来处理任务
-	for i := 0; i < DefaultTaskWorkerGoRoutines; i++ {
+	for i := 0; i < VarSettingsVariable.DefaultTaskWorkerGoRoutines; i++ {
 		go BDlTaskWorker(i)
 	}
 }
@@ -231,7 +231,7 @@ func BDl(AVOrBVStr string, parentDir, UUID string) error {
 	LogPrintln(UUID, BDlStr, "遍历所有分 P ...")
 	// 启动多个goroutine
 	var wg sync.WaitGroup
-	semaphore := make(chan struct{}, DefaultBiliDownloadsMaxQueueNum)
+	semaphore := make(chan struct{}, VarSettingsVariable.DefaultBiliDownloadsMaxQueueNum)
 	allStartTime := time.Now()
 	for pi := range info.Pages {
 		LogPrintln(UUID, BDlStr, "尝试获取 "+strconv.Itoa(pi+1)+"P 的视频地址...")
@@ -252,7 +252,7 @@ func BDl(AVOrBVStr string, parentDir, UUID string) error {
 			filePath := filepath.Join(LumikaWorkDirPath, parentDir, SuitableDirName, videoName)
 			LogPrintln(UUID, BDlStr, "视频地址:", durl)
 			LogPrintln(UUID, BDlStr, "尝试下载视频...")
-			err = Dl(durl, filePath, DefaultBiliDownloadReferer, DefaultUserAgent, DefaultBiliDownloadGoRoutines, "")
+			err = Dl(durl, filePath, DefaultBiliDownloadReferer, "", VarSettingsVariable.DefaultBiliDownloadGoRoutines, "")
 			if err != nil {
 				LogPrintln(UUID, BDlStr, "下载视频("+videoName+")失败，跳过本分P视频:", err)
 				return

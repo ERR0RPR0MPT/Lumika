@@ -32,13 +32,31 @@ apt install ffmpeg
 
 项目默认启动 Lumika Web 作为前端页面，使用默认的本地地址 `http://localhost:7860/ui/` 进行访问.
 
-### 示例
+## 示例
 
-这是项目的运行示例，部署在 HuggingFace Space，各项功能正常使用：[https://weclont-lumika.hf.space/ui/#/](https://weclont-lumika.hf.space/ui/#/)
+下面两家都是默认 2 vCPU，注意使用的时候线程不要开太高了，否则在解码大文件会出现部分依赖的进程无法启动的情况.
+
+### HuggingFace Space
+
+这是项目最新版本的运行示例，部署在 HuggingFace Space，各项功能可正常使用.
+
+[点此进入](https://weclont-lumika.hf.space/ui/#/)
+
+### Colab
+
+[点此进入]()
 
 ## 哔哩源
 
 项目目前支持哔哩哔哩的视频下载和上传，用户可以方便地通过本项目在哔哩源上存取文件/资源.
+
+> 项目前端页面为避免出现 CORS 跨域问题，需要由后端转发登录请求.
+> 
+> 所有数据经过转发之后不会在后端留存，Cookies 会在登录后自动保存到浏览器的 localStorage 中.
+> 
+> 需要注意的是：在任务上传后，虽然用户在前端无法读取 Cookies，但后端的管理者可以在 db.json 读取明文的 Cookies.
+> 
+> 因此请选择可信任的后端来将任务上传到哔哩源，或者自行搭建后端.
 
 不久的将来可能会支持 YouTube.
 

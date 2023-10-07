@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	browser "github.com/EDDYCJY/fake-useragent"
 	"github.com/cheggaaa/pb/v3"
 	"github.com/google/uuid"
 	"io"
@@ -87,14 +88,14 @@ func DlTaskWorkerInit() {
 		}
 	}
 	// 启动多个 DlTaskWorker 协程来处理任务
-	for i := 0; i < DefaultTaskWorkerGoRoutines; i++ {
+	for i := 0; i < VarSettingsVariable.DefaultTaskWorkerGoRoutines; i++ {
 		go DlTaskWorker(i)
 	}
 }
 
 func Dl(url string, filePath string, referer string, userAgent string, numThreads int, UUID string) error {
 	if userAgent == "" {
-		userAgent = DefaultUserAgent
+		userAgent = browser.Random()
 	}
 
 	client := &http.Client{}

@@ -3,7 +3,6 @@ package utils
 import (
 	"fmt"
 	"os"
-	"runtime"
 )
 
 func AutoRun() {
@@ -32,7 +31,7 @@ func AutoRun() {
 			break
 		} else if input == "3" {
 			clearScreen()
-			_, err := Encode("", EncodeVideoSizeLevel, EncodeOutputFPSLevel, EncodeMaxSecondsLevel, AddMGLevel, AddKGLevel, runtime.NumCPU(), EncodeFFmpegModeLevel, false, "")
+			_, err := Encode("", EncodeVideoSizeLevel, EncodeOutputFPSLevel, EncodeMaxSecondsLevel, AddMGLevel, AddKGLevel, VarSettingsVariable.DefaultMaxThreads, EncodeFFmpegModeLevel, false, "")
 			if err != nil {
 				LogPrintln("", ArStr, ErStr, "错误: 编码失败:", err)
 				break
@@ -40,7 +39,7 @@ func AutoRun() {
 			break
 		} else if input == "4" {
 			clearScreen()
-			err := Decode("", 0, nil, AddMGLevel, AddKGLevel, runtime.NumCPU(), "")
+			err := Decode("", 0, nil, AddMGLevel, AddKGLevel, VarSettingsVariable.DefaultMaxThreads, "")
 			if err != nil {
 				LogPrintln("", ArStr, ErStr, "错误: 解码失败:", err)
 				return

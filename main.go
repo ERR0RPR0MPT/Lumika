@@ -14,15 +14,15 @@ import (
 )
 
 //go:embed ui/*
-var uiFiles embed.FS
+var UIFiles embed.FS
 
 func MainInit() {
-	UIFiles, err := fs.Sub(uiFiles, "ui")
+	UISubFiles, err := fs.Sub(UIFiles, "ui")
 	if err != nil {
 		fmt.Println("静态文件加载失败:", err)
 		return
 	}
-	utils.UIFiles = UIFiles
+	utils.UISubFiles = UISubFiles
 	est, err := os.Executable()
 	if err != nil {
 		utils.LogPrintln("", utils.InitStr, "工作目录获取失败")
@@ -104,18 +104,20 @@ func MainInit() {
 }
 
 func main() {
-	runtime.GOMAXPROCS(runtime.NumCPU() * utils.DefaultMaxConcurrencyTimes)
+	runtime.GOMAXPROCS(runtime.NumCPU())
 	MainInit()
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stdout, "Usage: %s [command] [options]\n", os.Args[0])
 		fmt.Fprintln(os.Stdout, "\nLumika", utils.LumikaVersionString)
 		fmt.Fprintln(os.Stdout, "Double-click to run: Start via automatic mode")
 		fmt.Fprintln(os.Stdout, "\nCommands:")
-		fmt.Fprintln(os.Stdout, "version\tLumika version.")
+		fmt.Fprintln(os.Stdout, "version\tOutput Lumika version.")
+		fmt.Fprintln(os.Stdout, "web\tStart Lumika Backend and Lumika Web Server, default listen on :7860.")
+		fmt.Fprintln(os.Stdout, " Options:")
+		fmt.Fprintln(os.Stdout, " -h\tThe host to listen on(default=\"\")")
+		fmt.Fprintln(os.Stdout, " -p\tThe port to listen on(default=7860)")
 		fmt.Fprintln(os.Stdout, "add\tUsing FFmpeg to encode zfec redundant files into .mp4 FEC video files that appear less harmful.")
 		fmt.Fprintln(os.Stdout, "get\tUsing FFmpeg to decode .mp4 FEC video files into the original files.")
-		fmt.Fprintln(os.Stdout, " Options:")
-		fmt.Fprintln(os.Stdout, " -b\tThe Base64 encoded JSON included message to provide decode")
 		fmt.Fprintln(os.Stdout, "encode\tEncode a file")
 		fmt.Fprintln(os.Stdout, " Options:")
 		fmt.Fprintln(os.Stdout, " -i\tThe input fec file to encode")
@@ -140,14 +142,14 @@ func main() {
 	encodeMaxSeconds := encodeFlag.Int("l", utils.EncodeMaxSecondsLevel, "The output video max segment length(seconds) setting(default="+strconv.Itoa(utils.EncodeMaxSecondsLevel)+"), 1-10^9")
 	encodeMGValue := encodeFlag.Int("g", utils.AddMGLevel, "The output video frame all shards(default="+strconv.Itoa(utils.AddMGLevel)+"), 2-256")
 	encodeKGValue := encodeFlag.Int("k", utils.AddKGLevel, "The output video frame data shards(default="+strconv.Itoa(utils.AddKGLevel)+"), 2-256")
-	encodeThread := encodeFlag.Int("t", runtime.NumCPU(), "Set Runtime Go routines number to process the task(default="+strconv.Itoa(runtime.NumCPU())+"), 1-128")
+	encodeThread := encodeFlag.Int("t", utils.VarSettingsVariable.DefaultMaxThreads, "Set Runtime Go routines number to process the task(default="+strconv.Itoa(runtime.NumCPU())+"), 1-128")
 	encodeFFmpegMode := encodeFlag.String("m", utils.EncodeFFmpegModeLevel, "FFmpeg mode(default="+utils.EncodeFFmpegModeLevel+"): ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow, placebo")
 
 	decodeFlag := flag.NewFlagSet("decode", flag.ExitOnError)
 	decodeInputDir := decodeFlag.String("i", "", "The input dir include video segments to decode")
 	decodeMGValue := decodeFlag.Int("m", utils.AddMGLevel, "The output video frame all shards(default="+strconv.Itoa(utils.AddMGLevel)+"), 2-256")
 	decodeKGValue := decodeFlag.Int("k", utils.AddKGLevel, "The output video frame data shards(default="+strconv.Itoa(utils.AddKGLevel)+"), 2-256")
-	decodeThread := decodeFlag.Int("t", runtime.NumCPU(), "Set Runtime Go routines number to process the task(default="+strconv.Itoa(runtime.NumCPU())+"), 1-128")
+	decodeThread := decodeFlag.Int("t", utils.VarSettingsVariable.DefaultMaxThreads, "Set Runtime Go routines number to process the task(default="+strconv.Itoa(runtime.NumCPU())+"), 1-128")
 
 	addFlag := flag.NewFlagSet("add", flag.ExitOnError)
 
@@ -155,11 +157,23 @@ func main() {
 
 	dlFlag := flag.NewFlagSet("dl", flag.ExitOnError)
 
+	webFlag := flag.NewFlagSet("web", flag.ExitOnError)
+	webHost := webFlag.String("h", utils.DefaultWebServerHost, "The host to listen on")
+	webPort := webFlag.Int("p", utils.DefaultWebServerPort, "The port to listen on")
+
 	if len(os.Args) < 2 {
-		utils.WebServer()
+		utils.WebServer(utils.DefaultWebServerHost, utils.DefaultWebServerPort)
 		return
 	}
 	switch os.Args[1] {
+	case "web":
+		err := webFlag.Parse(os.Args[2:])
+		if err != nil {
+			utils.LogPrintln("", utils.WebStr, utils.ErStr, "参数解析错误")
+			return
+		}
+		utils.WebServer(*webHost, *webPort)
+		return
 	case "a":
 		utils.AutoRun()
 		utils.PressEnterToContinue()
