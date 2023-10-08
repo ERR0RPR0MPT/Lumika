@@ -3,8 +3,10 @@ package utils
 import (
 	"fmt"
 	"github.com/ERR0RPR0MPT/Lumika/biliup"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"io"
+	"math"
 	"math/rand"
 	"mime"
 	"net/http"
@@ -698,7 +700,15 @@ func WebServerInit(host string, port int) {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	r := gin.Default()
-	r.MaxMultipartMemory = 8 << 20
+	r.MaxMultipartMemory = math.MaxInt64
+
+	config := cors.DefaultConfig()
+	config.AllowOrigins = []string{"*"}
+	config.AllowMethods = []string{"*"}
+	config.AllowHeaders = []string{"*"}
+	config.AllowAllOrigins = true
+	config.AllowCredentials = true
+	config.MaxAge = time.Hour * 8760
 
 	r.GET("/", func(c *gin.Context) {
 		c.Redirect(http.StatusFound, "/ui")
