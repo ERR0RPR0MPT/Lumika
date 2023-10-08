@@ -12,7 +12,8 @@ RUN apt update && \
         cd /app && \
         rm -rf /temp && \
         chmod 777 /app && \
-        chmod a+x /app/lumika
+        chmod a+x /app/lumika && \
+        sleep 1
 
 WORKDIR /app
 
