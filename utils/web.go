@@ -3,7 +3,6 @@ package utils
 import (
 	"fmt"
 	"github.com/ERR0RPR0MPT/Lumika/biliup"
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"io"
 	"math/rand"
@@ -298,6 +297,40 @@ func DeleteFileFromAPI(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "文件删除成功"})
 		return
 	}
+}
+
+func ReNameFileFromAPI(c *gin.Context) {
+	dir := c.PostForm("dir")
+	if dir != "encode" && dir != "encodeOutput" && dir != "decode" && dir != "decodeOutput" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "dir 参数错误：请指定正确的目录"})
+		return
+	}
+	originName := c.PostForm("originName")
+	if originName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "originName 参数错误：请输入正确的文件/目录名"})
+		return
+	}
+	name := c.PostForm("name")
+	if name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "originName 参数错误：请输入正确的文件/目录名"})
+		return
+	}
+	originFilePath := filepath.Join(LumikaWorkDirPath, dir, originName)
+	filePath := filepath.Join(LumikaWorkDirPath, dir, name)
+	if _, err := os.Stat(originFilePath); os.IsNotExist(err) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "originName 的文件/目录不存在"})
+		return
+	}
+	if _, err := os.Stat(filePath); os.IsExist(err) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "name 的文件/目录已经存在，请换个名称"})
+		return
+	}
+	err := os.Rename(originFilePath, filePath)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "重命名失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "重命名成功"})
 }
 
 func DownloadFileFromAPI(c *gin.Context) {
@@ -693,6 +726,22 @@ func TaskWorkerInit() {
 	BUlTaskWorkerInit()
 }
 
+func Cors() gin.HandlerFunc {
+	return func(context *gin.Context) {
+		method := context.Request.Method
+		context.Header("Access-Control-Allow-Origin", "*")
+		context.Header("Access-Control-Allow-Headers", "*")
+		context.Header("Access-Control-Allow-Methods", "*")
+		context.Header("Access-Control-Expose-Headers", "*")
+		context.Header("Access-Control-Allow-Credentials", "true")
+		// 允许放行OPTIONS请求
+		if method == "OPTIONS" {
+			context.AbortWithStatus(http.StatusNoContent)
+		}
+		context.Next()
+	}
+}
+
 func WebServerInit(host string, port int) {
 	DbInit()
 	TaskWorkerInit()
@@ -701,14 +750,7 @@ func WebServerInit(host string, port int) {
 	}
 	r := gin.Default()
 	r.MaxMultipartMemory = 8 << 20
-
-	config := cors.DefaultConfig()
-	config.AllowMethods = []string{"*"}
-	config.AllowHeaders = []string{"*"}
-	config.AllowAllOrigins = true
-	config.AllowCredentials = true
-	config.MaxAge = time.Hour * 8760
-	r.Use(cors.New(config))
+	r.Use(Cors())
 
 	r.GET("/", func(c *gin.Context) {
 		c.Redirect(http.StatusFound, "/ui")
@@ -726,6 +768,7 @@ func WebServerInit(host string, port int) {
 	r.GET("/api/get-get-task-list", GetGetTaskList)
 	r.GET("/api/get-logcat", GetLogCat)
 	r.POST("/api/delete-file", DeleteFileFromAPI)
+	r.POST("/api/rename-file", ReNameFileFromAPI)
 	r.GET("/api/dl/:dir/:file", DownloadFileFromAPI)
 	r.GET("/api/clear-logcat", ClearLogCat)
 	r.GET("/api/clear-dl-task-list", ClearDlTaskList)

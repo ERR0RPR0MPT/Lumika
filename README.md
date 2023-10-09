@@ -36,6 +36,8 @@ apt install ffmpeg
 
 现在你可以直接在 Android 上运行 Lumika 内核。请见 [ERR0RPR0MPT/lumika-android](https://github.com/ERR0RPR0MPT/lumika-android)
 
+> 目前 Lumika Android 处于测试阶段，可能无法正常运行 Lumika 内核(主要包括 FFmpeg 调用问题和 DNS 解析问题). 目前的用途是可以为 Android 适配一个带 UI 的客户端.
+
 ## 示例
 
 ### HuggingFace Space
