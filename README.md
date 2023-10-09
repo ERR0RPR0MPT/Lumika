@@ -56,7 +56,7 @@ apt install ffmpeg
 
 这是一个单纯的前端页面，运行在 Vercel，不设置后端 API 地址将无法进行编解码操作.
 
-[点此进入](https://lumika.bilinside.eu.org)
+[点此进入](https://lumika.bilinside.eu.org/ui/)
 
 ## 哔哩源
 
