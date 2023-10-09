@@ -6,7 +6,6 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"io"
-	"math"
 	"math/rand"
 	"mime"
 	"net/http"
@@ -24,6 +23,7 @@ func UploadEncode(c *gin.Context) {
 		return
 	}
 	parentDir := c.PostForm("parentDir")
+	LogPrintln("", "读取到 parentDir:", parentDir)
 	if parentDir != "encode" && parentDir != "encodeOutput" && parentDir != "decode" && parentDir != "decodeOutput" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "父目录参数不正确"})
 		return
@@ -700,15 +700,15 @@ func WebServerInit(host string, port int) {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	r := gin.Default()
-	r.MaxMultipartMemory = math.MaxInt64
+	r.MaxMultipartMemory = 8 << 20
 
 	config := cors.DefaultConfig()
-	config.AllowOrigins = []string{"*"}
 	config.AllowMethods = []string{"*"}
 	config.AllowHeaders = []string{"*"}
 	config.AllowAllOrigins = true
 	config.AllowCredentials = true
 	config.MaxAge = time.Hour * 8760
+	r.Use(cors.New(config))
 
 	r.GET("/", func(c *gin.Context) {
 		c.Redirect(http.StatusFound, "/ui")
