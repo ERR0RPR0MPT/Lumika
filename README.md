@@ -32,6 +32,10 @@ apt install ffmpeg
 
 项目默认启动 Lumika Web 作为前端页面，使用默认的本地地址 `http://localhost:7860/ui/` 进行访问.
 
+## Lumika Android
+
+现在你可以直接在 Android 上运行 Lumika 内核。请见 [ERR0RPR0MPT/lumika-android](https://github.com/ERR0RPR0MPT/lumika-android)
+
 ## 示例
 
 ### HuggingFace Space
@@ -47,6 +51,12 @@ apt install ffmpeg
 ### 百度飞桨
 
 [点此进入](https://aistudio.baidu.com/projectdetail/6844423?contributionType=1&sUid=2316552&shared=1&ts=1696704155060)
+
+### Lumika Web
+
+这是一个单纯的前端页面，运行在 Vercel，不设置后端 API 地址将无法进行编解码操作.
+
+[点此进入](https://lumika.bilinside.eu.org)
 
 ## 哔哩源
 
