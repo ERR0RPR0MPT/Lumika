@@ -378,6 +378,30 @@ func DownloadFileFromAPI(c *gin.Context) {
 	}
 }
 
+func UnzipFromAPI(c *gin.Context) {
+	dir := c.Param("dir")
+	fileName := c.Param("file")
+	if dir != "encode" && dir != "encodeOutput" && dir != "decode" && dir != "decodeOutput" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "dir 参数错误：请指定正确的目录"})
+		return
+	}
+	if fileName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "file 参数错误：请输入正确的文件名"})
+		return
+	}
+	filePath := filepath.Join(common.LumikaWorkDirPath, dir, fileName)
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "文件不存在"})
+		return
+	}
+	err := Unzip(filePath, filepath.Dir(filePath))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "解压失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "解压成功"})
+}
+
 func ClearLogCat(c *gin.Context) {
 	common.LogVariable.Reset()
 	c.JSON(http.StatusOK, gin.H{"message": "日志清除成功"})
@@ -768,6 +792,7 @@ func WebServerInit(host string, port int) {
 	r.GET("/api/get-logcat", GetLogCat)
 	r.POST("/api/delete-file", DeleteFileFromAPI)
 	r.POST("/api/rename-file", ReNameFileFromAPI)
+	r.POST("/api/unzip", UnzipFromAPI)
 	r.GET("/api/dl/:dir/:file", DownloadFileFromAPI)
 	r.GET("/api/clear-logcat", ClearLogCat)
 	r.GET("/api/clear-dl-task-list", ClearDlTaskList)
