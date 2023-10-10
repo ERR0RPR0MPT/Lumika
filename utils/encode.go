@@ -6,7 +6,6 @@ import (
 	"github.com/cheggaaa/pb/v3"
 	"github.com/klauspost/reedsolomon"
 	"image/png"
-	"io"
 	"math"
 	"os"
 	"os/exec"
@@ -116,15 +115,36 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 	// 启动多个goroutine
 	var wg sync.WaitGroup
 	maxGoroutines := encodeThread // 最大同时运行的协程数量
+	LogPrintln(UUID, EnStr, "最大同时运行的协程数量:", maxGoroutines)
 	semaphore := make(chan struct{}, maxGoroutines)
 	allStartTime := time.Now()
 
+	// 定义错误通道和计数器
+	errorChan := make(chan error)
+	errorCount := 0
+	var errorError error = nil
+
+	go func() {
+		for errorCount < len(filePathList) {
+			err2 := <-errorChan
+			if err2 != nil {
+				errorError = err2
+				return
+			}
+			errorCount++
+		}
+		close(errorChan)
+	}()
+
 	// 遍历需要处理的文件列表
 	for fileIndexNum, filePath := range filePathList {
+		if errorError != nil {
+			return 0, errorError
+		}
 		LogPrintln(UUID, EnStr, "开始编码第", fileIndexNum+1, "个文件，路径:", filePath)
 		wg.Add(1)               // 增加计数器
 		semaphore <- struct{}{} // 协程获取信号量，若已满则阻塞
-		err2 := func(fileIndexNum int, filePath string) error {
+		go func(fileIndexNum int, filePath string) {
 			defer func() {
 				<-semaphore // 协程释放信号量
 				wg.Done()
@@ -134,7 +154,8 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 			fileData, err := os.ReadFile(filePath)
 			if err != nil {
 				LogPrintln(UUID, EnStr, ErStr, "无法打开文件:", err)
-				return &CommonError{Msg: "无法打开文件"}
+				errorChan <- &CommonError{Msg: "无法打开文件:" + err.Error()}
+				return
 			}
 
 			outputFilePath := AddOutputToFileName(filePath, ".mp4")                    // 输出文件路径
@@ -195,22 +216,14 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 			stdin, err := FFmpegProcess.StdinPipe()
 			if err != nil {
 				LogPrintln(UUID, EnStr, ErStr, "无法创建 FFmpeg 的标准输入管道:", err)
-				return &CommonError{Msg: "无法创建 FFmpeg 的标准输入管道"}
-			}
-			stdout, err := FFmpegProcess.StdoutPipe()
-			if err != nil {
-				LogPrintln(UUID, EnStr, ErStr, "无法创建 FFmpeg 的标准输出管道:", err)
-				return &CommonError{Msg: "无法创建 FFmpeg 的标准输出管道"}
-			}
-			stderr, err := FFmpegProcess.StderrPipe()
-			if err != nil {
-				LogPrintln(UUID, EnStr, ErStr, "无法创建 FFmpeg 的标准错误管道:", err)
-				return &CommonError{Msg: "无法创建 FFmpeg 的标准错误管道"}
+				errorChan <- &CommonError{Msg: "无法创建 FFmpeg 的标准输入管道:" + err.Error()}
+				return
 			}
 			err = FFmpegProcess.Start()
 			if err != nil {
 				LogPrintln(UUID, EnStr, ErStr, "无法启动 FFmpeg 子进程:", err)
-				return &CommonError{Msg: "无法启动 FFmpeg 子进程"}
+				errorChan <- &CommonError{Msg: "无法启动 FFmpeg 子进程:" + err.Error()}
+				return
 			}
 
 			// 生成空白帧
@@ -248,7 +261,8 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 			enc, err := reedsolomon.New(KGValue, MGValue-KGValue)
 			if err != nil {
 				LogPrintln(UUID, EnStr, ErStr, "无法创建RS编码器:", err)
-				return &CommonError{Msg: "无法创建RS编码器"}
+				errorChan <- &CommonError{Msg: "无法创建RS编码器:" + err.Error()}
+				return
 			}
 
 			// 创建图像缓冲区(公用)
@@ -260,16 +274,14 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 				// 生成带空白数据的图像
 				err = png.Encode(imageBuffer, imgBlank)
 				if err != nil {
-					return &CommonError{Msg: "无法生成带空白数据的图像"}
+					errorChan <- &CommonError{Msg: "无法生成带空白数据的图像:" + err.Error()}
+					return
 				}
 				_, err = stdin.Write(imageBuffer.Bytes())
 				if err != nil {
 					LogPrintln(UUID, EnStr, ErStr, "无法写入帧数据到 FFmpeg:", err)
-					stdoutData, _ := io.ReadAll(stdout)
-					LogPrintln(UUID, EnStr, ErStr, "FFmpeg 子进程标准输出:", string(stdoutData))
-					stderrData, _ := io.ReadAll(stderr)
-					LogPrintln(UUID, EnStr, ErStr, "FFmpeg 子进程错误输出:", string(stderrData))
-					return &CommonError{Msg: "无法写入帧数据到 FFmpeg"}
+					errorChan <- &CommonError{Msg: "无法写入帧数据到 FFmpeg:" + err.Error()}
+					return
 				}
 				imageBuffer.Reset()
 				allBlankFrameNum++
@@ -288,7 +300,8 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 						}
 					} else {
 						LogPrintln(UUID, EnStr, ErStr, "当前任务被用户删除", err)
-						return &CommonError{Msg: "当前任务被用户删除"}
+						errorChan <- &CommonError{Msg: "当前任务被用户删除"}
+						return
 					}
 				} else {
 					if isPaused {
@@ -314,7 +327,8 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 						err = enc.Encode(shards)
 						if err != nil {
 							LogPrintln(UUID, EnStr, ErStr, "无法创建冗余数据:", err)
-							return &CommonError{Msg: "无法创建冗余数据"}
+							errorChan <- &CommonError{Msg: "无法创建冗余数据:" + err.Error()}
+							return
 						}
 						// 创建完整数据
 						allShards := make([][]byte, MGValue)
@@ -325,12 +339,14 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 						// 输入开始帧
 						err = png.Encode(imageBuffer, imgBlankStart)
 						if err != nil {
-							return &CommonError{Msg: "无法生成带空白数据的图像"}
+							errorChan <- &CommonError{Msg: "无法生成带空白数据的图像:" + err.Error()}
+							return
 						}
 						_, err = stdin.Write(imageBuffer.Bytes())
 						if err != nil {
 							LogPrintln(UUID, EnStr, ErStr, "无法写入帧数据到 FFmpeg:", err)
-							return &CommonError{Msg: "无法写入帧数据到 FFmpeg"}
+							errorChan <- &CommonError{Msg: "无法写入帧数据到 FFmpeg:" + err.Error()}
+							return
 						}
 						imageBuffer.Reset()
 						// 遍历 allShards
@@ -339,24 +355,28 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 							img := Data2Image(shardData, videoSize)
 							err := png.Encode(imageBuffer, img)
 							if err != nil {
-								return &CommonError{Msg: "无法生成带数据的图像"}
+								errorChan <- &CommonError{Msg: "无法生成带数据的图像:" + err.Error()}
+								return
 							}
 							_, err = stdin.Write(imageBuffer.Bytes())
 							if err != nil {
 								LogPrintln(UUID, EnStr, ErStr, "无法写入帧数据到 FFmpeg:", err)
-								return &CommonError{Msg: "无法写入帧数据到 FFmpeg"}
+								errorChan <- &CommonError{Msg: "无法写入帧数据到 FFmpeg:" + err.Error()}
+								return
 							}
 							imageBuffer.Reset()
 						}
 						// 输入终止帧
 						err = png.Encode(imageBuffer, imgBlankEnd)
 						if err != nil {
-							return &CommonError{Msg: "无法生成带空白数据的图像"}
+							errorChan <- &CommonError{Msg: "无法生成带空白数据的图像:" + err.Error()}
+							return
 						}
 						_, err = stdin.Write(imageBuffer.Bytes())
 						if err != nil {
 							LogPrintln(UUID, EnStr, ErStr, "无法写入帧数据到 FFmpeg:", err)
-							return &CommonError{Msg: "无法写入帧数据到 FFmpeg"}
+							errorChan <- &CommonError{Msg: "无法写入帧数据到 FFmpeg:" + err.Error()}
+							return
 						}
 						imageBuffer.Reset()
 					}
@@ -382,7 +402,8 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 					err = enc.Encode(shards)
 					if err != nil {
 						LogPrintln(UUID, EnStr, ErStr, "无法创建冗余数据:", err)
-						return &CommonError{Msg: "无法创建冗余数据"}
+						errorChan <- &CommonError{Msg: "无法创建冗余数据:" + err.Error()}
+						return
 					}
 					// 创建完整数据
 					allShards := make([][]byte, MGValue)
@@ -393,12 +414,14 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 					// 输入开始帧
 					err = png.Encode(imageBuffer, imgBlankStart)
 					if err != nil {
-						return &CommonError{Msg: "无法生成带空白数据的图像"}
+						errorChan <- &CommonError{Msg: "无法生成带空白数据的图像:" + err.Error()}
+						return
 					}
 					_, err = stdin.Write(imageBuffer.Bytes())
 					if err != nil {
 						LogPrintln(UUID, EnStr, ErStr, "无法写入帧数据到 FFmpeg:", err)
-						return &CommonError{Msg: "无法写入帧数据到 FFmpeg"}
+						errorChan <- &CommonError{Msg: "无法写入帧数据到 FFmpeg:" + err.Error()}
+						return
 					}
 					imageBuffer.Reset()
 					// 遍历 allShards
@@ -407,24 +430,28 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 						img := Data2Image(shardData, videoSize)
 						err := png.Encode(imageBuffer, img)
 						if err != nil {
-							return &CommonError{Msg: "无法生成带数据的图像"}
+							errorChan <- &CommonError{Msg: "无法生成带数据的图像:" + err.Error()}
+							return
 						}
 						_, err = stdin.Write(imageBuffer.Bytes())
 						if err != nil {
 							LogPrintln(UUID, EnStr, ErStr, "无法写入帧数据到 FFmpeg:", err)
-							return &CommonError{Msg: "无法写入帧数据到 FFmpeg"}
+							errorChan <- &CommonError{Msg: "无法写入帧数据到 FFmpeg:" + err.Error()}
+							return
 						}
 						imageBuffer.Reset()
 					}
 					// 输入终止帧
 					err = png.Encode(imageBuffer, imgBlankEnd)
 					if err != nil {
-						return &CommonError{Msg: "无法生成带空白数据的图像"}
+						errorChan <- &CommonError{Msg: "无法生成带空白数据的图像:" + err.Error()}
+						return
 					}
 					_, err = stdin.Write(imageBuffer.Bytes())
 					if err != nil {
 						LogPrintln(UUID, EnStr, ErStr, "无法写入帧数据到 FFmpeg:", err)
-						return &CommonError{Msg: "无法写入帧数据到 FFmpeg"}
+						errorChan <- &CommonError{Msg: "无法写入帧数据到 FFmpeg:" + err.Error()}
+						return
 					}
 					imageBuffer.Reset()
 				} else {
@@ -436,7 +463,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 
 				bar.SetCurrent(int64(fileNowLength))
 				if i%30000 == 0 {
-					LogPrintf("", "\nEncode: 构建帧 %d, 已构建数据 %d, 总数据 %d\n", i, fileNowLength, fileLength)
+					LogPrintf(UUID, "\nEncode: 构建帧 %d, 已构建数据 %d, 总数据 %d\n", i, fileNowLength, fileLength)
 				}
 			}
 			bar.Finish()
@@ -446,12 +473,14 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 			for k := 0; k < outputFPS*DefaultBlankSeconds; k++ {
 				err := png.Encode(imageBuffer, imgBlank)
 				if err != nil {
-					return &CommonError{Msg: "无法生成带空白数据的图像"}
+					errorChan <- &CommonError{Msg: "无法生成带空白数据的图像:" + err.Error()}
+					return
 				}
 				_, err = stdin.Write(imageBuffer.Bytes())
 				if err != nil {
 					LogPrintln(UUID, EnStr, ErStr, "无法写入帧数据到 FFmpeg:", err)
-					return &CommonError{Msg: "无法写入帧数据到 FFmpeg"}
+					errorChan <- &CommonError{Msg: "无法写入帧数据到 FFmpeg:" + err.Error()}
+					return
 				}
 				imageBuffer.Reset()
 				allBlankFrameNum++
@@ -462,11 +491,13 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 			err = stdin.Close()
 			if err != nil {
 				LogPrintln(UUID, EnStr, ErStr, "无法关闭 FFmpeg 的标准输入管道:", err)
-				return &CommonError{Msg: "无法关闭 FFmpeg 的标准输入管道"}
+				errorChan <- &CommonError{Msg: "无法关闭 FFmpeg 的标准输入管道:" + err.Error()}
+				return
 			}
 			if err := FFmpegProcess.Wait(); err != nil {
 				LogPrintln(UUID, EnStr, ErStr, "FFmpeg 子进程执行失败:", err)
-				return &CommonError{Msg: "FFmpeg 子进程执行失败"}
+				errorChan <- &CommonError{Msg: "FFmpeg 子进程执行失败:" + err.Error()}
+				return
 			}
 
 			if UUID != "" {
@@ -478,7 +509,8 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 					AddTaskList[UUID].ProgressNum = float64(AddTaskList[UUID].ProgressRate) / float64(len(filePathList)) * 100
 				} else {
 					LogPrintln(UUID, EnStr, ErStr, "当前任务被用户删除", err)
-					return &CommonError{Msg: "当前任务被用户删除"}
+					errorChan <- &CommonError{Msg: "当前任务被用户删除"}
+					return
 				}
 			}
 
@@ -497,17 +529,15 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 			LogPrintln(UUID, EnStr, "  总时长: ", strconv.Itoa(allSeconds)+"s")
 			LogPrintln(UUID, EnStr, "  FFmpeg 预设:", encodeFFmpegMode)
 			LogPrintln(UUID, EnStr, "  ---------------------------")
-			return nil
+			errorChan <- nil
+			return
 		}(fileIndexNum, filePath)
-		if err2 != nil {
-			return 0, err2
-		}
 	}
 	wg.Wait()
 	isRuntime = false
 	allEndTime := time.Now()
 	allDuration := allEndTime.Sub(allStartTime)
-	LogPrintf("", EnStr+" 总共耗时%f秒\n", allDuration.Seconds())
+	LogPrintf(UUID, EnStr+" 总共耗时%f秒\n", allDuration.Seconds())
 	LogPrintln(UUID, EnStr, "所有选择的.fec文件已编码完成，编码结束")
 	return segmentLength, nil
 }

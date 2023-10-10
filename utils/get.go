@@ -3,8 +3,10 @@ package utils
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"github.com/google/uuid"
 	"github.com/klauspost/reedsolomon"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -24,6 +26,7 @@ func AddGetTask(dirName string, decodeThread int, basestr string) {
 		Filename:     "",
 		ProgressRate: 0,
 		ProgressNum:  0,
+		Duration:     "",
 	}
 	GetTaskList[uuidd] = dt
 	GetTaskQueue <- dt
@@ -31,7 +34,7 @@ func AddGetTask(dirName string, decodeThread int, basestr string) {
 
 func GetTaskWorker(id int) {
 	for task := range GetTaskQueue {
-		// 处理任务
+		allStartTime := time.Now()
 		LogPrintf(task.UUID, "GetTaskWorker %d 处理编码任务：%v\n", id, task.UUID)
 		_, exist := GetTaskList[task.UUID]
 		if !exist {
@@ -56,14 +59,15 @@ func GetTaskWorker(id int) {
 		GetTaskList[task.UUID].StatusMsg = "已完成"
 		GetTaskList[task.UUID].Filename = outputFileName
 		GetTaskList[task.UUID].ProgressNum = 100.0
+		GetTaskList[task.UUID].Duration = fmt.Sprintf("%vs", int64(math.Floor(time.Now().Sub(allStartTime).Seconds())))
 	}
 }
 
 func GetTaskWorkerInit() {
 	GetTaskQueue = make(chan *GetTaskListData)
 	GetTaskList = make(map[string]*GetTaskListData)
-	if len(database.GetTaskList) != 0 {
-		GetTaskList = database.GetTaskList
+	if len(DatabaseVariable.GetTaskList) != 0 {
+		GetTaskList = DatabaseVariable.GetTaskList
 		for kp, kq := range GetTaskList {
 			if kq.Status == "正在执行" {
 				GetTaskList[kp].Status = "执行失败"
@@ -315,6 +319,11 @@ func GetExec(fileDir string, base64Config string, decodeThread int, UUID string)
 	zunfecDuration := zunfecEndTime.Sub(zunfecStartTime)
 	LogPrintln(UUID, GetStr, "生成原始文件成功，耗时:", zunfecDuration)
 	DeleteFecFiles(fileOutputDir)
+	// 删除临时输出目录
+	err = os.RemoveAll(fileOutputDir)
+	if err != nil {
+		LogPrintln(UUID, DeStr, ErStr, "删除临时输出目录失败:", err)
+	}
 	// 检查最终生成的文件是否与原始文件一致
 	LogPrintln(UUID, GetStr, "检查生成的文件是否与源文件一致")
 	targetHash := CalculateFileHash(filepath.Join(LumikaDecodeOutputPath, fecFileConfig.Name), DefaultHashLength)

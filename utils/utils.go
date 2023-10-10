@@ -581,7 +581,7 @@ func GetDirectoryJSON(directoryPath string) ([]FileInfo, error) {
 			ParentDir: filepath.Base(directoryPath),
 			Type:      fileType,
 			SizeNum:   fileInfo.Size(),
-			SizeStr:   FormatFileSize(fileInfo.Size()),
+			SizeStr:   FormatDataSize(fileInfo.Size()),
 			Timestamp: fileInfo.ModTime().Format("2006-01-02 15:04:05"),
 		})
 	}
@@ -596,26 +596,6 @@ func CheckPort(port int) bool {
 	}
 	defer conn.Close()
 	return true
-}
-
-func FormatFileSize(size int64) string {
-	const (
-		B  = 1
-		KB = 1024 * B
-		MB = 1024 * KB
-		GB = 1024 * MB
-	)
-
-	switch {
-	case size >= GB:
-		return fmt.Sprintf("%.2f GB", float64(size)/GB)
-	case size >= MB:
-		return fmt.Sprintf("%.2f MB", float64(size)/MB)
-	case size >= KB:
-		return fmt.Sprintf("%.2f KB", float64(size)/KB)
-	default:
-		return fmt.Sprintf("%d B", size)
-	}
 }
 
 func ZipDirectory(dir string, zipFile string) error {
@@ -730,33 +710,57 @@ func InterfaceToBytes(value interface{}) ([]byte, error) {
 	return bytes, nil
 }
 
+func GetSystemResourceUsageInit() {
+	go func() {
+		_, _ = GetSystemResourceUsage()
+	}()
+}
+
 func GetSystemResourceUsage() (*SystemResourceUsage, error) {
-	percent, _ := cpu.Percent(time.Millisecond*50, false)
+	var uploadSpeed string
+	var downloadSpeed string
+	percentCh := make(chan []float64)
+	networkUploadSpeedCh := make(chan string)
+	networkDownloadSpeedCh := make(chan string)
+	go func() {
+		percent, err := cpu.Percent(time.Second, false)
+		if err != nil {
+			percentCh <- []float64{0}
+		}
+		percentCh <- percent
+	}()
 	memInfo, _ := mem.VirtualMemory()
 	parts, _ := disk.Partitions(true)
 	diskInfo, _ := disk.Usage(parts[0].Mountpoint)
 	iface, err := GetDefaultNetworkInterface()
-	var uploadSpeed string
-	var downloadSpeed string
-	if err != nil {
-		iface = "未知"
-		uploadSpeed = "未知"
-		downloadSpeed = "未知"
-	} else {
-		uploadSpeed, downloadSpeed, err = GetNetworkSpeed(iface)
+	go func() {
 		if err != nil {
+			iface = "未知"
 			uploadSpeed = "未知"
 			downloadSpeed = "未知"
+		} else {
+			uploadSpeed, downloadSpeed, err = GetNetworkSpeed(iface)
+			if err != nil {
+				uploadSpeed = "未知"
+				downloadSpeed = "未知"
+			}
 		}
-	}
+		networkUploadSpeedCh <- uploadSpeed
+		networkDownloadSpeedCh <- downloadSpeed
+	}()
+	uploadTotal, downloadTotal, err := GetNetworkTotal(iface)
 	usage := &SystemResourceUsage{
-		OSName:               runtime.GOOS,
-		CpuUsagePercent:      percent[0],
-		MemUsagePercent:      memInfo.UsedPercent,
-		DiskUsagePercent:     diskInfo.UsedPercent,
-		NetworkInterfaceName: iface,
-		UploadSpeed:          uploadSpeed,
-		DownloadSpeed:        downloadSpeed,
+		OSName:                runtime.GOOS,
+		CpuUsagePercent:       (<-percentCh)[0],
+		MemUsageTotalAndUsed:  FormatDataSize(int64(memInfo.Used)) + "/" + FormatDataSize(int64(memInfo.Total)),
+		MemUsagePercent:       memInfo.UsedPercent,
+		DiskUsageTotalAndUsed: FormatDataSize(int64(diskInfo.Used)) + "/" + FormatDataSize(int64(diskInfo.Total)),
+		DiskUsagePercent:      diskInfo.UsedPercent,
+		NetworkInterfaceName:  iface,
+		UploadSpeed:           <-networkUploadSpeedCh,
+		DownloadSpeed:         <-networkDownloadSpeedCh,
+		UploadTotal:           uploadTotal,
+		DownloadTotal:         downloadTotal,
 	}
 	return usage, nil
 }
@@ -776,6 +780,26 @@ func GetDefaultNetworkInterface() (string, error) {
 	return "", fmt.Errorf("找不到默认网卡")
 }
 
+func FormatDataSize(size int64) string {
+	const (
+		B  = 1
+		KB = 1024 * B
+		MB = 1024 * KB
+		GB = 1024 * MB
+	)
+
+	switch {
+	case size >= GB:
+		return fmt.Sprintf("%.2f GB", float64(size)/GB)
+	case size >= MB:
+		return fmt.Sprintf("%.2f MB", float64(size)/MB)
+	case size >= KB:
+		return fmt.Sprintf("%.2f KB", float64(size)/KB)
+	default:
+		return fmt.Sprintf("%d B", size)
+	}
+}
+
 func FormatBytesPerSecond(bytesPerSecond float64) string {
 	units := []string{"b/s", "KB/s", "MB/s", "GB/s", "TB/s"}
 	base := 1024.0
@@ -789,6 +813,40 @@ func FormatBytesPerSecond(bytesPerSecond float64) string {
 	value := bytesPerSecond / math.Pow(base, float64(div))
 
 	return fmt.Sprintf("%.2f %s", value, units[div])
+}
+
+func GetNetworkTotal(interfaceName string) (string, string, error) {
+	// 获取所有网络接口的统计信息
+	netIOCounters, err := psnet.IOCounters(true)
+	if err != nil {
+		return "", "", fmt.Errorf("无法获取网络接口统计信息：%v", err)
+	}
+
+	// 查找指定名称的网络接口统计信息
+	var selectedNetIOCounter psnet.IOCountersStat
+	for _, counter := range netIOCounters {
+		if counter.Name == interfaceName {
+			selectedNetIOCounter = counter
+			break
+		}
+	}
+
+	// 如果找不到指定的网络接口，返回错误信息
+	if selectedNetIOCounter.Name == "" {
+		return "", "", fmt.Errorf("找不到网络接口'%s'的统计信息", interfaceName)
+	}
+
+	if uploadTotalStart == -1 || downloadTotalStart == -1 {
+		uploadTotalStart = int64(selectedNetIOCounter.BytesSent)
+		downloadTotalStart = int64(selectedNetIOCounter.BytesRecv)
+		return FormatDataSize(0), FormatDataSize(0), nil
+	}
+
+	// 计算上传和下载速度
+	uploadTotal := int64(selectedNetIOCounter.BytesSent) - uploadTotalStart
+	downloadTotal := int64(selectedNetIOCounter.BytesRecv) - downloadTotalStart
+
+	return FormatDataSize(uploadTotal), FormatDataSize(downloadTotal), nil
 }
 
 func GetNetworkSpeed(interfaceName string) (string, string, error) {
@@ -816,7 +874,7 @@ func GetNetworkSpeed(interfaceName string) (string, string, error) {
 	startTime := time.Now()
 
 	// 等待一段时间
-	time.Sleep(time.Millisecond * 50)
+	time.Sleep(time.Second)
 
 	// 获取当前网络接口的统计信息
 	netIOCounter, err := psnet.IOCounters(true)

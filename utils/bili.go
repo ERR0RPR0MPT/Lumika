@@ -1,10 +1,12 @@
 package utils
 
 import (
+	"fmt"
 	"github.com/ERR0RPR0MPT/Lumika/biliup"
 	"github.com/google/uuid"
 	bg "github.com/iyear/biligo"
 	"github.com/tidwall/gjson"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -21,6 +23,7 @@ func BUlAddTask(bulTaskInfo *BUlTaskInfo) {
 		FileName:     bulTaskInfo.FileName,
 		TaskInfo:     bulTaskInfo,
 		ProgressRate: 0,
+		Duration:     "",
 	}
 	BUlTaskList[uuidd] = dt
 	BUlTaskQueue <- dt
@@ -39,6 +42,7 @@ func BDlAddTask(AVOrBVStr string, baseStr string, parentDir string) {
 		},
 		BaseStr:      baseStr,
 		ProgressRate: 0,
+		Duration:     "",
 	}
 	BDlTaskList[uuidd] = dt
 	BDlTaskQueue <- dt
@@ -46,6 +50,7 @@ func BDlAddTask(AVOrBVStr string, baseStr string, parentDir string) {
 
 func BUlTaskWorker(id int) {
 	for task := range BUlTaskQueue {
+		allStartTime := time.Now()
 		LogPrintf(task.UUID, "BUlTaskWorker %d 处理哔哩源上传任务：%v\n", id, task)
 		_, exist := BUlTaskList[task.UUID]
 		if !exist {
@@ -54,7 +59,7 @@ func BUlTaskWorker(id int) {
 		}
 		BUlTaskList[task.UUID].Status = "正在执行"
 		BUlTaskList[task.UUID].StatusMsg = "正在执行"
-		bvid, err := BUl(filepath.Join(LumikaEncodeOutputPath, task.FileName), *task.TaskInfo.Cookie, task.TaskInfo.UploadLines, task.TaskInfo.Threads, task.TaskInfo.VideoInfos, task.UUID)
+		bvid, err := BUl(filepath.Join(LumikaEncodeOutputPath, task.FileName), biliup.User(*task.TaskInfo.Cookie), task.TaskInfo.UploadLines, task.TaskInfo.Threads, biliup.VideoInfos(task.TaskInfo.VideoInfos), task.UUID)
 		_, exist = BUlTaskList[task.UUID]
 		if !exist {
 			LogPrintf(task.UUID, "BUlTaskWorker %d 上传任务被用户删除\n", id)
@@ -71,11 +76,13 @@ func BUlTaskWorker(id int) {
 		BUlTaskList[task.UUID].Status = "已完成"
 		BUlTaskList[task.UUID].StatusMsg = "已完成"
 		BUlTaskList[task.UUID].ProgressNum = 100.0
+		BUlTaskList[task.UUID].Duration = fmt.Sprintf("%vs", int64(math.Floor(time.Now().Sub(allStartTime).Seconds())))
 	}
 }
 
 func BDlTaskWorker(id int) {
 	for task := range BDlTaskQueue {
+		allStartTime := time.Now()
 		LogPrintf(task.UUID, "BDlTaskWorker %d 处理哔哩源下载任务：%v\n", id, task)
 		_, exist := BDlTaskList[task.UUID]
 		if !exist {
@@ -99,14 +106,15 @@ func BDlTaskWorker(id int) {
 		BDlTaskList[task.UUID].Status = "已完成"
 		BDlTaskList[task.UUID].StatusMsg = "已完成"
 		BDlTaskList[task.UUID].ProgressNum = 100.0
+		BDlTaskList[task.UUID].Duration = fmt.Sprintf("%vs", int64(math.Floor(time.Now().Sub(allStartTime).Seconds())))
 	}
 }
 
 func BUlTaskWorkerInit() {
 	BUlTaskQueue = make(chan *BUlTaskListData)
 	BUlTaskList = make(map[string]*BUlTaskListData)
-	if len(database.BUlTaskList) != 0 {
-		BUlTaskList = database.BUlTaskList
+	if len(DatabaseVariable.BUlTaskList) != 0 {
+		BUlTaskList = DatabaseVariable.BUlTaskList
 		for kp, kq := range BUlTaskList {
 			if kq.Status == "正在执行" {
 				BUlTaskList[kp].Status = "执行失败"
@@ -124,8 +132,8 @@ func BUlTaskWorkerInit() {
 func BDlTaskWorkerInit() {
 	BDlTaskQueue = make(chan *BDlTaskListData)
 	BDlTaskList = make(map[string]*BDlTaskListData)
-	if len(database.BDlTaskList) != 0 {
-		BDlTaskList = database.BDlTaskList
+	if len(DatabaseVariable.BDlTaskList) != 0 {
+		BDlTaskList = DatabaseVariable.BDlTaskList
 		for kp, kq := range BDlTaskList {
 			if kq.Status == "正在执行" {
 				BDlTaskList[kp].Status = "执行失败"

@@ -38,8 +38,8 @@ var DefaultHeader = http.Header{
 }
 
 const Name = "bilibili"
-const BilibiliMaxRetryTimes = 10
-const ChunkUploadMaxRetryTimes = 10 // 上传分片最大重试次数
+const BilibiliMaxRetryTimes = 100
+const ChunkUploadMaxRetryTimes = 100 // 上传分片最大重试次数
 type Bvid string
 
 type Bilibili struct {
@@ -361,6 +361,7 @@ func (b *Bilibili) FolderUpload(folder string) ([]*UploadRes, []UploadedFile, er
 	}
 	return submitFiles, uploadedFiles, nil
 }
+
 func UploadFolderWithSubmit(uploadPath string, Biliup Bilibili) (reqBody interface{}, uf []UploadedFile, err error) {
 	var submitFiles []*UploadRes
 	if !filepath.IsAbs(uploadPath) {

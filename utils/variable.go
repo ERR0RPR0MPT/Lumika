@@ -1,14 +1,13 @@
 package utils
 
 import (
-	"github.com/ERR0RPR0MPT/Lumika/biliup"
 	"io/fs"
 	"strings"
 )
 
 const (
 	LumikaVersionNum                = 3
-	LumikaVersionString             = "v3.9.2"
+	LumikaVersionString             = "v3.10.0"
 	LumikaWorkDirName               = "lumika_data"
 	LumikaConfigFileName            = "lumika_config"
 	InitStr                         = "Init:"
@@ -46,6 +45,8 @@ const (
 	DefaultWebServerRandomPortMax   = 65535
 	DefaultBiliDownloadGoRoutines   = 16
 	DefaultBiliDownloadsMaxQueueNum = 5
+	DefaultBiliUploadLines          = "ws"
+	DefaultBiliUploadThreads        = 10
 	DefaultTaskWorkerGoRoutines     = 5
 	DefaultDbCrontabSeconds         = 10
 )
@@ -116,13 +117,17 @@ type FileInfo struct {
 }
 
 type SystemResourceUsage struct {
-	OSName               string  `json:"osName"`
-	CpuUsagePercent      float64 `json:"cpuUsagePercent"`
-	MemUsagePercent      float64 `json:"memUsagePercent"`
-	DiskUsagePercent     float64 `json:"diskUsagePercent"`
-	NetworkInterfaceName string  `json:"networkInterfaceName"`
-	UploadSpeed          string  `json:"uploadSpeed"`
-	DownloadSpeed        string  `json:"downloadSpeed"`
+	OSName                string  `json:"osName"`
+	CpuUsagePercent       float64 `json:"cpuUsagePercent"`
+	MemUsageTotalAndUsed  string  `json:"memUsageTotalAndUsed"`
+	MemUsagePercent       float64 `json:"memUsagePercent"`
+	DiskUsageTotalAndUsed string  `json:"diskUsageTotalAndUsed"`
+	DiskUsagePercent      float64 `json:"diskUsagePercent"`
+	NetworkInterfaceName  string  `json:"networkInterfaceName"`
+	UploadSpeed           string  `json:"uploadSpeed"`
+	DownloadSpeed         string  `json:"downloadSpeed"`
+	UploadTotal           string  `json:"uploadTotal"`
+	DownloadTotal         string  `json:"downloadTotal"`
 }
 
 type DlTaskInfo struct {
@@ -143,6 +148,7 @@ type DlTaskListData struct {
 	ProgressNum  float64     `json:"progressNum"`
 	Status       string      `json:"status"`
 	StatusMsg    string      `json:"statusMsg"`
+	Duration     string      `json:"duration"`
 }
 
 type BDlTaskInfo struct {
@@ -162,6 +168,7 @@ type BDlTaskListData struct {
 	ProgressNum  float64      `json:"progressNum"`
 	Status       string       `json:"status"`
 	StatusMsg    string       `json:"statusMsg"`
+	Duration     string       `json:"duration"`
 }
 
 type AddTaskInfo struct {
@@ -189,6 +196,7 @@ type AddTaskListData struct {
 	ProgressNum  float64      `json:"progressNum"`
 	Status       string       `json:"status"`
 	StatusMsg    string       `json:"statusMsg"`
+	Duration     string       `json:"duration"`
 }
 
 type GetTaskInfo struct {
@@ -208,14 +216,35 @@ type GetTaskListData struct {
 	ProgressNum  float64      `json:"progressNum"`
 	Status       string       `json:"status"`
 	StatusMsg    string       `json:"statusMsg"`
+	Duration     string       `json:"duration"`
+}
+
+type biliUpUser struct {
+	SESSDATA        string `json:"SESSDATA"`
+	BiliJct         string `json:"bili_jct"`
+	DedeUserID      string `json:"DedeUserID"`
+	DedeuseridCkmd5 string `json:"DedeUserID__ckMd5"`
+	AccessToken     string `json:"access_token"`
+}
+
+type biliUpVideoInfos struct {
+	Tid         int      `json:"tid"`
+	Title       string   `json:"title"`
+	Aid         string   `json:"aid,omitempty"`
+	Tag         []string `json:"tag,omitempty"`
+	Source      string   `json:"source,omitempty"`
+	Cover       string   `json:"cover,omitempty"`
+	CoverPath   string   `json:"cover_path,omitempty"`
+	Description string   `json:"description,omitempty"`
+	Copyright   int      `json:"copyright,omitempty"`
 }
 
 type BUlTaskInfo struct {
-	FileName    string            `json:"fileName"`
-	Cookie      *biliup.User      `json:"cookie"`
-	UploadLines string            `json:"uploadLines"`
-	Threads     int               `json:"threads"`
-	VideoInfos  biliup.VideoInfos `json:"videoInfos"`
+	FileName    string           `json:"fileName"`
+	Cookie      *biliUpUser      `json:"cookie"`
+	UploadLines string           `json:"uploadLines"`
+	Threads     int              `json:"threads"`
+	VideoInfos  biliUpVideoInfos `json:"videoInfos"`
 }
 
 type BUlTaskListData struct {
@@ -229,9 +258,10 @@ type BUlTaskListData struct {
 	ProgressNum  float64      `json:"progressNum"`
 	Status       string       `json:"status"`
 	StatusMsg    string       `json:"statusMsg"`
+	Duration     string       `json:"duration"`
 }
 
-var database Database
+var DatabaseVariable Database
 
 var VarSettingsVariable VarSettings
 
@@ -251,3 +281,6 @@ var GetTaskList map[string]*GetTaskListData
 
 var BUlTaskQueue chan *BUlTaskListData
 var BUlTaskList map[string]*BUlTaskListData
+
+var uploadTotalStart int64 = -1
+var downloadTotalStart int64 = -1

@@ -114,13 +114,33 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 	var wg sync.WaitGroup
 	maxGoroutines := decodeThread // 最大同时运行的协程数量
 	semaphore := make(chan struct{}, maxGoroutines)
+	allStartTime := time.Now()
+
+	// 定义错误通道和计数器
+	errorChan := make(chan error)
+	errorCount := 0
+	var errorError error = nil
+
+	go func() {
+		for errorCount < len(filePathList) {
+			err2 := <-errorChan
+			if err2 != nil {
+				errorError = err2
+				return
+			}
+			errorCount++
+		}
+		close(errorChan)
+	}()
 
 	// 遍历解码所有文件
-	allStartTime := time.Now()
 	for filePathIndex, filePath := range filePathList {
+		if errorError != nil {
+			return errorError
+		}
 		wg.Add(1)               // 增加计数器
 		semaphore <- struct{}{} // 协程获取信号量，若已满则阻塞
-		err2 := func(filePathIndex int, filePath string) error {
+		go func(filePathIndex int, filePath string) {
 			defer func() {
 				<-semaphore // 协程释放信号量
 				wg.Done()
@@ -140,33 +160,39 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 			output, err := cmd.Output()
 			if err != nil {
 				LogPrintln(UUID, DeStr, ErStr, "FFprobe 启动失败，请检查文件是否存在:", err)
-				return err
+				errorChan <- &CommonError{Msg: "FFprobe 启动失败，请检查文件是否存在:" + err.Error()}
+				return
 			}
 			result := strings.Split(string(output), ",")
 			if len(result) != 2 {
 				LogPrintln(UUID, DeStr, ErStr, "无法读取视频宽高，请检查视频文件是否正确")
-				return &CommonError{Msg: "无法读取视频宽高，请检查视频文件是否正确:" + err.Error()}
+				errorChan <- &CommonError{Msg: "无法读取视频宽高，请检查视频文件是否正确"}
+				return
 			}
 			videoWidth, err := strconv.Atoi(strings.TrimSpace(result[0]))
 			if err != nil {
 				LogPrintln(UUID, DeStr, ErStr, "无法读取视频宽高，请检查视频文件是否正确:", err)
-				return &CommonError{Msg: "无法读取视频宽高，请检查视频文件是否正确:" + err.Error()}
+				errorChan <- &CommonError{Msg: "无法读取视频宽高，请检查视频文件是否正确:" + err.Error()}
+				return
 			}
 			videoHeight, err := strconv.Atoi(strings.TrimSpace(result[1]))
 			if err != nil {
 				LogPrintln(UUID, DeStr, ErStr, "无法读取视频宽高，请检查视频文件是否正确:", err)
-				return &CommonError{Msg: "无法读取视频宽高，请检查视频文件是否正确:" + err.Error()}
+				errorChan <- &CommonError{Msg: "无法读取视频宽高，请检查视频文件是否正确:" + err.Error()}
+				return
 			}
 			cmd = exec.Command(FFprobePath, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=nb_frames", "-of", "default=nokey=1:noprint_wrappers=1", filePath)
 			output, err = cmd.Output()
 			if err != nil {
 				LogPrintln(UUID, DeStr, ErStr, "执行 FFprobe 命令时出错:", err)
-				return &CommonError{Msg: "执行 FFprobe 命令时出错:" + err.Error()}
+				errorChan <- &CommonError{Msg: "执行 FFprobe 命令时出错:" + err.Error()}
+				return
 			}
 			frameCount, err := strconv.Atoi(regexp.MustCompile(`\d+`).FindString(string(output)))
 			if err != nil {
 				LogPrintln(UUID, DeStr, ErStr, "解析视频帧数时出错:", err)
-				return &CommonError{Msg: "解析视频帧数时出错:" + err.Error()}
+				errorChan <- &CommonError{Msg: "解析视频帧数时出错:" + err.Error()}
+				return
 			}
 
 			// 设置输出路径
@@ -187,7 +213,8 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 			outputFile, err := os.Create(outputFilePath)
 			if err != nil {
 				LogPrintln(UUID, DeStr, ErStr, "无法创建输出文件:", err)
-				return &CommonError{Msg: "无法创建输出文件:" + err.Error()}
+				errorChan <- &CommonError{Msg: "无法创建输出文件:" + err.Error()}
+				return
 			}
 
 			// 检查是否有 FFmpeg 在程序目录下
@@ -211,12 +238,14 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 			FFmpegStdout, err := FFmpegProcess.StdoutPipe()
 			if err != nil {
 				LogPrintln(UUID, DeStr, ErStr, "无法创建 FFmpeg 标准输出管道:", err)
-				return &CommonError{Msg: "无法创建 FFmpeg 标准输出管道:" + err.Error()}
+				errorChan <- &CommonError{Msg: "无法创建 FFmpeg 标准输出管道:" + err.Error()}
+				return
 			}
 			err = FFmpegProcess.Start()
 			if err != nil {
 				LogPrintln(UUID, DeStr, ErStr, "无法启动 FFmpeg 进程:", err)
-				return &CommonError{Msg: "无法启动 FFmpeg 进程:" + err.Error()}
+				errorChan <- &CommonError{Msg: "无法启动 FFmpeg 进程:" + err.Error()}
+				return
 			}
 
 			// 记录数据
@@ -226,7 +255,8 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 			enc, err := reedsolomon.New(KGValue, MGValue-KGValue)
 			if err != nil {
 				LogPrintln(UUID, DeStr, ErStr, "无法创建RS解码器:", err)
-				return &CommonError{Msg: "无法创建RS解码器:" + err.Error()}
+				errorChan <- &CommonError{Msg: "无法创建RS解码器:" + err.Error()}
+				return
 			}
 
 			bar := pb.StartNew(frameCount)
@@ -243,7 +273,8 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 						}
 					} else {
 						LogPrintln(UUID, DeStr, ErStr, "当前任务被用户删除", err)
-						return &CommonError{Msg: "当前任务被用户删除:" + err.Error()}
+						errorChan <- &CommonError{Msg: "当前任务被用户删除:" + err.Error()}
+						return
 					}
 				} else {
 					if isPaused {
@@ -360,9 +391,11 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 												bar.Finish()
 												if errorDataNum > MGValue-KGValue {
 													LogPrintln(UUID, DeStr, ErStr, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
-													return &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+													errorChan <- &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+													return
 												}
-												return &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+												errorChan <- &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+												return
 											}
 											dataShards = reconstructData
 										}
@@ -400,9 +433,11 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 												bar.Finish()
 												if errorDataNum > MGValue-KGValue {
 													LogPrintln(UUID, DeStr, ErStr, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
-													return &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+													errorChan <- &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+													return
 												}
-												return &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+												errorChan <- &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+												return
 											}
 											dataShards = reconstructData
 										}
@@ -439,9 +474,11 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 												bar.Finish()
 												if errorDataNum > MGValue-KGValue {
 													LogPrintln(UUID, DeStr, ErStr, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
-													return &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+													errorChan <- &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+													return
 												}
-												return &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+												errorChan <- &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+												return
 											}
 											dataShards = reconstructData
 										}
@@ -461,15 +498,18 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 								bar.Finish()
 								if errorDataNum > MGValue-KGValue {
 									LogPrintln(UUID, DeStr, ErStr, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
-									return &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+									errorChan <- &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+									return
 								}
-								return &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+								errorChan <- &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+								return
 							}
 
 							if errorDataNum > MGValue-KGValue {
 								LogPrintln(UUID, DeStr, ErStr, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
 								bar.Finish()
-								return &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+								errorChan <- &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+								return
 							}
 
 							dataOrigin := dataShards[:len(dataShards)-MGValue+KGValue]
@@ -575,9 +615,10 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 											bar.Finish()
 											if errorDataNum > MGValue-KGValue {
 												LogPrintln(UUID, DeStr, ErStr, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
-												return &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+												errorChan <- &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+												return
 											}
-											return &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+											return
 										}
 										dataShards = reconstructData
 									}
@@ -615,9 +656,11 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 											bar.Finish()
 											if errorDataNum > MGValue-KGValue {
 												LogPrintln(UUID, DeStr, ErStr, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
-												return &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+												errorChan <- &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+												return
 											}
-											return &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+											errorChan <- &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+											return
 										}
 										dataShards = reconstructData
 									}
@@ -654,9 +697,11 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 											bar.Finish()
 											if errorDataNum > MGValue-KGValue {
 												LogPrintln(UUID, DeStr, ErStr, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
-												return &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+												errorChan <- &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+												return
 											}
-											return &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+											errorChan <- &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+											return
 										}
 										dataShards = reconstructData
 									}
@@ -676,15 +721,18 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 							bar.Finish()
 							if errorDataNum > MGValue-KGValue {
 								LogPrintln(UUID, DeStr, ErStr, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
-								return &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+								errorChan <- &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+								return
 							}
-							return &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+							errorChan <- &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+							return
 						}
 
 						if errorDataNum > MGValue-KGValue {
 							LogPrintln(UUID, DeStr, ErStr, "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码")
 							bar.Finish()
-							return &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+							errorChan <- &CommonError{Msg: "无法修复的切片文件数量已经超过最大可丢失的切片文件数量，停止解码"}
+							return
 						}
 
 						dataOrigin := dataShards[:len(dataShards)-MGValue+KGValue]
@@ -717,13 +765,13 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 
 			err = FFmpegStdout.Close()
 			if err != nil {
-				LogPrintln(UUID, DeStr, ErStr, "无法关闭 FFmpeg 标准输出管道:", err)
-				return &CommonError{Msg: "无法关闭 FFmpeg 标准输出管道:" + err.Error()}
+				LogPrintln(UUID, DeStr, ErStr, "无法关闭 FFmpeg 标准输出管道，跳过:", err)
 			}
 			err = FFmpegProcess.Wait()
 			if err != nil {
 				LogPrintln(UUID, DeStr, ErStr, "FFmpeg 命令执行失败:", err)
-				return &CommonError{Msg: "FFmpeg 命令执行失败:" + err.Error()}
+				errorChan <- &CommonError{Msg: "FFmpeg 命令执行失败:" + err.Error()}
+				return
 			}
 			outputFile.Close()
 
@@ -731,7 +779,8 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 				err := TruncateFile(segmentLength, outputFilePath)
 				if err != nil {
 					LogPrintln(UUID, DeStr, ErStr, "截断解码文件失败:", err)
-					return &CommonError{Msg: "截断解码文件失败:" + err.Error()}
+					errorChan <- &CommonError{Msg: "截断解码文件失败:" + err.Error()}
+					return
 				}
 			} else {
 				// 删除解码文件的末尾连续的零字节
@@ -739,7 +788,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 				err = RemoveTrailingZerosFromFile(outputFilePath)
 				if err != nil {
 					LogPrintln(UUID, DeStr, ErStr, "删除解码文件的末尾连续的零字节失败:", err)
-					return &CommonError{Msg: "删除解码文件的末尾连续的零字节失败:" + err.Error()}
+					errorChan <- &CommonError{Msg: "删除解码文件的末尾连续的零字节失败:" + err.Error()}
 				}
 			}
 			if UUID != "" {
@@ -751,7 +800,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 					GetTaskList[UUID].ProgressNum = float64(GetTaskList[UUID].ProgressRate) / float64(len(filePathList)) * 100
 				} else {
 					LogPrintln(UUID, DeStr, ErStr, "当前任务被用户删除", err)
-					return &CommonError{Msg: "当前任务被用户删除"}
+					errorChan <- &CommonError{Msg: "当前任务被用户删除"}
 				}
 			}
 
@@ -764,23 +813,21 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 			LogPrintln(UUID, DeStr, "  输入视频路径:", filePath)
 			LogPrintln(UUID, DeStr, "  输出文件路径:", outputFilePath)
 			LogPrintln(UUID, DeStr, "  ---------------------------")
-			return nil
+			errorChan <- nil
+			return
 		}(filePathIndex, filePath)
-		if err2 != nil {
-			return err2
-		}
 	}
 	wg.Wait()
 
 	if errorDataNum > MGValue-KGValue {
-		LogPrintln(UUID, DeStr, ErStr, "恢复失败")
-		return &CommonError{Msg: "恢复失败"}
+		LogPrintln(UUID, DeStr, ErStr, "errorDataNum > MGValue-KGValue, 恢复失败")
+		return &CommonError{Msg: "errorDataNum > MGValue-KGValue, 恢复失败"}
 	}
 
 	isRuntime = false
 	allEndTime := time.Now()
 	allDuration := allEndTime.Sub(allStartTime)
-	LogPrintln(UUID, DeStr, "全部完成")
+	LogPrintln(UUID, DeStr, "解码成功")
 	LogPrintf(UUID, DeStr+" 总共耗时%f秒\n", allDuration.Seconds())
 	return nil
 }

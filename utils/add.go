@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/klauspost/reedsolomon"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -32,6 +33,7 @@ func AddAddTask(fileNameList []string, defaultM int, defaultK int, MGValue int, 
 			DefaultSummary:   defaultSummary,
 		},
 		ProgressRate: 0,
+		Duration:     "",
 	}
 	AddTaskList[uuidd] = dt
 	AddTaskQueue <- dt
@@ -39,7 +41,7 @@ func AddAddTask(fileNameList []string, defaultM int, defaultK int, MGValue int, 
 
 func AddTaskWorker(id int) {
 	for task := range AddTaskQueue {
-		// 处理任务
+		allStartTime := time.Now()
 		LogPrintf(task.UUID, "AddTaskWorker %d 处理编码任务：%v\n", id, task.UUID)
 		_, exist := AddTaskList[task.UUID]
 		if !exist {
@@ -63,14 +65,15 @@ func AddTaskWorker(id int) {
 		AddTaskList[task.UUID].Status = "已完成"
 		AddTaskList[task.UUID].StatusMsg = "已完成"
 		AddTaskList[task.UUID].ProgressNum = 100.0
+		AddTaskList[task.UUID].Duration = fmt.Sprintf("%vs", int64(math.Floor(time.Now().Sub(allStartTime).Seconds())))
 	}
 }
 
 func AddTaskWorkerInit() {
 	AddTaskQueue = make(chan *AddTaskListData)
 	AddTaskList = make(map[string]*AddTaskListData)
-	if len(database.AddTaskList) != 0 {
-		AddTaskList = database.AddTaskList
+	if len(DatabaseVariable.AddTaskList) != 0 {
+		AddTaskList = DatabaseVariable.AddTaskList
 		for kp, kq := range AddTaskList {
 			if kq.Status == "正在执行" {
 				AddTaskList[kp].Status = "执行失败"

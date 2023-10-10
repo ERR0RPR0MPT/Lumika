@@ -2,7 +2,6 @@ package utils
 
 import (
 	"fmt"
-	"github.com/ERR0RPR0MPT/Lumika/biliup"
 	"github.com/gin-gonic/gin"
 	"io"
 	"math/rand"
@@ -597,10 +596,10 @@ func AddBUlTask(c *gin.Context) {
 		return
 	}
 	if ed.UploadLines == "" {
-		ed.UploadLines = biliup.Qn
+		ed.UploadLines = DefaultBiliUploadLines
 	}
 	if ed.Threads <= 0 || ed.Threads > 256 {
-		ed.Threads = 5
+		ed.Threads = DefaultBiliUploadThreads
 	}
 	if ed.VideoInfos.Title == "" {
 		c.JSON(400, gin.H{"msg": "AddBUlTask: VideoInfos.Title 参数错误，任务创建失败"})
@@ -745,6 +744,7 @@ func Cors() gin.HandlerFunc {
 func WebServerInit(host string, port int) {
 	DbInit()
 	TaskWorkerInit()
+	GetSystemResourceUsageInit()
 	if !DefaultWebServerDebugMode {
 		gin.SetMode(gin.ReleaseMode)
 	}

@@ -56,15 +56,15 @@ func DbInit() {
 			fmt.Println("读取JSON文件时发生错误:", err)
 			return
 		}
-		err = json.Unmarshal(jsonData, &database)
+		err = json.Unmarshal(jsonData, &DatabaseVariable)
 		if err != nil {
 			fmt.Println("解析JSON数据时发生错误:", err)
 			return
 		}
 		// 更新用户配置
-		if database.VarSettings == nil {
+		if DatabaseVariable.VarSettings == nil {
 			// 使用默认配置
-			database.VarSettings = &VarSettings{
+			DatabaseVariable.VarSettings = &VarSettings{
 				DefaultMaxThreads:               runtime.NumCPU(),
 				DefaultBiliDownloadGoRoutines:   DefaultBiliDownloadGoRoutines,
 				DefaultBiliDownloadsMaxQueueNum: DefaultBiliDownloadsMaxQueueNum,
@@ -72,7 +72,7 @@ func DbInit() {
 				DefaultDbCrontabSeconds:         DefaultDbCrontabSeconds,
 			}
 		}
-		VarSettingsVariable = *database.VarSettings
+		VarSettingsVariable = *DatabaseVariable.VarSettings
 		if VarSettingsVariable.DefaultMaxThreads <= 0 {
 			VarSettingsVariable.DefaultMaxThreads = runtime.NumCPU()
 		}

@@ -6,6 +6,7 @@ import (
 	"github.com/cheggaaa/pb/v3"
 	"github.com/google/uuid"
 	"io"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -41,6 +42,7 @@ func DlAddTask(url string, filePath string, referer string, userAgent string, nu
 		},
 		FileName:     filepath.Base(filePath),
 		ProgressRate: 0,
+		Duration:     "",
 	}
 	DlTaskList[uuidd] = dt
 	DlTaskQueue <- dt
@@ -48,6 +50,7 @@ func DlAddTask(url string, filePath string, referer string, userAgent string, nu
 
 func DlTaskWorker(id int) {
 	for task := range DlTaskQueue {
+		allStartTime := time.Now()
 		LogPrintf(task.UUID, "DlTaskWorker %d 处理下载任务：%v\n", id, task.TaskInfo.Url)
 		_, exist := DlTaskList[task.UUID]
 		if !exist {
@@ -71,14 +74,15 @@ func DlTaskWorker(id int) {
 		DlTaskList[task.UUID].Status = "已完成"
 		DlTaskList[task.UUID].StatusMsg = "已完成"
 		DlTaskList[task.UUID].ProgressNum = 100.0
+		DlTaskList[task.UUID].Duration = fmt.Sprintf("%vs", int64(math.Floor(time.Now().Sub(allStartTime).Seconds())))
 	}
 }
 
 func DlTaskWorkerInit() {
 	DlTaskQueue = make(chan *DlTaskListData)
 	DlTaskList = make(map[string]*DlTaskListData)
-	if len(database.DlTaskList) != 0 {
-		DlTaskList = database.DlTaskList
+	if len(DatabaseVariable.DlTaskList) != 0 {
+		DlTaskList = DatabaseVariable.DlTaskList
 		for kp, kq := range DlTaskList {
 			if kq.Status == "正在执行" {
 				DlTaskList[kp].Status = "执行失败"
