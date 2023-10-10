@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/ERR0RPR0MPT/Lumika/common"
 	"github.com/google/uuid"
 	"github.com/klauspost/reedsolomon"
 	"math"
@@ -15,10 +16,10 @@ import (
 
 func AddGetTask(dirName string, decodeThread int, basestr string) {
 	uuidd := uuid.New().String()
-	dt := &GetTaskListData{
+	dt := &common.GetTaskListData{
 		UUID:      uuidd,
 		TimeStamp: time.Now().Format("2006-01-02 15:04:05"),
-		TaskInfo: &GetTaskInfo{
+		TaskInfo: &common.GetTaskInfo{
 			DirName:      dirName,
 			DecodeThread: decodeThread,
 			BaseStr:      basestr,
@@ -28,56 +29,56 @@ func AddGetTask(dirName string, decodeThread int, basestr string) {
 		ProgressNum:  0,
 		Duration:     "",
 	}
-	GetTaskList[uuidd] = dt
-	GetTaskQueue <- dt
+	common.GetTaskList[uuidd] = dt
+	common.GetTaskQueue <- dt
 }
 
 func GetTaskWorker(id int) {
-	for task := range GetTaskQueue {
+	for task := range common.GetTaskQueue {
 		allStartTime := time.Now()
-		LogPrintf(task.UUID, "GetTaskWorker %d 处理编码任务：%v\n", id, task.UUID)
-		_, exist := GetTaskList[task.UUID]
+		common.LogPrintf(task.UUID, "GetTaskWorker %d 处理编码任务：%v\n", id, task.UUID)
+		_, exist := common.GetTaskList[task.UUID]
 		if !exist {
-			LogPrintf(task.UUID, "GetTaskWorker %d 编码任务被用户删除\n", id)
+			common.LogPrintf(task.UUID, "GetTaskWorker %d 编码任务被用户删除\n", id)
 			continue
 		}
-		GetTaskList[task.UUID].Status = "正在执行"
-		GetTaskList[task.UUID].StatusMsg = "正在执行"
-		outputFileName, err := GetExec(filepath.Join(LumikaDecodePath, task.TaskInfo.DirName), task.TaskInfo.BaseStr, task.TaskInfo.DecodeThread, task.UUID)
-		_, exist = GetTaskList[task.UUID]
+		common.GetTaskList[task.UUID].Status = "正在执行"
+		common.GetTaskList[task.UUID].StatusMsg = "正在执行"
+		outputFileName, err := GetExec(filepath.Join(common.LumikaDecodePath, task.TaskInfo.DirName), task.TaskInfo.BaseStr, task.TaskInfo.DecodeThread, task.UUID)
+		_, exist = common.GetTaskList[task.UUID]
 		if !exist {
-			LogPrintf(task.UUID, "GetTaskWorker %d 编码任务被用户删除\n", id)
+			common.LogPrintf(task.UUID, "GetTaskWorker %d 编码任务被用户删除\n", id)
 			continue
 		}
 		if err != nil {
-			LogPrintf(task.UUID, "GetTaskWorker %d 编码任务执行失败\n", id)
-			GetTaskList[task.UUID].Status = "执行失败"
-			GetTaskList[task.UUID].StatusMsg = err.Error()
+			common.LogPrintf(task.UUID, "GetTaskWorker %d 编码任务执行失败\n", id)
+			common.GetTaskList[task.UUID].Status = "执行失败"
+			common.GetTaskList[task.UUID].StatusMsg = err.Error()
 			continue
 		}
-		GetTaskList[task.UUID].Status = "已完成"
-		GetTaskList[task.UUID].StatusMsg = "已完成"
-		GetTaskList[task.UUID].Filename = outputFileName
-		GetTaskList[task.UUID].ProgressNum = 100.0
-		GetTaskList[task.UUID].Duration = fmt.Sprintf("%vs", int64(math.Floor(time.Now().Sub(allStartTime).Seconds())))
+		common.GetTaskList[task.UUID].Status = "已完成"
+		common.GetTaskList[task.UUID].StatusMsg = "已完成"
+		common.GetTaskList[task.UUID].Filename = outputFileName
+		common.GetTaskList[task.UUID].ProgressNum = 100.0
+		common.GetTaskList[task.UUID].Duration = fmt.Sprintf("%vs", int64(math.Floor(time.Now().Sub(allStartTime).Seconds())))
 	}
 }
 
 func GetTaskWorkerInit() {
-	GetTaskQueue = make(chan *GetTaskListData)
-	GetTaskList = make(map[string]*GetTaskListData)
-	if len(DatabaseVariable.GetTaskList) != 0 {
-		GetTaskList = DatabaseVariable.GetTaskList
-		for kp, kq := range GetTaskList {
+	common.GetTaskQueue = make(chan *common.GetTaskListData)
+	common.GetTaskList = make(map[string]*common.GetTaskListData)
+	if len(common.DatabaseVariable.GetTaskList) != 0 {
+		common.GetTaskList = common.DatabaseVariable.GetTaskList
+		for kp, kq := range common.GetTaskList {
 			if kq.Status == "正在执行" {
-				GetTaskList[kp].Status = "执行失败"
-				GetTaskList[kp].StatusMsg = "任务执行时服务器后端被终止，无法继续执行任务"
-				GetTaskList[kp].ProgressNum = 0.0
+				common.GetTaskList[kp].Status = "执行失败"
+				common.GetTaskList[kp].StatusMsg = "任务执行时服务器后端被终止，无法继续执行任务"
+				common.GetTaskList[kp].ProgressNum = 0.0
 			}
 		}
 	}
 	// 启动多个 GetTaskWorker 协程来处理任务
-	for i := 0; i < VarSettingsVariable.DefaultTaskWorkerGoRoutines; i++ {
+	for i := 0; i < common.VarSettingsVariable.DefaultTaskWorkerGoRoutines; i++ {
 		go GetTaskWorker(i)
 	}
 }
@@ -87,57 +88,57 @@ func GetInput() {
 	var fecDirList []string
 
 	// 读取 LumikaDecodePath 目录下所有的子目录
-	dirList, err := GetSubDirectories(LumikaDecodePath)
+	dirList, err := GetSubDirectories(common.LumikaDecodePath)
 	if err != nil {
-		LogPrintln("", GetStr, ErStr, "无法获取子目录:", err)
+		common.LogPrintln("", common.GetStr, common.ErStr, "无法获取子目录:", err)
 		return
 	}
 	if len(dirList) == 0 {
-		LogPrintln("", GetStr, ErStr, "没有找到子目录，请添加存放编码文件的目录")
+		common.LogPrintln("", common.GetStr, common.ErStr, "没有找到子目录，请添加存放编码文件的目录")
 		return
 	}
 	// 从子目录读取 Base64 配置文件，有配置文件的目录就放入 fecDirList
 	for _, d := range dirList {
-		if IsFileExistsInDir(d, LumikaConfigFileName) {
+		if IsFileExistsInDir(d, common.LumikaConfigFileName) {
 			fecDirList = append(fecDirList, d)
 		}
 	}
 	if len(fecDirList) == 0 {
-		LogPrintln("", GetStr, ErStr, "没有找到子目录下的索引配置，请添加索引来解码")
+		common.LogPrintln("", common.GetStr, common.ErStr, "没有找到子目录下的索引配置，请添加索引来解码")
 		return
 	}
-	LogPrintln("", GetStr, "找到存有索引配置的目录:")
+	common.LogPrintln("", common.GetStr, "找到存有索引配置的目录:")
 	for i, d := range fecDirList {
-		LogPrintln("", GetStr, strconv.Itoa(i+1)+":", d)
+		common.LogPrintln("", common.GetStr, strconv.Itoa(i+1)+":", d)
 	}
 
 	// 设置处理使用的线程数量
-	LogPrintln("", GetStr, "请输入处理使用的线程数量。默认(CPU核心数量)：\""+strconv.Itoa(VarSettingsVariable.DefaultMaxThreads)+"\"")
+	common.LogPrintln("", common.GetStr, "请输入处理使用的线程数量。默认(CPU核心数量)：\""+strconv.Itoa(common.VarSettingsVariable.DefaultMaxThreads)+"\"")
 	decodeThread, err := strconv.Atoi(GetUserInput(""))
 	if err != nil {
-		LogPrintln("", GetStr, "自动设置处理使用的线程数量为", VarSettingsVariable.DefaultMaxThreads)
-		decodeThread = VarSettingsVariable.DefaultMaxThreads
+		common.LogPrintln("", common.GetStr, "自动设置处理使用的线程数量为", common.VarSettingsVariable.DefaultMaxThreads)
+		decodeThread = common.VarSettingsVariable.DefaultMaxThreads
 	}
 	if decodeThread <= 0 {
-		LogPrintln("", GetStr, ErStr, "错误: 处理使用的线程数量不能小于等于 0，自动设置处理使用的线程数量为", VarSettingsVariable.DefaultMaxThreads)
-		decodeThread = VarSettingsVariable.DefaultMaxThreads
+		common.LogPrintln("", common.GetStr, common.ErStr, "错误: 处理使用的线程数量不能小于等于 0，自动设置处理使用的线程数量为", common.VarSettingsVariable.DefaultMaxThreads)
+		decodeThread = common.VarSettingsVariable.DefaultMaxThreads
 	}
 
 	// 遍历每一个子目录并运行
 	for _, fileDir := range fecDirList {
 		// 搜索子目录的 Base64 配置文件
-		configBase64FilePath := SearchFileNameInDir(fileDir, LumikaConfigFileName)
-		LogPrintln("", GetStr, "读取配置文件")
+		configBase64FilePath := SearchFileNameInDir(fileDir, common.LumikaConfigFileName)
+		common.LogPrintln("", common.GetStr, "读取配置文件")
 		// 读取文件
 		configBase64Bytes, err := os.ReadFile(configBase64FilePath)
 		if err != nil {
-			LogPrintln("", GetStr, ErStr, "读取文件失败:", err)
+			common.LogPrintln("", common.GetStr, common.ErStr, "读取文件失败:", err)
 			return
 		}
 		base64Config = string(configBase64Bytes)
 		_, err = GetExec(fileDir, base64Config, decodeThread, "")
 		if err != nil {
-			LogPrintln("", GetStr, ErStr, "解码失败:", err)
+			common.LogPrintln("", common.GetStr, common.ErStr, "解码失败:", err)
 			return
 		}
 	}
@@ -145,49 +146,49 @@ func GetInput() {
 
 func GetExec(fileDir string, base64Config string, decodeThread int, UUID string) (string, error) {
 	// 创建输出目录
-	fileOutputDir := filepath.Join(LumikaDecodeOutputPath, filepath.Base(fileDir))
+	fileOutputDir := filepath.Join(common.LumikaDecodeOutputPath, filepath.Base(fileDir))
 	if _, err := os.Stat(fileOutputDir); os.IsNotExist(err) {
-		LogPrintln(UUID, DeStr, "创建输出目录:", fileOutputDir)
+		common.LogPrintln(UUID, common.DeStr, "创建输出目录:", fileOutputDir)
 		err = os.Mkdir(fileOutputDir, 0755)
 		if err != nil {
-			LogPrintln(UUID, DeStr, ErStr, "创建输出目录失败:", err)
-			return "", &CommonError{Msg: "创建输出目录失败:" + err.Error()}
+			common.LogPrintln(UUID, common.DeStr, common.ErStr, "创建输出目录失败:", err)
+			return "", &common.CommonError{Msg: "创建输出目录失败:" + err.Error()}
 		}
 	}
 
-	var fecFileConfig FecFileConfig
+	var fecFileConfig common.FecFileConfig
 	fecFileConfigJson, err := base64.StdEncoding.DecodeString(base64Config)
 	if err != nil {
-		LogPrintln(UUID, GetStr, ErStr, "解析 Base64 配置失败:", err)
-		return "", &CommonError{Msg: "解析 Base64 配置失败:" + err.Error()}
+		common.LogPrintln(UUID, common.GetStr, common.ErStr, "解析 Base64 配置失败:", err)
+		return "", &common.CommonError{Msg: "解析 Base64 配置失败:" + err.Error()}
 	}
 	err = json.Unmarshal(fecFileConfigJson, &fecFileConfig)
 	if err != nil {
-		LogPrintln(UUID, GetStr, ErStr, "解析 JSON 配置失败:", err)
-		return "", &CommonError{Msg: "解析 JSON 配置失败:" + err.Error()}
+		common.LogPrintln(UUID, common.GetStr, common.ErStr, "解析 JSON 配置失败:", err)
+		return "", &common.CommonError{Msg: "解析 JSON 配置失败:" + err.Error()}
 	}
 
 	// 检测是否与当前版本匹配
-	if fecFileConfig.Version != LumikaVersionNum {
-		LogPrintln(UUID, GetStr, ErStr, "错误: 版本不匹配，无法进行解码。编码文件版本:", fecFileConfig.Version, "当前版本:", LumikaVersionNum)
-		return "", &CommonError{Msg: "版本不匹配，无法进行解码。"}
+	if fecFileConfig.Version != common.LumikaVersionNum {
+		common.LogPrintln(UUID, common.GetStr, common.ErStr, "错误: 版本不匹配，无法进行解码。编码文件版本:", fecFileConfig.Version, "当前版本:", common.LumikaVersionNum)
+		return "", &common.CommonError{Msg: "版本不匹配，无法进行解码。"}
 	}
 
 	// 查找 .mp4 文件
 	fileDict, err := GenerateFileDxDictionary(fileDir, ".mp4")
 	if err != nil {
-		LogPrintln(UUID, GetStr, ErStr, "无法生成文件列表:", err)
-		return "", &CommonError{Msg: "无法生成文件列表:" + err.Error()}
+		common.LogPrintln(UUID, common.GetStr, common.ErStr, "无法生成文件列表:", err)
+		return "", &common.CommonError{Msg: "无法生成文件列表:" + err.Error()}
 	}
 
-	LogPrintln(UUID, GetStr, "文件名:", fecFileConfig.Name)
-	LogPrintln(UUID, GetStr, "摘要:", fecFileConfig.Summary)
-	LogPrintln(UUID, GetStr, "分段长度:", fecFileConfig.SegmentLength)
-	LogPrintln(UUID, GetStr, "分段数量:", fecFileConfig.M)
-	LogPrintln(UUID, GetStr, "Hash:", fecFileConfig.Hash)
-	LogPrintln(UUID, GetStr, "在目录下找到以下匹配的 .mp4 文件:")
+	common.LogPrintln(UUID, common.GetStr, "文件名:", fecFileConfig.Name)
+	common.LogPrintln(UUID, common.GetStr, "摘要:", fecFileConfig.Summary)
+	common.LogPrintln(UUID, common.GetStr, "分段长度:", fecFileConfig.SegmentLength)
+	common.LogPrintln(UUID, common.GetStr, "分段数量:", fecFileConfig.M)
+	common.LogPrintln(UUID, common.GetStr, "Hash:", fecFileConfig.Hash)
+	common.LogPrintln(UUID, common.GetStr, "在目录下找到以下匹配的 .mp4 文件:")
 	for h, v := range fileDict {
-		LogPrintln(UUID, GetStr, strconv.Itoa(h)+":", "文件路径:", v)
+		common.LogPrintln(UUID, common.GetStr, strconv.Itoa(h)+":", "文件路径:", v)
 	}
 
 	// 转换map[int]string 到 []string
@@ -196,19 +197,19 @@ func GetExec(fileDir string, base64Config string, decodeThread int, UUID string)
 		fileDictList = append(fileDictList, v)
 	}
 
-	LogPrintln(UUID, GetStr, "开始解码")
+	common.LogPrintln(UUID, common.GetStr, "开始解码")
 	err = Decode(fileDir, fecFileConfig.SegmentLength, fileDictList, fecFileConfig.MG, fecFileConfig.KG, decodeThread, UUID)
 	if err != nil {
-		LogPrintln(UUID, GetStr, ErStr, "解码失败:", err)
+		common.LogPrintln(UUID, common.GetStr, common.ErStr, "解码失败:", err)
 		return "", err
 	}
-	LogPrintln(UUID, GetStr, "解码完成")
+	common.LogPrintln(UUID, common.GetStr, "解码完成")
 
 	// 查找生成的 .fec 文件
 	fileDict, err = GenerateFileDxDictionary(fileOutputDir, ".fec")
 	if err != nil {
-		LogPrintln(UUID, GetStr, ErStr, "无法生成文件列表:", err)
-		return "", &CommonError{Msg: "无法生成文件列表:" + err.Error()}
+		common.LogPrintln(UUID, common.GetStr, common.ErStr, "无法生成文件列表:", err)
+		return "", &common.CommonError{Msg: "无法生成文件列表:" + err.Error()}
 	}
 
 	// 遍历索引的 FecHashList
@@ -219,125 +220,125 @@ func GetExec(fileDir string, base64Config string, decodeThread int, UUID string)
 		isFind := false
 		for _, fecFilePath := range fileDict {
 			// 检查hash是否在配置中
-			if fecHash == CalculateFileHash(fecFilePath, DefaultHashLength) {
+			if fecHash == CalculateFileHash(fecFilePath, common.DefaultHashLength) {
 				fecFindFileList[fecIndex] = fecFilePath
 				isFind = true
 				break
 			}
 		}
 		if !isFind {
-			LogPrintln(UUID, GetStr, "警告：未找到匹配的 .fec 文件，Hash:", fecHash)
+			common.LogPrintln(UUID, common.GetStr, "警告：未找到匹配的 .fec 文件，Hash:", fecHash)
 		} else {
-			LogPrintln(UUID, GetStr, "找到匹配的 .fec 文件，Hash:", fecHash)
+			common.LogPrintln(UUID, common.GetStr, "找到匹配的 .fec 文件，Hash:", fecHash)
 			findNum++
 		}
 	}
-	LogPrintln(UUID, GetStr, "找到完整的 .fec 文件数量:", findNum)
-	LogPrintln(UUID, GetStr, "未找到的文件数量:", fecFileConfig.M-findNum)
-	LogPrintln(UUID, GetStr, "编码时生成的 .fec 文件数量(M):", fecFileConfig.M)
-	LogPrintln(UUID, GetStr, "恢复所需最少的 .fec 文件数量(K):", fecFileConfig.K)
+	common.LogPrintln(UUID, common.GetStr, "找到完整的 .fec 文件数量:", findNum)
+	common.LogPrintln(UUID, common.GetStr, "未找到的文件数量:", fecFileConfig.M-findNum)
+	common.LogPrintln(UUID, common.GetStr, "编码时生成的 .fec 文件数量(M):", fecFileConfig.M)
+	common.LogPrintln(UUID, common.GetStr, "恢复所需最少的 .fec 文件数量(K):", fecFileConfig.K)
 	if findNum >= fecFileConfig.K {
-		LogPrintln(UUID, GetStr, "提示：可以成功恢复数据")
+		common.LogPrintln(UUID, common.GetStr, "提示：可以成功恢复数据")
 	} else {
-		LogPrintln(UUID, GetStr, "警告：无法成功恢复数据，请按下回车键来确定")
+		common.LogPrintln(UUID, common.GetStr, "警告：无法成功恢复数据，请按下回车键来确定")
 		GetUserInput("请按回车键继续...")
 	}
 
 	// 生成原始文件
-	LogPrintln(UUID, GetStr, "开始生成原始文件")
+	common.LogPrintln(UUID, common.GetStr, "开始生成原始文件")
 	zunfecStartTime := time.Now()
 	enc, err := reedsolomon.New(fecFileConfig.K, fecFileConfig.M-fecFileConfig.K)
 	if err != nil {
-		LogPrintln(UUID, GetStr, ErStr, "无法构建RS解码器:", err)
-		return "", &CommonError{Msg: "无法构建RS解码器:" + err.Error()}
+		common.LogPrintln(UUID, common.GetStr, common.ErStr, "无法构建RS解码器:", err)
+		return "", &common.CommonError{Msg: "无法构建RS解码器:" + err.Error()}
 	}
 	shards := make([][]byte, fecFileConfig.M)
 	for i := range shards {
 		if fecFindFileList[i] == "" {
-			LogPrintln(UUID, GetStr, "Index:", i, ", 警告：未找到匹配的 .fec 文件")
+			common.LogPrintln(UUID, common.GetStr, "Index:", i, ", 警告：未找到匹配的 .fec 文件")
 			continue
 		}
-		LogPrintln(UUID, GetStr, "Index:", i, ", 读取文件:", fecFindFileList[i])
+		common.LogPrintln(UUID, common.GetStr, "Index:", i, ", 读取文件:", fecFindFileList[i])
 		shards[i], err = os.ReadFile(fecFindFileList[i])
 		if err != nil {
-			LogPrintln(UUID, GetStr, ErStr, "读取 .fec 文件时出错", err)
+			common.LogPrintln(UUID, common.GetStr, common.ErStr, "读取 .fec 文件时出错", err)
 			shards[i] = nil
 		}
 	}
 	// 校验数据
 	ok, err := enc.Verify(shards)
 	if ok {
-		LogPrintln(UUID, GetStr, "数据完整，不需要恢复")
+		common.LogPrintln(UUID, common.GetStr, "数据完整，不需要恢复")
 	} else {
-		LogPrintln(UUID, GetStr, "数据不完整，准备恢复数据")
+		common.LogPrintln(UUID, common.GetStr, "数据不完整，准备恢复数据")
 		err = enc.Reconstruct(shards)
 		if err != nil {
-			LogPrintln(UUID, GetStr, ErStr, "恢复失败 -", err)
+			common.LogPrintln(UUID, common.GetStr, common.ErStr, "恢复失败 -", err)
 			DeleteFecFiles(fileOutputDir)
 			if UUID == "" {
 				GetUserInput("请按回车键继续...")
 			}
-			return "", &CommonError{Msg: "恢复失败:" + err.Error()}
+			return "", &common.CommonError{Msg: "恢复失败:" + err.Error()}
 		}
 		ok, err = enc.Verify(shards)
 		if !ok {
-			LogPrintln(UUID, GetStr, ErStr, "恢复失败，数据可能已损坏")
+			common.LogPrintln(UUID, common.GetStr, common.ErStr, "恢复失败，数据可能已损坏")
 			DeleteFecFiles(fileOutputDir)
 			if UUID == "" {
 				GetUserInput("请按回车键继续...")
 			}
-			return "", &CommonError{Msg: "恢复失败，数据可能已损坏"}
+			return "", &common.CommonError{Msg: "恢复失败，数据可能已损坏"}
 		}
 		if err != nil {
-			LogPrintln(UUID, GetStr, ErStr, "恢复失败 -", err)
+			common.LogPrintln(UUID, common.GetStr, common.ErStr, "恢复失败 -", err)
 			DeleteFecFiles(fileOutputDir)
 			if UUID == "" {
 				GetUserInput("请按回车键继续...")
 			}
-			return "", &CommonError{Msg: "恢复失败:" + err.Error()}
+			return "", &common.CommonError{Msg: "恢复失败:" + err.Error()}
 		}
-		LogPrintln(UUID, GetStr, "恢复成功")
+		common.LogPrintln(UUID, common.GetStr, "恢复成功")
 	}
-	LogPrintln(UUID, GetStr, "写入文件到:", fecFileConfig.Name)
-	f, err := os.Create(filepath.Join(LumikaDecodeOutputPath, fecFileConfig.Name))
+	common.LogPrintln(UUID, common.GetStr, "写入文件到:", fecFileConfig.Name)
+	f, err := os.Create(filepath.Join(common.LumikaDecodeOutputPath, fecFileConfig.Name))
 	if err != nil {
-		LogPrintln(UUID, GetStr, ErStr, "创建文件失败:", err)
-		return "", &CommonError{Msg: "创建文件失败:" + err.Error()}
+		common.LogPrintln(UUID, common.GetStr, common.ErStr, "创建文件失败:", err)
+		return "", &common.CommonError{Msg: "创建文件失败:" + err.Error()}
 	}
 	err = enc.Join(f, shards, len(shards[0])*fecFileConfig.K)
 	if err != nil {
-		LogPrintln(UUID, GetStr, ErStr, "写入文件失败:", err)
-		return "", &CommonError{Msg: "写入文件失败:" + err.Error()}
+		common.LogPrintln(UUID, common.GetStr, common.ErStr, "写入文件失败:", err)
+		return "", &common.CommonError{Msg: "写入文件失败:" + err.Error()}
 	}
 	f.Close()
-	err = TruncateFile(fecFileConfig.Length, filepath.Join(LumikaDecodeOutputPath, fecFileConfig.Name))
+	err = TruncateFile(fecFileConfig.Length, filepath.Join(common.LumikaDecodeOutputPath, fecFileConfig.Name))
 	if err != nil {
-		LogPrintln(UUID, GetStr, ErStr, "截断解码文件失败:", err)
-		return "", &CommonError{Msg: "截断解码文件失败:" + err.Error()}
+		common.LogPrintln(UUID, common.GetStr, common.ErStr, "截断解码文件失败:", err)
+		return "", &common.CommonError{Msg: "截断解码文件失败:" + err.Error()}
 	}
 	zunfecEndTime := time.Now()
 	zunfecDuration := zunfecEndTime.Sub(zunfecStartTime)
-	LogPrintln(UUID, GetStr, "生成原始文件成功，耗时:", zunfecDuration)
+	common.LogPrintln(UUID, common.GetStr, "生成原始文件成功，耗时:", zunfecDuration)
 	DeleteFecFiles(fileOutputDir)
 	// 删除临时输出目录
 	err = os.RemoveAll(fileOutputDir)
 	if err != nil {
-		LogPrintln(UUID, DeStr, ErStr, "删除临时输出目录失败:", err)
+		common.LogPrintln(UUID, common.DeStr, common.ErStr, "删除临时输出目录失败:", err)
 	}
 	// 检查最终生成的文件是否与原始文件一致
-	LogPrintln(UUID, GetStr, "检查生成的文件是否与源文件一致")
-	targetHash := CalculateFileHash(filepath.Join(LumikaDecodeOutputPath, fecFileConfig.Name), DefaultHashLength)
+	common.LogPrintln(UUID, common.GetStr, "检查生成的文件是否与源文件一致")
+	targetHash := CalculateFileHash(filepath.Join(common.LumikaDecodeOutputPath, fecFileConfig.Name), common.DefaultHashLength)
 	if targetHash != fecFileConfig.Hash {
-		LogPrintln(UUID, GetStr, ErStr, "警告: 生成的文件与源文件不一致")
-		LogPrintln(UUID, GetStr, ErStr, "源文件 Hash:", fecFileConfig.Hash)
-		LogPrintln(UUID, GetStr, ErStr, "生成文件 Hash:", targetHash)
-		LogPrintln(UUID, GetStr, ErStr, "文件解码失败")
+		common.LogPrintln(UUID, common.GetStr, common.ErStr, "警告: 生成的文件与源文件不一致")
+		common.LogPrintln(UUID, common.GetStr, common.ErStr, "源文件 Hash:", fecFileConfig.Hash)
+		common.LogPrintln(UUID, common.GetStr, common.ErStr, "生成文件 Hash:", targetHash)
+		common.LogPrintln(UUID, common.GetStr, common.ErStr, "文件解码失败")
 	} else {
-		LogPrintln(UUID, GetStr, "生成的文件与源文件一致")
-		LogPrintln(UUID, GetStr, "源文件 Hash:", fecFileConfig.Hash)
-		LogPrintln(UUID, GetStr, "生成文件 Hash:", targetHash)
-		LogPrintln(UUID, GetStr, "文件成功解码")
+		common.LogPrintln(UUID, common.GetStr, "生成的文件与源文件一致")
+		common.LogPrintln(UUID, common.GetStr, "源文件 Hash:", fecFileConfig.Hash)
+		common.LogPrintln(UUID, common.GetStr, "生成文件 Hash:", targetHash)
+		common.LogPrintln(UUID, common.GetStr, "文件成功解码")
 	}
-	LogPrintln(UUID, GetStr, "获取完成")
+	common.LogPrintln(UUID, common.GetStr, "获取完成")
 	return fecFileConfig.Name, nil
 }

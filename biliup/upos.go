@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ERR0RPR0MPT/Lumika/common"
 	"io"
-	"log"
 	"math"
 	"net/http"
 	"os"
@@ -47,7 +47,7 @@ type partsJson struct {
 	Parts []partsInfo `json:"parts"`
 }
 
-func upos(file *os.File, totalSize int, ret *uposUploadSegments, Threads int, Header http.Header) (*UploadRes, error) {
+func upos(file *os.File, totalSize int, ret *uposUploadSegments, Threads int, Header http.Header, UUID string) (*UploadRes, error) {
 	uploadUrl := "https:" + ret.Endpoint + "/" + strings.TrimPrefix(ret.UposURI, "upos://")
 	client := &http.Client{}
 	client.Timeout = time.Second * 5
@@ -59,6 +59,7 @@ func upos(file *os.File, totalSize int, ret *uposUploadSegments, Threads int, He
 	}
 	res, err := client.Do(req)
 	if err != nil {
+		common.LogPrintln(UUID, common.BUlStr, err, "请求预上传接口失败")
 		return nil, err
 	}
 	body, err := io.ReadAll(res.Body)
@@ -84,7 +85,7 @@ func upos(file *os.File, totalSize int, ret *uposUploadSegments, Threads int, He
 		//waitGoroutine: sync.WaitGroup{},
 	}
 
-	err = uploader.upload()
+	err = uploader.upload(UUID)
 	if err != nil {
 		return nil, err
 	}
@@ -113,12 +114,12 @@ func upos(file *os.File, totalSize int, ret *uposUploadSegments, Threads int, He
 		req.Header.Add("X-Upos-Auth", ret.Auth)
 		res, err := client.Do(req)
 		if err != nil {
-			log.Println(err, file.Name(), "第", i, "次请求合并失败，正在重试")
-			if i == 10 {
-				log.Println(err, file.Name(), "第10次请求合并失败")
-				return nil, errors.New(fmt.Sprintln(file.Name(), "第10次请求合并失败", err))
+			common.LogPrintf(UUID, common.BUlStr, err, file.Name(), "第", i, "次请求合并失败，正在重试")
+			if i == 100 {
+				common.LogPrintf(UUID, common.BUlStr, err, file.Name(), "第100次请求合并失败")
+				return nil, errors.New(fmt.Sprintln(file.Name(), "第100次请求合并失败", err))
 			}
-			time.Sleep(time.Second * 15)
+			time.Sleep(time.Second * 5)
 			continue
 		}
 		body, _ := io.ReadAll(res.Body)
@@ -136,12 +137,12 @@ func upos(file *os.File, totalSize int, ret *uposUploadSegments, Threads int, He
 			}
 			return upRes, nil
 		} else {
-			log.Println(file.Name(), "第", i, "次请求合并失败，正在重试")
-			if i == 10 {
-				log.Println(file.Name(), "第10次请求合并失败")
+			common.LogPrintf(UUID, common.BUlStr, file.Name(), "第", i, "次请求合并失败，正在重试")
+			if i == 100 {
+				common.LogPrintf(UUID, common.BUlStr, file.Name(), "第100次请求合并失败")
 				return nil, errors.New("分片上传失败")
 			}
-			time.Sleep(time.Second * 15)
+			time.Sleep(time.Second * 5)
 		}
 	}
 

@@ -6,7 +6,7 @@ import (
 )
 
 type Biliup interface {
-	UploadFile(*os.File) (*UploadRes, error)
+	UploadFile(*os.File, string) (*UploadRes, error)
 	Submit([]*UploadRes) (interface{}, error)
 	SetThreads(uint)
 	SetUploadLine(string)

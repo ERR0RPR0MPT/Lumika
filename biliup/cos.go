@@ -1,6 +1,7 @@
 package biliup
 
 import (
+	"github.com/ERR0RPR0MPT/Lumika/common"
 	"io"
 
 	"bytes"
@@ -8,7 +9,6 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
-	"log"
 	"math"
 	"net/http"
 	"os"
@@ -54,14 +54,14 @@ type partsXml struct {
 	}
 }
 
-func cos(file *os.File, totalSize int, ret *cosUploadSegments, internal bool, ChunkSize int, thread int) (*UploadRes, error) {
+func cos(file *os.File, totalSize int, ret *cosUploadSegments, internal bool, ChunkSize int, thread int, UUID string) (*UploadRes, error) {
 	uploadUrl := ret.Url
 	if internal {
 		uploadUrl = strings.Replace(uploadUrl, "cos.accelerate", "cos-internal.ap-shanghai", 1)
 	}
 	fmt.Println(ret.FetchHeaders)
 	client := &http.Client{}
-	client.Timeout = 5 * time.Second
+	client.Timeout = 10 * time.Second
 	req, _ := http.NewRequest("POST", uploadUrl+"?uploads&output=json", nil)
 	req.Header = DefaultHeader.Clone()
 	req.Header.Set("Authorization", ret.PostAuth)
@@ -98,7 +98,7 @@ func cos(file *os.File, totalSize int, ret *cosUploadSegments, internal bool, Ch
 		file:         file,
 		MaxThread:    make(chan struct{}, thread),
 	}
-	err = uploader.upload()
+	err = uploader.upload(UUID)
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +124,7 @@ func cos(file *os.File, totalSize int, ret *cosUploadSegments, internal bool, Ch
 	xmlParts, _ := xml.Marshal(parts)
 	for i := 0; ; i++ {
 		client := &http.Client{}
-		client.Timeout = 15 * time.Second
+		client.Timeout = time.Second * 20
 		req, _ := http.NewRequest("POST", uploadUrl+"?uploadId="+uploader.uploadId,
 			bytes.NewBuffer(xmlParts))
 		req.Header.Set("Authorization", ret.PostAuth)
@@ -132,14 +132,14 @@ func cos(file *os.File, totalSize int, ret *cosUploadSegments, internal bool, Ch
 		res, err := client.Do(req)
 		resBody, err := io.ReadAll(res.Body)
 		if err != nil || res.StatusCode != 200 {
-			log.Println(err, file.Name(), "第", i, "次请求合并失败，正在重试")
+			common.LogPrintf(UUID, common.BUlStr, err, file.Name(), "第", i, "次请求合并失败，正在重试")
 			fmt.Println(resBody)
 			res.Body.Close()
 			if i == 10 {
-				log.Println(err, file.Name(), "第10次请求合并失败")
+				common.LogPrintf(UUID, common.BUlStr, err, file.Name(), "第10次请求合并失败")
 				return nil, errors.New(fmt.Sprintln(file.Name(), "第10次请求合并失败", err))
 			}
-			time.Sleep(time.Second * 15)
+			time.Sleep(time.Second * 5)
 			continue
 		} else {
 			break
@@ -147,7 +147,7 @@ func cos(file *os.File, totalSize int, ret *cosUploadSegments, internal bool, Ch
 	}
 	for i := 0; ; i++ {
 		client := &http.Client{}
-		client.Timeout = 15 * time.Second
+		client.Timeout = time.Second * 20
 		req, _ := http.NewRequest("POST", "https:"+ret.FetchUrl, nil)
 		req.Header = DefaultHeader.Clone()
 		req.Header.Set("X-Upos-Fetch-Source", ret.FetchHeaders.XUposFetchSource)
@@ -155,12 +155,12 @@ func cos(file *os.File, totalSize int, ret *cosUploadSegments, internal bool, Ch
 		req.Header.Set("Fetch-Header-Authorization", ret.FetchHeaders.FetchHeaderAuthorization)
 		res, err := client.Do(req)
 		if err != nil {
-			log.Println(err, file.Name(), "第", i, "次请求B站失败，正在重试")
-			if i == 10 {
-				log.Println(err, file.Name(), "第10次请求B站失败")
-				return nil, errors.New(fmt.Sprintln(file.Name(), "第10次请求B站失败", err))
+			common.LogPrintf(UUID, common.BUlStr, err, file.Name(), "第", i, "次请求B站失败，正在重试")
+			if i == 100 {
+				common.LogPrintf(UUID, common.BUlStr, err, file.Name(), "第100次请求B站失败")
+				return nil, errors.New(fmt.Sprintln(file.Name(), "第100次请求B站失败", err))
 			}
-			time.Sleep(time.Second * 15)
+			time.Sleep(time.Second * 5)
 			continue
 		}
 		body, _ := io.ReadAll(res.Body)
@@ -181,12 +181,12 @@ func cos(file *os.File, totalSize int, ret *cosUploadSegments, internal bool, Ch
 			}
 			return upRes, nil
 		} else {
-			log.Printf("%s第 %d次请求，B站返回错误信息，正在重试", file.Name(), i)
-			if i == 10 {
-				log.Println(file.Name(), "第10次请求B站失败")
+			common.LogPrintf("", common.BUlStr, "%s第 %d次请求，B站返回错误信息，正在重试", file.Name(), i)
+			if i == 100 {
+				common.LogPrintf(UUID, common.BUlStr, file.Name(), "第100次请求B站失败")
 				return nil, errors.New("分片上传失败")
 			}
-			time.Sleep(time.Second * 15)
+			time.Sleep(time.Second * 5)
 		}
 	}
 }

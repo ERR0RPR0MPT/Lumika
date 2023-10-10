@@ -1,4 +1,4 @@
-package utils
+package common
 
 import (
 	"io/fs"
@@ -101,10 +101,10 @@ type FecFileConfig struct {
 }
 
 type ThreadInfo struct {
-	threadIndex  int
-	startOffset  int64
-	endOffset    int64
-	tempFilePath string
+	ThreadIndex  int
+	StartOffset  int64
+	EndOffset    int64
+	TempFilePath string
 }
 
 type FileInfo struct {
@@ -282,5 +282,5 @@ var GetTaskList map[string]*GetTaskListData
 var BUlTaskQueue chan *BUlTaskListData
 var BUlTaskList map[string]*BUlTaskListData
 
-var uploadTotalStart int64 = -1
-var downloadTotalStart int64 = -1
+var UploadTotalStart int64 = -1
+var DownloadTotalStart int64 = -1

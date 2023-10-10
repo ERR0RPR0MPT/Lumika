@@ -2,10 +2,10 @@ package biliup
 
 import (
 	"errors"
+	"github.com/ERR0RPR0MPT/Lumika/common"
 	"github.com/google/go-querystring/query"
 	"github.com/valyala/fasthttp"
 	"golang.org/x/sync/errgroup"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -39,7 +39,7 @@ type chunkParams struct {
 	End        int    `url:"end"`
 }
 
-func (u *chunkUploader) upload() error {
+func (u *chunkUploader) upload(UUID string) error {
 	group := new(errgroup.Group)
 	for i := 0; i < u.chunks; i++ {
 		u.MaxThread <- struct{}{}
@@ -56,17 +56,19 @@ func (u *chunkUploader) upload() error {
 			End:        i*u.chunkSize + bufSize,
 		}
 		group.Go(func() error {
-			return u.uploadChunk(buf, chunk)
+			return u.uploadChunk(buf, chunk, UUID)
 		})
 	}
 	if err := group.Wait(); err != nil {
 		close(u.chunkInfo)
+		common.LogPrintln(UUID, common.BUlStr, "上传分块出现问题:", u.uploadId, u.chunkInfo, err)
 		return err
 	}
 	close(u.chunkInfo)
 	return nil
 }
-func (u *chunkUploader) uploadChunk(data []byte, params chunkParams) error {
+
+func (u *chunkUploader) uploadChunk(data []byte, params chunkParams, UUID string) error {
 	defer func() {
 		<-u.MaxThread
 	}()
@@ -84,8 +86,8 @@ func (u *chunkUploader) uploadChunk(data []byte, params chunkParams) error {
 	for i := 0; i <= ChunkUploadMaxRetryTimes; i++ {
 		err := fasthttp.Do(req, resp)
 		if err != nil || resp.StatusCode() != 200 {
-			log.Println("上传分块出现问题，尝试重连")
-			log.Println(err)
+			common.LogPrintln(UUID, common.BUlStr, "上传分块出现问题，尝试重连")
+			common.LogPrintln(UUID, common.BUlStr, err)
 		} else {
 			c := chunkInfo{
 				Order: params.PartNumber,
@@ -101,7 +103,7 @@ func (u *chunkUploader) uploadChunk(data []byte, params chunkParams) error {
 		}
 		//fasthttp.ReleaseResponse(resp)
 		if i == ChunkUploadMaxRetryTimes {
-			log.Println("上传分块出现问题，重试次数超过限制")
+			common.LogPrintln(UUID, common.BUlStr, "上传分块出现问题，重试次数超过限制")
 			return errors.New(strconv.Itoa(u.chunks) + "分块上传失败")
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"github.com/ERR0RPR0MPT/Lumika/common"
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/disk"
 	"github.com/shirou/gopsutil/mem"
@@ -14,6 +15,7 @@ import (
 	"image"
 	"image/color"
 	"io"
+	"io/fs"
 	"math"
 	"net"
 	"net/url"
@@ -33,14 +35,14 @@ func RestartProgram() error {
 	executablePath, _ := os.Executable()
 	err := syscall.Exec(executablePath, os.Args, os.Environ())
 	if err != nil {
-		LogPrintln("", "RestartProgram:", ErStr, "重启程序失败:", err)
+		common.LogPrintln("", "RestartProgram:", common.ErStr, "重启程序失败:", err)
 		return err
 	}
 	return nil
 }
 
 func PressEnterToContinue() {
-	LogPrintln("", "请按回车键继续...")
+	common.LogPrintln("", "请按回车键继续...")
 	reader := bufio.NewReader(os.Stdin)
 	_, _ = reader.ReadString('\n')
 }
@@ -55,7 +57,7 @@ func clearScreen() {
 	cmd.Stdout = os.Stdout
 	err := cmd.Run()
 	if err != nil {
-		LogPrintln("", "clearScreen: 清屏失败:", err)
+		common.LogPrintln("", "clearScreen: 清屏失败:", err)
 		return
 	}
 }
@@ -179,18 +181,18 @@ func IsConsecutive(slice1, slice2 []byte) bool {
 
 func DeleteFecFiles(fileDir string) {
 	// 是否删除.fec临时文件
-	if DefaultDeleteFecFiles {
+	if common.DefaultDeleteFecFiles {
 		fileDict, err := GenerateFileDxDictionary(fileDir, ".fec")
 		if err != nil {
-			LogPrintln("", "DeleteFecFiles:", ErStr, "无法生成文件列表:", err)
+			common.LogPrintln("", "DeleteFecFiles:", common.ErStr, "无法生成文件列表:", err)
 			return
 		}
 		if len(fileDict) != 0 {
-			LogPrintln("", "DeleteFecFiles:", "删除临时文件")
+			common.LogPrintln("", "DeleteFecFiles:", "删除临时文件")
 			for _, filePath := range fileDict {
 				err = os.Remove(filePath)
 				if err != nil {
-					LogPrintln("", "DeleteFecFiles:", ErStr, "删除文件失败:", err)
+					common.LogPrintln("", "DeleteFecFiles:", common.ErStr, "删除文件失败:", err)
 					return
 				}
 			}
@@ -297,7 +299,7 @@ func Data2Image(data []byte, size int) image.Image {
 		padding := make([]byte, paddingLength)
 		data = append(data, padding...)
 	} else if len(data) > maxDataLength {
-		LogPrintln("", "Data2Image:", ErStr, "警告: 数据过长，将进行截断")
+		common.LogPrintln("", "Data2Image:", common.ErStr, "警告: 数据过长，将进行截断")
 		data = data[:maxDataLength]
 	}
 	// 创建新的RGBA图像对象
@@ -349,13 +351,13 @@ func Image2Data(img image.Image) (dataR []byte, t int) {
 				b |= 1 << uint(7-j)
 			}
 		}
-		if b != DefaultBlankByte {
+		if b != common.DefaultBlankByte {
 			isBlank = false
 		}
-		if b != DefaultBlankStartByte {
+		if b != common.DefaultBlankStartByte {
 			isBlankStart = false
 		}
-		if b != DefaultBlankEndByte {
+		if b != common.DefaultBlankEndByte {
 			isBlankEnd = false
 		}
 		data[i] = b
@@ -388,10 +390,10 @@ func GetUserInput(s string) string {
 		s = "请输入内容: "
 	}
 	reader := bufio.NewReader(os.Stdin)
-	LogPrintln("", s)
+	common.LogPrintln("", s)
 	input, err := reader.ReadString('\n')
 	if err != nil {
-		LogPrintln("", "GetUserInput:", ErStr, "获取用户输入失败:", err)
+		common.LogPrintln("", "GetUserInput:", common.ErStr, "获取用户输入失败:", err)
 		return ""
 	}
 	return strings.TrimSpace(input)
@@ -486,7 +488,7 @@ func GetSubDirectories(path string) ([]string, error) {
 func IsFileExistsInDir(directory, filename string) bool {
 	files, err := os.ReadDir(directory)
 	if err != nil {
-		LogPrintln("", "IsFileExistsInDir:", ErStr, "无法读取目录:", err)
+		common.LogPrintln("", "IsFileExistsInDir:", common.ErStr, "无法读取目录:", err)
 		return false
 	}
 	for _, file := range files {
@@ -500,7 +502,7 @@ func IsFileExistsInDir(directory, filename string) bool {
 func SearchFileNameInDir(directory, filename string) string {
 	files, err := os.ReadDir(directory)
 	if err != nil {
-		LogPrintln("", "SearchFileNameInDir:", ErStr, "无法读取目录:", err)
+		common.LogPrintln("", "SearchFileNameInDir:", common.ErStr, "无法读取目录:", err)
 		return ""
 	}
 	for _, file := range files {
@@ -560,8 +562,8 @@ func GetFileNameFromURL(urlString string) string {
 	return fileName
 }
 
-func GetDirectoryJSON(directoryPath string) ([]FileInfo, error) {
-	fileList := make([]FileInfo, 0)
+func GetDirectoryJSON(directoryPath string) ([]common.FileInfo, error) {
+	fileList := make([]common.FileInfo, 0)
 	files, err := os.ReadDir(directoryPath)
 	if err != nil {
 		return nil, err
@@ -576,7 +578,7 @@ func GetDirectoryJSON(directoryPath string) ([]FileInfo, error) {
 		if err != nil {
 			return nil, err
 		}
-		fileList = append(fileList, FileInfo{
+		fileList = append(fileList, common.FileInfo{
 			Filename:  file.Name(),
 			ParentDir: filepath.Base(directoryPath),
 			Type:      fileType,
@@ -598,60 +600,123 @@ func CheckPort(port int) bool {
 	return true
 }
 
-func ZipDirectory(dir string, zipFile string) error {
-	// 创建一个新的压缩文件
-	zipWriter, err := os.Create(zipFile)
+func Zip(zipPath string, paths ...string) error {
+	// Create zip file and it's parent dir.
+	if err := os.MkdirAll(filepath.Dir(zipPath), 0755); err != nil {
+		return err
+	}
+	archive, err := os.Create(zipPath)
 	if err != nil {
 		return err
 	}
+	defer archive.Close()
+
+	// New zip writer.
+	zipWriter := zip.NewWriter(archive)
 	defer zipWriter.Close()
-	// 创建一个zip.Writer来写入压缩文件
-	zipWriterObj := zip.NewWriter(zipWriter)
-	defer zipWriterObj.Close()
-	// 遍历目录及其子目录和文件
-	err = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+
+	// Traverse the file or directory.
+	for _, rootPath := range paths {
+		// Remove the trailing path separator if path is a directory.
+		rootPath = strings.TrimSuffix(rootPath, string(os.PathSeparator))
+
+		// Visit all the files or directories in the tree.
+		err = filepath.Walk(rootPath, walkZipFunc(rootPath, zipWriter))
 		if err != nil {
 			return err
 		}
-		// 获取文件的相对路径（相对于要压缩的目录）
-		relPath, err := filepath.Rel(dir, path)
+	}
+	return nil
+}
+
+func walkZipFunc(rootPath string, zipWriter *zip.Writer) filepath.WalkFunc {
+	return func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		// 创建一个文件头
+
+		// If a file is a symbolic link it will be skipped.
+		if info.Mode()&os.ModeSymlink != 0 {
+			return nil
+		}
+
+		// Create a local file header.
 		header, err := zip.FileInfoHeader(info)
 		if err != nil {
 			return err
 		}
-		// 设置文件头的名称为相对路径
-		header.Name = relPath
-		// 如果文件是一个目录，则不需要写入内容，只需添加文件头即可
+
+		// Set compression method.
+		header.Method = zip.Deflate
+
+		// Set relative path of a file as the header name.
+		header.Name, err = filepath.Rel(filepath.Dir(rootPath), path)
+		if err != nil {
+			return err
+		}
 		if info.IsDir() {
-			header.Name += "/"
-			_, err = zipWriterObj.CreateHeader(header)
-			if err != nil {
-				return err
-			}
+			header.Name += string(os.PathSeparator)
+		}
+
+		// Create writer for the file header and save content of the file.
+		headerWriter, err := zipWriter.CreateHeader(header)
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
 			return nil
 		}
-		// 创建一个zip.Writer来写入文件内容
-		writer, err := zipWriterObj.CreateHeader(header)
+		f, err := os.Open(path)
 		if err != nil {
 			return err
 		}
-		// 打开要压缩的文件
-		file, err := os.Open(path)
-		if err != nil {
+		defer f.Close()
+		_, err = io.Copy(headerWriter, f)
+		return err
+	}
+}
+
+func Unzip(zipPath, dir string) error {
+	reader, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return err
+	}
+	defer reader.Close()
+	for _, file := range reader.File {
+		if err := unzipFile(file, dir); err != nil {
 			return err
 		}
-		defer file.Close()
-		// 将文件内容复制到zip.Writer中
-		_, err = io.Copy(writer, file)
-		if err != nil {
+	}
+	return nil
+}
+
+func unzipFile(file *zip.File, dir string) error {
+	name := strings.TrimPrefix(filepath.Join(string(filepath.Separator), file.Name), string(filepath.Separator))
+	filePath := path.Join(dir, name)
+
+	if file.FileInfo().IsDir() {
+		if err := os.MkdirAll(filePath, 0755); err != nil {
 			return err
 		}
 		return nil
-	})
+	}
+	if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
+		return err
+	}
+
+	r, err := file.Open()
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+
+	w, err := os.Create(filePath)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+
+	_, err = io.Copy(w, r)
 	return err
 }
 
@@ -697,7 +762,7 @@ func GetBilibiliAppSign(params url.Values, appkey string, appsec string) url.Val
 func InterfaceToString(value interface{}) (string, error) {
 	str, ok := value.(string)
 	if !ok {
-		return "", &CommonError{Msg: "无法将接口转换为字符串"}
+		return "", &common.CommonError{Msg: "无法将接口转换为字符串"}
 	}
 	return str, nil
 }
@@ -716,7 +781,7 @@ func GetSystemResourceUsageInit() {
 	}()
 }
 
-func GetSystemResourceUsage() (*SystemResourceUsage, error) {
+func GetSystemResourceUsage() (*common.SystemResourceUsage, error) {
 	var uploadSpeed string
 	var downloadSpeed string
 	percentCh := make(chan []float64)
@@ -749,7 +814,7 @@ func GetSystemResourceUsage() (*SystemResourceUsage, error) {
 		networkDownloadSpeedCh <- downloadSpeed
 	}()
 	uploadTotal, downloadTotal, err := GetNetworkTotal(iface)
-	usage := &SystemResourceUsage{
+	usage := &common.SystemResourceUsage{
 		OSName:                runtime.GOOS,
 		CpuUsagePercent:       (<-percentCh)[0],
 		MemUsageTotalAndUsed:  FormatDataSize(int64(memInfo.Used)) + "/" + FormatDataSize(int64(memInfo.Total)),
@@ -836,15 +901,15 @@ func GetNetworkTotal(interfaceName string) (string, string, error) {
 		return "", "", fmt.Errorf("找不到网络接口'%s'的统计信息", interfaceName)
 	}
 
-	if uploadTotalStart == -1 || downloadTotalStart == -1 {
-		uploadTotalStart = int64(selectedNetIOCounter.BytesSent)
-		downloadTotalStart = int64(selectedNetIOCounter.BytesRecv)
+	if common.UploadTotalStart == -1 || common.DownloadTotalStart == -1 {
+		common.UploadTotalStart = int64(selectedNetIOCounter.BytesSent)
+		common.DownloadTotalStart = int64(selectedNetIOCounter.BytesRecv)
 		return FormatDataSize(0), FormatDataSize(0), nil
 	}
 
 	// 计算上传和下载速度
-	uploadTotal := int64(selectedNetIOCounter.BytesSent) - uploadTotalStart
-	downloadTotal := int64(selectedNetIOCounter.BytesRecv) - downloadTotalStart
+	uploadTotal := int64(selectedNetIOCounter.BytesSent) - common.UploadTotalStart
+	downloadTotal := int64(selectedNetIOCounter.BytesRecv) - common.DownloadTotalStart
 
 	return FormatDataSize(uploadTotal), FormatDataSize(downloadTotal), nil
 }

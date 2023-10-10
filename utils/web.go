@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"github.com/ERR0RPR0MPT/Lumika/common"
 	"github.com/gin-gonic/gin"
 	"io"
 	"math/rand"
@@ -21,7 +22,7 @@ func UploadEncode(c *gin.Context) {
 		return
 	}
 	parentDir := c.PostForm("parentDir")
-	LogPrintln("", "读取到 parentDir:", parentDir)
+	common.LogPrintln("", "读取到 parentDir:", parentDir)
 	if parentDir != "encode" && parentDir != "encodeOutput" && parentDir != "decode" && parentDir != "decodeOutput" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "父目录参数不正确"})
 		return
@@ -31,7 +32,7 @@ func UploadEncode(c *gin.Context) {
 	// 遍历所有文件
 	for _, file := range files {
 		// 上传文件至指定目录
-		dst := filepath.Join(LumikaWorkDirPath, parentDir, file.Filename)
+		dst := filepath.Join(common.LumikaWorkDirPath, parentDir, file.Filename)
 		if err := c.SaveUploadedFile(file, dst); err != nil {
 			c.JSON(http.StatusBadRequest, fmt.Sprintf("上传失败: %s", err.Error()))
 			return
@@ -60,7 +61,7 @@ func UploadDecode(c *gin.Context) {
 	folderName = ReplaceInvalidCharacters(folderName, '-')
 
 	// 创建目标文件夹（如果不存在）
-	targetDir := filepath.Join(LumikaWorkDirPath, parentDir, folderName)
+	targetDir := filepath.Join(common.LumikaWorkDirPath, parentDir, folderName)
 	if _, err := os.Stat(targetDir); os.IsNotExist(err) {
 		err := os.Mkdir(targetDir, 0755)
 		if err != nil {
@@ -73,7 +74,7 @@ func UploadDecode(c *gin.Context) {
 	// 遍历所有文件
 	for _, file := range files {
 		// 上传文件至指定目录
-		dst := filepath.Join(LumikaWorkDirPath, parentDir, folderName, file.Filename)
+		dst := filepath.Join(common.LumikaWorkDirPath, parentDir, folderName, file.Filename)
 		if err := c.SaveUploadedFile(file, dst); err != nil {
 			c.JSON(http.StatusBadRequest, fmt.Sprintf("上传失败: %s", err.Error()))
 			return
@@ -98,12 +99,12 @@ func GetFileFromURL(c *gin.Context) {
 		fileName = GetFileNameFromURL(urla)
 	}
 	DownloadThreadNumInputData := c.PostForm("DownloadThreadNumInputData")
-	LogPrintln("", "读取到 DownloadThreadNumInputData:", DownloadThreadNumInputData)
-	gor := VarSettingsVariable.DefaultBiliDownloadGoRoutines
+	common.LogPrintln("", "读取到 DownloadThreadNumInputData:", DownloadThreadNumInputData)
+	gor := common.VarSettingsVariable.DefaultBiliDownloadGoRoutines
 	gors, err := strconv.Atoi(DownloadThreadNumInputData)
 	if err != nil {
 		if DownloadThreadNumInputData == "" {
-			gors = VarSettingsVariable.DefaultBiliDownloadGoRoutines
+			gors = common.VarSettingsVariable.DefaultBiliDownloadGoRoutines
 		} else {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "线程参数错误"})
 			return
@@ -113,7 +114,7 @@ func GetFileFromURL(c *gin.Context) {
 		gor = gors
 	}
 	fileName = ReplaceInvalidCharacters(fileName, '-')
-	filePath := filepath.Join(LumikaWorkDirPath, parentDir, fileName)
+	filePath := filepath.Join(common.LumikaWorkDirPath, parentDir, fileName)
 	go DlAddTask(urla, filePath, "", "", gor)
 	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("成功添加下载任务: %s, 使用线程数: %d", fileName, gor)})
 }
@@ -135,34 +136,34 @@ func GetFileFromBiliID(c *gin.Context) {
 }
 
 func GetDlTaskList(c *gin.Context) {
-	var DlTaskListArray []*DlTaskListData
-	for _, kq := range DlTaskList {
+	var DlTaskListArray []*common.DlTaskListData
+	for _, kq := range common.DlTaskList {
 		DlTaskListArray = append(DlTaskListArray, kq)
 	}
-	var BDlTaskListArray []*BDlTaskListData
-	for _, kq := range BDlTaskList {
+	var BDlTaskListArray []*common.BDlTaskListData
+	for _, kq := range common.BDlTaskList {
 		BDlTaskListArray = append(BDlTaskListArray, kq)
 	}
 	c.JSON(http.StatusOK, gin.H{"dlTaskList": DlTaskListArray, "bdlTaskList": BDlTaskListArray})
 }
 
 func GetFileList(c *gin.Context) {
-	EncodeDirData, err := GetDirectoryJSON(LumikaEncodePath)
+	EncodeDirData, err := GetDirectoryJSON(common.LumikaEncodePath)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"读取文件出现错误:": err.Error()})
 		return
 	}
-	EncodeOutputDirData, err := GetDirectoryJSON(LumikaEncodeOutputPath)
+	EncodeOutputDirData, err := GetDirectoryJSON(common.LumikaEncodeOutputPath)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"读取文件出现错误:": err.Error()})
 		return
 	}
-	DecodeDirData, err := GetDirectoryJSON(LumikaDecodePath)
+	DecodeDirData, err := GetDirectoryJSON(common.LumikaDecodePath)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"读取文件出现错误:": err.Error()})
 		return
 	}
-	DecodeOutputDirData, err := GetDirectoryJSON(LumikaDecodeOutputPath)
+	DecodeOutputDirData, err := GetDirectoryJSON(common.LumikaDecodeOutputPath)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"读取文件出现错误:": err.Error()})
 		return
@@ -171,65 +172,65 @@ func GetFileList(c *gin.Context) {
 }
 
 func AddEncodeTask(c *gin.Context) {
-	var ed *AddTaskInfo
+	var ed *common.AddTaskInfo
 	if err := c.ShouldBindJSON(&ed); err != nil {
 		c.JSON(400, gin.H{"msg": "AddEncodeTask JSON 解析错误", "error": err.Error()})
 		return
 	}
 	if ed.DefaultM == 0 {
-		LogPrintln("", AddStr, ErStr, "错误: M 的值不能为 0，自动设置 M = "+strconv.Itoa(AddMLevel))
-		ed.DefaultM = AddMLevel
+		common.LogPrintln("", common.AddStr, common.ErStr, "错误: M 的值不能为 0，自动设置 M = "+strconv.Itoa(common.AddMLevel))
+		ed.DefaultM = common.AddMLevel
 	}
 	if ed.DefaultK == 0 {
-		LogPrintln("", AddStr, ErStr, "错误: K 的值不能为 0，自动设置 K = "+strconv.Itoa(AddKLevel))
-		ed.DefaultK = AddKLevel
+		common.LogPrintln("", common.AddStr, common.ErStr, "错误: K 的值不能为 0，自动设置 K = "+strconv.Itoa(common.AddKLevel))
+		ed.DefaultK = common.AddKLevel
 	}
 	if ed.DefaultK > ed.DefaultM {
-		LogPrintln("", AddStr, ErStr, "错误: K 的值不能大于 M 的值，自动设置 K = M = "+strconv.Itoa(ed.DefaultM))
+		common.LogPrintln("", common.AddStr, common.ErStr, "错误: K 的值不能大于 M 的值，自动设置 K = M = "+strconv.Itoa(ed.DefaultM))
 		ed.DefaultK = ed.DefaultM
 	}
 	if ed.MGValue == 0 {
-		LogPrintln("", AddStr, ErStr, "错误: MG 的值不能为 0，自动设置 MG = "+strconv.Itoa(AddMGLevel))
-		ed.MGValue = AddMGLevel
+		common.LogPrintln("", common.AddStr, common.ErStr, "错误: MG 的值不能为 0，自动设置 MG = "+strconv.Itoa(common.AddMGLevel))
+		ed.MGValue = common.AddMGLevel
 	}
 	if ed.KGValue == 0 {
-		LogPrintln("", AddStr, ErStr, "错误: KG 的值不能为 0，自动设置 KG = "+strconv.Itoa(AddKGLevel))
-		ed.KGValue = AddKGLevel
+		common.LogPrintln("", common.AddStr, common.ErStr, "错误: KG 的值不能为 0，自动设置 KG = "+strconv.Itoa(common.AddKGLevel))
+		ed.KGValue = common.AddKGLevel
 	}
 	if ed.KGValue > ed.MGValue {
-		LogPrintln("", AddStr, ErStr, "错误: KG 的值不能大于 MG 的值，自动设置 KG = MG = "+strconv.Itoa(ed.MGValue))
+		common.LogPrintln("", common.AddStr, common.ErStr, "错误: KG 的值不能大于 MG 的值，自动设置 KG = MG = "+strconv.Itoa(ed.MGValue))
 		ed.KGValue = ed.MGValue
 	}
 	if ed.VideoSize <= 0 {
-		LogPrintln("", AddStr, ErStr, "错误: 分辨率大小不能小于等于 0，自动设置分辨率大小为", EncodeVideoSizeLevel)
-		ed.VideoSize = EncodeVideoSizeLevel
+		common.LogPrintln("", common.AddStr, common.ErStr, "错误: 分辨率大小不能小于等于 0，自动设置分辨率大小为", common.EncodeVideoSizeLevel)
+		ed.VideoSize = common.EncodeVideoSizeLevel
 	}
 	if ed.OutputFPS <= 0 {
-		LogPrintln("", AddStr, ErStr, "错误: 输出帧率不能小于等于 0，自动设置输出帧率为", EncodeOutputFPSLevel)
-		ed.OutputFPS = EncodeOutputFPSLevel
+		common.LogPrintln("", common.AddStr, common.ErStr, "错误: 输出帧率不能小于等于 0，自动设置输出帧率为", common.EncodeOutputFPSLevel)
+		ed.OutputFPS = common.EncodeOutputFPSLevel
 	}
 	if ed.EncodeMaxSeconds <= 0 {
-		LogPrintln("", AddStr, ErStr, "错误: 最大编码时间不能小于等于 0，自动设置最大编码时间为", EncodeMaxSecondsLevel)
-		ed.EncodeMaxSeconds = EncodeMaxSecondsLevel
+		common.LogPrintln("", common.AddStr, common.ErStr, "错误: 最大编码时间不能小于等于 0，自动设置最大编码时间为", common.EncodeMaxSecondsLevel)
+		ed.EncodeMaxSeconds = common.EncodeMaxSecondsLevel
 	}
 	if ed.EncodeThread <= 0 {
-		LogPrintln("", AddStr, ErStr, "错误: 处理使用的线程数量不能小于等于 0，自动设置处理使用的线程数量为", VarSettingsVariable.DefaultMaxThreads)
-		ed.EncodeThread = VarSettingsVariable.DefaultMaxThreads
+		common.LogPrintln("", common.AddStr, common.ErStr, "错误: 处理使用的线程数量不能小于等于 0，自动设置处理使用的线程数量为", common.VarSettingsVariable.DefaultMaxThreads)
+		ed.EncodeThread = common.VarSettingsVariable.DefaultMaxThreads
 	}
 	go AddAddTask(ed.FileNameList, ed.DefaultM, ed.DefaultK, ed.MGValue, ed.KGValue, ed.VideoSize, ed.OutputFPS, ed.EncodeMaxSeconds, ed.EncodeThread, ed.EncodeFFmpegMode, ed.DefaultSummary)
 	c.JSON(http.StatusOK, gin.H{"msg": fmt.Sprintf("成功添加编码任务")})
 }
 
 func GetAddTaskList(c *gin.Context) {
-	var AddTaskListArray []*AddTaskListData
-	for _, kq := range AddTaskList {
+	var AddTaskListArray []*common.AddTaskListData
+	for _, kq := range common.AddTaskList {
 		AddTaskListArray = append(AddTaskListArray, kq)
 	}
 	c.JSON(http.StatusOK, gin.H{"encodeTaskList": AddTaskListArray})
 }
 
 func AddDecodeTask(c *gin.Context) {
-	var ed *GetTaskInfo
+	var ed *common.GetTaskInfo
 	if err := c.ShouldBindJSON(&ed); err != nil {
 		c.JSON(400, gin.H{"msg": "AddDecodeTask JSON 解析错误", "error": err.Error()})
 		return
@@ -239,23 +240,23 @@ func AddDecodeTask(c *gin.Context) {
 		return
 	}
 	if ed.DecodeThread <= 0 {
-		LogPrintln("", AddStr, ErStr, "错误: 处理使用的线程数量不能小于等于 0，自动设置处理使用的线程数量为", VarSettingsVariable.DefaultMaxThreads)
-		ed.DecodeThread = VarSettingsVariable.DefaultMaxThreads
+		common.LogPrintln("", common.AddStr, common.ErStr, "错误: 处理使用的线程数量不能小于等于 0，自动设置处理使用的线程数量为", common.VarSettingsVariable.DefaultMaxThreads)
+		ed.DecodeThread = common.VarSettingsVariable.DefaultMaxThreads
 	}
 	go AddGetTask(ed.DirName, ed.DecodeThread, ed.BaseStr)
 	c.JSON(http.StatusOK, gin.H{"msg": fmt.Sprintf("成功添加解码任务")})
 }
 
 func GetGetTaskList(c *gin.Context) {
-	var GetTaskListArray []*GetTaskListData
-	for _, kq := range GetTaskList {
+	var GetTaskListArray []*common.GetTaskListData
+	for _, kq := range common.GetTaskList {
 		GetTaskListArray = append(GetTaskListArray, kq)
 	}
 	c.JSON(http.StatusOK, gin.H{"decodeTaskList": GetTaskListArray})
 }
 
 func GetLogCat(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"logcat": LogVariable.String()})
+	c.JSON(http.StatusOK, gin.H{"logcat": common.LogVariable.String()})
 }
 
 func DeleteFileFromAPI(c *gin.Context) {
@@ -269,7 +270,7 @@ func DeleteFileFromAPI(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "file 参数错误：请输入正确的文件/目录名"})
 		return
 	}
-	filePath := filepath.Join(LumikaWorkDirPath, dir, fileName)
+	filePath := filepath.Join(common.LumikaWorkDirPath, dir, fileName)
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "文件/目录不存在"})
 		return
@@ -314,8 +315,8 @@ func ReNameFileFromAPI(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "originName 参数错误：请输入正确的文件/目录名"})
 		return
 	}
-	originFilePath := filepath.Join(LumikaWorkDirPath, dir, originName)
-	filePath := filepath.Join(LumikaWorkDirPath, dir, name)
+	originFilePath := filepath.Join(common.LumikaWorkDirPath, dir, originName)
+	filePath := filepath.Join(common.LumikaWorkDirPath, dir, name)
 	if _, err := os.Stat(originFilePath); os.IsNotExist(err) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "originName 的文件/目录不存在"})
 		return
@@ -343,7 +344,7 @@ func DownloadFileFromAPI(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "file 参数错误：请输入正确的文件名"})
 		return
 	}
-	filePath := filepath.Join(LumikaWorkDirPath, dir, fileName)
+	filePath := filepath.Join(common.LumikaWorkDirPath, dir, fileName)
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "文件不存在"})
 		return
@@ -359,14 +360,12 @@ func DownloadFileFromAPI(c *gin.Context) {
 		if contentType != "" {
 			c.Writer.Header().Set("Content-Type", contentType)
 		}
-		//c.Writer.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", fileName))
-		//c.Writer.Header().Set("Content-Disposition", "inline")
 		c.File(filePath)
 		return
 	} else {
 		zipFilePath := filepath.Join(filepath.Dir(filePath), fileName+".zip")
 		if _, err := os.Stat(zipFilePath); os.IsNotExist(err) {
-			err = ZipDirectory(filePath, zipFilePath)
+			err = Zip(zipFilePath, filePath)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "目录压缩失败"})
 				return
@@ -380,7 +379,7 @@ func DownloadFileFromAPI(c *gin.Context) {
 }
 
 func ClearLogCat(c *gin.Context) {
-	LogVariable.Reset()
+	common.LogVariable.Reset()
 	c.JSON(http.StatusOK, gin.H{"message": "日志清除成功"})
 }
 
@@ -397,8 +396,8 @@ func ClearDlTaskList(c *gin.Context) {
 	//		return
 	//	}
 	//}
-	DlTaskList = make(map[string]*DlTaskListData)
-	BDlTaskList = make(map[string]*BDlTaskListData)
+	common.DlTaskList = make(map[string]*common.DlTaskListData)
+	common.BDlTaskList = make(map[string]*common.BDlTaskListData)
 	c.JSON(http.StatusOK, gin.H{"message": "下载任务列表清除成功"})
 }
 func ClearAddTaskList(c *gin.Context) {
@@ -408,7 +407,7 @@ func ClearAddTaskList(c *gin.Context) {
 	//		return
 	//	}
 	//}
-	AddTaskList = make(map[string]*AddTaskListData)
+	common.AddTaskList = make(map[string]*common.AddTaskListData)
 	c.JSON(http.StatusOK, gin.H{"message": "编码任务列表清除成功"})
 }
 
@@ -419,7 +418,7 @@ func ClearGetTaskList(c *gin.Context) {
 	//		return
 	//	}
 	//}
-	GetTaskList = make(map[string]*GetTaskListData)
+	common.GetTaskList = make(map[string]*common.GetTaskListData)
 	c.JSON(http.StatusOK, gin.H{"message": "解码任务列表清除成功"})
 }
 
@@ -429,21 +428,21 @@ func PauseAddTask(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "任务的 UUID 不能为空"})
 		return
 	}
-	_, exist := AddTaskList[uuidd]
+	_, exist := common.AddTaskList[uuidd]
 	if !exist {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "没有找到指定的任务"})
 		return
 	}
-	if AddTaskList[uuidd].IsPaused {
-		AddTaskList[uuidd].IsPaused = false
-		AddTaskList[uuidd].Status = "正在执行"
-		AddTaskList[uuidd].StatusMsg = "正在执行"
+	if common.AddTaskList[uuidd].IsPaused {
+		common.AddTaskList[uuidd].IsPaused = false
+		common.AddTaskList[uuidd].Status = "正在执行"
+		common.AddTaskList[uuidd].StatusMsg = "正在执行"
 		c.JSON(http.StatusOK, gin.H{"message": "成功启动任务"})
 		return
 	} else {
-		AddTaskList[uuidd].IsPaused = true
-		AddTaskList[uuidd].Status = "已暂停"
-		AddTaskList[uuidd].StatusMsg = "任务已暂停"
+		common.AddTaskList[uuidd].IsPaused = true
+		common.AddTaskList[uuidd].Status = "已暂停"
+		common.AddTaskList[uuidd].StatusMsg = "任务已暂停"
 		c.JSON(http.StatusOK, gin.H{"message": "成功暂停任务"})
 		return
 	}
@@ -455,21 +454,21 @@ func PauseGetTask(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "任务的 UUID 不能为空"})
 		return
 	}
-	_, exist := GetTaskList[uuidd]
+	_, exist := common.GetTaskList[uuidd]
 	if !exist {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "没有找到指定的任务"})
 		return
 	}
-	if GetTaskList[uuidd].IsPaused {
-		GetTaskList[uuidd].IsPaused = false
-		GetTaskList[uuidd].Status = "正在执行"
-		GetTaskList[uuidd].StatusMsg = "正在执行"
+	if common.GetTaskList[uuidd].IsPaused {
+		common.GetTaskList[uuidd].IsPaused = false
+		common.GetTaskList[uuidd].Status = "正在执行"
+		common.GetTaskList[uuidd].StatusMsg = "正在执行"
 		c.JSON(http.StatusOK, gin.H{"message": "成功启动任务"})
 		return
 	} else {
-		GetTaskList[uuidd].IsPaused = true
-		GetTaskList[uuidd].Status = "已暂停"
-		GetTaskList[uuidd].StatusMsg = "任务已暂停"
+		common.GetTaskList[uuidd].IsPaused = true
+		common.GetTaskList[uuidd].Status = "已暂停"
+		common.GetTaskList[uuidd].StatusMsg = "任务已暂停"
 		c.JSON(http.StatusOK, gin.H{"message": "成功暂停任务"})
 		return
 	}
@@ -481,12 +480,12 @@ func DeleteDlTask(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "任务的 UUID 不能为空"})
 		return
 	}
-	_, exist := DlTaskList[uuidd]
+	_, exist := common.DlTaskList[uuidd]
 	if !exist {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "没有找到指定的任务"})
 		return
 	}
-	delete(DlTaskList, uuidd)
+	delete(common.DlTaskList, uuidd)
 	c.JSON(http.StatusOK, gin.H{"message": "成功删除任务"})
 	return
 }
@@ -497,12 +496,12 @@ func DeleteBDlTask(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "任务的 UUID 不能为空"})
 		return
 	}
-	_, exist := BDlTaskList[uuidd]
+	_, exist := common.BDlTaskList[uuidd]
 	if !exist {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "没有找到指定的任务"})
 		return
 	}
-	delete(BDlTaskList, uuidd)
+	delete(common.BDlTaskList, uuidd)
 	c.JSON(http.StatusOK, gin.H{"message": "成功删除任务"})
 	return
 }
@@ -513,12 +512,12 @@ func DeleteAddTask(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "任务的 UUID 不能为空"})
 		return
 	}
-	_, exist := AddTaskList[uuidd]
+	_, exist := common.AddTaskList[uuidd]
 	if !exist {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "没有找到指定的任务"})
 		return
 	}
-	delete(AddTaskList, uuidd)
+	delete(common.AddTaskList, uuidd)
 	c.JSON(http.StatusOK, gin.H{"message": "成功删除任务"})
 	return
 }
@@ -529,12 +528,12 @@ func DeleteGetTask(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "任务的 UUID 不能为空"})
 		return
 	}
-	_, exist := GetTaskList[uuidd]
+	_, exist := common.GetTaskList[uuidd]
 	if !exist {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "没有找到指定的任务"})
 		return
 	}
-	delete(GetTaskList, uuidd)
+	delete(common.GetTaskList, uuidd)
 	c.JSON(http.StatusOK, gin.H{"message": "成功删除任务"})
 	return
 }
@@ -552,18 +551,18 @@ func GetServerStatus(c *gin.Context) {
 func RestartServer(c *gin.Context) {
 	err := RestartProgram()
 	if err != nil {
-		LogPrintln("", WebStr, "重启服务器后端进程失败：", err)
+		common.LogPrintln("", common.WebStr, "重启服务器后端进程失败：", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "重启服务器后端进程失败"})
 		return
 	}
-	LogPrintln("", WebStr, "服务器后端进程重启成功")
+	common.LogPrintln("", common.WebStr, "服务器后端进程重启成功")
 	c.JSON(http.StatusOK, gin.H{"error": "服务器后端进程重启成功"})
 	return
 }
 
 func GetBUlTaskList(c *gin.Context) {
-	var BUlTaskListArray []*BUlTaskListData
-	for _, kq := range BUlTaskList {
+	var BUlTaskListArray []*common.BUlTaskListData
+	for _, kq := range common.BUlTaskList {
 		BUlTaskListArray = append(BUlTaskListArray, kq)
 	}
 	c.JSON(http.StatusOK, gin.H{"bulTaskList": BUlTaskListArray})
@@ -575,18 +574,18 @@ func DeleteBUlTask(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "任务的 UUID 不能为空"})
 		return
 	}
-	_, exist := BUlTaskList[uuidd]
+	_, exist := common.BUlTaskList[uuidd]
 	if !exist {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "没有找到指定的任务"})
 		return
 	}
-	delete(BUlTaskList, uuidd)
+	delete(common.BUlTaskList, uuidd)
 	c.JSON(http.StatusOK, gin.H{"message": "成功删除任务"})
 	return
 }
 
 func AddBUlTask(c *gin.Context) {
-	var ed *BUlTaskInfo
+	var ed *common.BUlTaskInfo
 	if err := c.ShouldBindJSON(&ed); err != nil {
 		c.JSON(400, gin.H{"msg": "AddBUlTask JSON 解析错误", "error": err.Error()})
 		return
@@ -596,10 +595,10 @@ func AddBUlTask(c *gin.Context) {
 		return
 	}
 	if ed.UploadLines == "" {
-		ed.UploadLines = DefaultBiliUploadLines
+		ed.UploadLines = common.DefaultBiliUploadLines
 	}
 	if ed.Threads <= 0 || ed.Threads > 256 {
-		ed.Threads = DefaultBiliUploadThreads
+		ed.Threads = common.DefaultBiliUploadThreads
 	}
 	if ed.VideoInfos.Title == "" {
 		c.JSON(400, gin.H{"msg": "AddBUlTask: VideoInfos.Title 参数错误，任务创建失败"})
@@ -619,7 +618,7 @@ func ClearBUlTaskList(c *gin.Context) {
 	//		return
 	//	}
 	//}
-	BUlTaskList = make(map[string]*BUlTaskListData)
+	common.BUlTaskList = make(map[string]*common.BUlTaskListData)
 	c.JSON(http.StatusOK, gin.H{"message": "任务列表清除成功"})
 }
 
@@ -678,12 +677,12 @@ func GetBilibiliPoll(c *gin.Context) {
 }
 
 func GetVersion(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"version": LumikaVersionString})
+	c.JSON(http.StatusOK, gin.H{"version": common.LumikaVersionString})
 	return
 }
 
 func SetVarSettingsConfig(c *gin.Context) {
-	var vs *VarSettings
+	var vs *common.VarSettings
 	if err := c.ShouldBindJSON(&vs); err != nil {
 		c.JSON(400, gin.H{"msg": "SetVarSettingsConfig JSON 解析错误", "error": err.Error()})
 		return
@@ -708,12 +707,12 @@ func SetVarSettingsConfig(c *gin.Context) {
 		c.JSON(400, gin.H{"msg": "SetVarSettingsConfig: DefaultDbCrontabSeconds 参数错误，任务创建失败"})
 		return
 	}
-	VarSettingsVariable = *vs
+	common.VarSettingsVariable = *vs
 	c.JSON(http.StatusOK, gin.H{"msg": fmt.Sprintf("成功修改设置")})
 }
 
 func GetVarSettingsConfig(c *gin.Context) {
-	c.JSON(http.StatusOK, VarSettingsVariable)
+	c.JSON(http.StatusOK, common.VarSettingsVariable)
 	return
 }
 
@@ -745,7 +744,7 @@ func WebServerInit(host string, port int) {
 	DbInit()
 	TaskWorkerInit()
 	GetSystemResourceUsageInit()
-	if !DefaultWebServerDebugMode {
+	if !common.DefaultWebServerDebugMode {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	r := gin.Default()
@@ -755,7 +754,7 @@ func WebServerInit(host string, port int) {
 	r.GET("/", func(c *gin.Context) {
 		c.Redirect(http.StatusFound, "/ui")
 	})
-	r.StaticFS("/ui", http.FS(UISubFiles))
+	r.StaticFS("/ui", http.FS(common.UISubFiles))
 	r.POST("/api/upload/encode", UploadEncode)
 	r.POST("/api/upload/decode", UploadDecode)
 	r.POST("/api/get-file-from-url", GetFileFromURL)
@@ -795,19 +794,19 @@ func WebServerInit(host string, port int) {
 	p := port
 	for {
 		if CheckPort(p) {
-			LogPrintln("", WebStr, p, "端口已被占用")
+			common.LogPrintln("", common.WebStr, p, "端口已被占用")
 			rand.Seed(time.Now().UnixNano())
-			p = rand.Intn(DefaultWebServerRandomPortMax-DefaultWebServerRandomPortMin+1) + DefaultWebServerRandomPortMin
-			LogPrintln("", WebStr, "尝试在", p, "端口上重新启动 Web Server")
+			p = rand.Intn(common.DefaultWebServerRandomPortMax-common.DefaultWebServerRandomPortMin+1) + common.DefaultWebServerRandomPortMin
+			common.LogPrintln("", common.WebStr, "尝试在", p, "端口上重新启动 Web Server")
 			continue
 		}
 		break
 	}
-	LogPrintln("", WebStr, "Web Server 在 "+host+":"+strconv.Itoa(p)+" 上监听")
-	LogPrintln("", WebStr, "尝试访问管理面板: http://localhost:"+strconv.Itoa(p)+"/ui/")
+	common.LogPrintln("", common.WebStr, "Web Server 在 "+host+":"+strconv.Itoa(p)+" 上监听")
+	common.LogPrintln("", common.WebStr, "尝试访问管理面板: http://localhost:"+strconv.Itoa(p)+"/ui/")
 	err := r.Run(host + ":" + strconv.Itoa(p))
 	if err != nil {
-		LogPrintln("", WebStr, "Web Server 启动失败：", err)
+		common.LogPrintln("", common.WebStr, "Web Server 启动失败：", err)
 		return
 	}
 }

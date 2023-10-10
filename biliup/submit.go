@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ERR0RPR0MPT/Lumika/common"
 	"io"
 	"net/http"
 	"strings"
@@ -123,7 +124,7 @@ func (b *Bilibili) Submit(v []*UploadRes) (bvid interface{}, err error) {
 		if err != nil {
 			if b.AutoFix {
 				b.Cover = ""
-				fmt.Printf("设置封面失败，原因：%s\n，使用b站自动生成封面", err.Error())
+				common.LogPrintf("", common.BUlStr, "设置封面失败，原因：%s\n，使用b站自动生成封面", err.Error())
 			} else {
 				return "", err
 			}
@@ -133,7 +134,7 @@ func (b *Bilibili) Submit(v []*UploadRes) (bvid interface{}, err error) {
 		if err != nil {
 			if b.AutoFix {
 				b.Cover = ""
-				fmt.Printf("设置封面失败，原因：%s\n，使用b站自动生成封面", err.Error())
+				common.LogPrintf("", common.BUlStr, "设置封面失败，原因：%s\n，使用b站自动生成封面", err.Error())
 			} else {
 				return "", err
 			}
@@ -182,20 +183,20 @@ func (b *Bilibili) Submit(v []*UploadRes) (bvid interface{}, err error) {
 				if i == BilibiliMaxRetryTimes {
 					return "", fmt.Errorf("已达到最大重试次数%s", err.Error())
 				}
-				fmt.Printf("第%d投稿过程中出现错误：%s,正在重试", i, err)
+				common.LogPrintf("", common.BUlStr, "第%d投稿过程中出现错误：%s,正在重试", i, err)
 				time.Sleep(time.Second * 5)
 				continue
 			} else {
-				fmt.Printf("B站返回稿件错误信息：%s", err.Error())
+				common.LogPrintf("", common.BUlStr, "B站返回稿件错误信息：%s", err.Error())
 				if b.AutoFix {
 					fmt.Println("自动修复中...")
 					switch rep.Code {
 					case 21012:
-						fmt.Printf("标题重复，更改标题\n标题:%s", params.Title)
+						common.LogPrintf("", common.BUlStr, "标题重复，更改标题\n标题:%s", params.Title)
 						time.Sleep(time.Minute)
 						params.Title = string([]rune(params.Title)[:utf8.RuneCountInString(params.Title)-1])
 					case 21103:
-						fmt.Printf("标题过长，更改标题\n标题:%s", params.Title)
+						common.LogPrintf("", common.BUlStr, "标题过长，更改标题\n标题:%s", params.Title)
 						time.Sleep(time.Minute)
 						params.Title = string([]rune(params.Title)[:79])
 					case 21058:
@@ -208,7 +209,7 @@ func (b *Bilibili) Submit(v []*UploadRes) (bvid interface{}, err error) {
 						params.Title = string([]rune(params.Title)[:utf8.RuneCountInString(params.Title)-1])
 						params.Videos = params.Videos[100:]
 					case 21070:
-						fmt.Printf("投稿频率过快，等待%d秒", SubmitInterval)
+						common.LogPrintf("", common.BUlStr, "投稿频率过快，等待%d秒", SubmitInterval)
 						time.Sleep(SubmitInterval * time.Second)
 					case 10009:
 						fmt.Println("同一个视频，不能短时间同时提交到不同稿件")
@@ -237,7 +238,7 @@ func (b *Bilibili) Submit(v []*UploadRes) (bvid interface{}, err error) {
 //		if i == 20 {
 //			return err
 //		}
-//		fmt.Printf("第%d提交出现问题%s,正在重试", i, err.Error())
+//		common.LogPrintf("", common.BUlStr, "第%d提交出现问题%s,正在重试", i, err.Error())
 //		continue
 //	}
 //	body, err := io.ReadAll(res.Body)
@@ -245,7 +246,7 @@ func (b *Bilibili) Submit(v []*UploadRes) (bvid interface{}, err error) {
 //		if i == 20 {
 //			return err
 //		}
-//		fmt.Printf("第%d提交出现问题%s,正在重试", i, err.Error())
+//		common.LogPrintf("", common.BUlStr, "第%d提交出现问题%s,正在重试", i, err.Error())
 //		continue
 //	}
 //	t := struct {
@@ -314,7 +315,7 @@ func (b *Bilibili) Submit(v []*UploadRes) (bvid interface{}, err error) {
 //	}
 //	err := VerifyAndFix(&params)
 //	if err != nil {
-//		log.Println(err)
+//		common.LogPrintln("", common.BUlStr, err)
 //	}
 //	for i := range v {
 //		if v[i] == nil {

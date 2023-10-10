@@ -4,10 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	browser "github.com/EDDYCJY/fake-useragent"
+	"github.com/ERR0RPR0MPT/Lumika/common"
 	"github.com/google/go-querystring/query"
 	"github.com/tidwall/gjson"
 	"io"
-	"log"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -32,7 +33,7 @@ const (
 var BilibiliLines = []string{Auto, Cos, CosInternal, Bda2, Ws, Qn}
 
 var DefaultHeader = http.Header{
-	"User-Agent": []string{"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/63.0.3239.108"},
+	"User-Agent": []string{browser.Random()},
 	"Referer":    []string{"https://www.bilibili.com"},
 	"Connection": []string{"keep-alive"},
 }
@@ -73,7 +74,7 @@ func (b *Bilibili) SetThreads(Thread uint) {
 func (b *Bilibili) SetUploadLine(uploadLine string) {
 	if !InArray(BilibiliLines, uploadLine) {
 		b.UploadLines = Auto
-		fmt.Printf("upload line %s not support,Support line are %s,set uploadline to AUTO", uploadLine, BilibiliLines)
+		common.LogPrintf("", common.BUlStr, "upload line %s not support,Support line are %s,set uploadline to AUTO", uploadLine, BilibiliLines)
 	} else {
 		b.UploadLines = uploadLine
 	}
@@ -257,7 +258,7 @@ func selectUploadOs(lines string) uploadOs {
 	return o
 }
 
-func (b *Bilibili) UploadFile(file *os.File) (*UploadRes, error) {
+func (b *Bilibili) UploadFile(file *os.File, UUID string) (*UploadRes, error) {
 	upOs := selectUploadOs(b.UploadLines)
 	state, _ := file.Stat()
 	q := struct {
@@ -294,17 +295,20 @@ func (b *Bilibili) UploadFile(file *os.File) (*UploadRes, error) {
 		res, err := b.Client.Do(req)
 		if err != nil {
 			res.Body.Close()
+			common.LogPrintln(UUID, common.BUlStr, "preupload 数据获取失败, 正在重试第", i, "次:", file.Name())
 			time.Sleep(time.Second * 1)
 			continue
 		}
 		content, err = io.ReadAll(res.Body)
 		res.Body.Close()
 		if err == nil {
+			common.LogPrintln(UUID, common.BUlStr, "preupload 数据获取成功:", file.Name())
 			break
 		}
 	}
 	if content == nil {
-		return &UploadRes{}, errors.New("preupload query failed")
+		common.LogPrintln(UUID, common.BUlStr, "preupload 数据获取失败:", file.Name())
+		return &UploadRes{}, errors.New("preupload 数据获取失败")
 	}
 	if upOs.Os == "cos-internal" || upOs.Os == "cos" {
 		var internal bool
@@ -314,69 +318,113 @@ func (b *Bilibili) UploadFile(file *os.File) (*UploadRes, error) {
 		body := &cosUploadSegments{}
 		_ = json.Unmarshal(content, &body)
 		if body.Ok != 1 {
+			common.LogPrintln(UUID, common.BUlStr, "query Upload Parameters failed:", file.Name())
 			return &UploadRes{}, errors.New("query Upload Parameters failed")
 		}
-		videoInfo, err := cos(file, int(state.Size()), body, internal, ChunkSize, b.Threads)
+		common.LogPrintln(UUID, common.BUlStr, "使用 cos 方式上传文件:", file.Name())
+		var videoInfo *UploadRes
+		var err error
+		for i := 0; i < 10; i++ {
+			videoInfo, err = cos(file, int(state.Size()), body, internal, ChunkSize, b.Threads, UUID)
+			if err != nil {
+				common.LogPrintln(UUID, common.BUlStr, file.Name(), "上传失败(cos)，正在重试第", i, "次:", file.Name())
+				continue
+			}
+			break
+		}
 		return videoInfo, err
 
 	} else if upOs.Os == "upos" {
 		body := &uposUploadSegments{}
 		_ = json.Unmarshal(content, &body)
 		if body.Ok != 1 {
+			common.LogPrintln(UUID, common.BUlStr, "query UploadFile failed:", file.Name())
 			return &UploadRes{}, errors.New("query UploadFile failed")
 		}
-		videoInfo, err := upos(file, int(state.Size()), body, b.Threads, b.Header)
+		common.LogPrintln(UUID, common.BUlStr, "使用 upos 方式上传文件:", file.Name())
+		var videoInfo *UploadRes
+		var err error
+		for i := 0; i < 10; i++ {
+			videoInfo, err = upos(file, int(state.Size()), body, b.Threads, b.Header, UUID)
+			if err != nil {
+				common.LogPrintln(UUID, common.BUlStr, file.Name(), "上传失败(upos)，正在重试第", i, "次:", file.Name())
+				continue
+			}
+			break
+		}
 		return videoInfo, err
 	}
-	return &UploadRes{}, errors.New("unknown upload os")
+	common.LogPrintln(UUID, common.BUlStr, "未知的上传线路")
+	return &UploadRes{}, errors.New("未知的上传线路")
 }
 
-func (b *Bilibili) FolderUpload(folder string) ([]*UploadRes, []UploadedFile, error) {
+func (b *Bilibili) FolderUpload(folder string, UUID string) ([]*UploadRes, []UploadedFile, error) {
 	dir, err := os.ReadDir(folder)
 	if err != nil {
-		fmt.Printf("read dir error:%s", err)
+		common.LogPrintf(UUID, common.BUlStr, "目录读取失败:%s", err)
 		return nil, nil, err
 	}
 	var uploadedFiles []UploadedFile
 	var submitFiles []*UploadRes
+	uploadedFilesNum := 0
+
 	for _, file := range dir {
-		filename := filepath.Join(folder, file.Name())
-		uploadFile, err := os.Open(filename)
-		if err != nil {
-			log.Printf("open file %s error:%s", filename, err)
-			continue
-		}
-		videoPart, err := b.UploadFile(uploadFile)
-		if err != nil {
-			log.Printf("UploadFile file error:%s", err)
+		for i := 0; i < BilibiliMaxRetryTimes; i++ {
+			filename := filepath.Join(folder, file.Name())
+			uploadFile, err := os.Open(filename)
+			if err != nil {
+				common.LogPrintf(UUID, common.BUlStr, "打开文件 %s 出现错误:%s", filename, err)
+				break
+			}
+			common.LogPrintln(UUID, common.BUlStr, "开始上传文件:", file.Name())
+			videoPart, err := b.UploadFile(uploadFile, UUID)
+			if err != nil {
+				common.LogPrintf(UUID, common.BUlStr, "UploadFile file error:%s", err)
+				common.LogPrintln(UUID, common.BUlStr, "上传文件失败，正在重试第", i, "次:", file.Name())
+				uploadFile.Close()
+				continue
+			}
+
+			if UUID != "" {
+				_, exist := common.BUlTaskList[UUID]
+				if exist {
+					common.BUlTaskList[UUID].ProgressRate++
+					common.BUlTaskList[UUID].ProgressNum = float64(common.BUlTaskList[UUID].ProgressRate) / float64(len(dir)) * 100
+				} else {
+					common.LogPrintln(UUID, common.BUlStr, common.ErStr, "当前任务被用户删除", err)
+					return nil, nil, &common.CommonError{Msg: "当前任务被用户删除"}
+				}
+			}
+
+			uploadedFilesNum++
+			common.LogPrintln(UUID, common.BUlStr, "已成功上传第", uploadedFilesNum, "个文件:", file.Name())
+			uploadedFiles = append(uploadedFiles, UploadedFile{
+				FilePath: folder,
+				FileName: file.Name(),
+			})
+			submitFiles = append(submitFiles, videoPart)
 			uploadFile.Close()
-			continue
+			break
 		}
-		uploadedFiles = append(uploadedFiles, UploadedFile{
-			FilePath: folder,
-			FileName: file.Name(),
-		})
-		submitFiles = append(submitFiles, videoPart)
-		uploadFile.Close()
 	}
 	return submitFiles, uploadedFiles, nil
 }
 
-func UploadFolderWithSubmit(uploadPath string, Biliup Bilibili) (reqBody interface{}, uf []UploadedFile, err error) {
+func UploadFolderWithSubmit(uploadPath string, Biliup Bilibili, UUID string) (reqBody interface{}, uf []UploadedFile, err error) {
 	var submitFiles []*UploadRes
 	if !filepath.IsAbs(uploadPath) {
 		pwd, _ := os.Getwd()
 		uploadPath = filepath.Join(pwd, uploadPath)
 	}
-	fmt.Println(uploadPath)
-	submitFiles, uploadedFile, err := Biliup.FolderUpload(uploadPath)
+	common.LogPrintf(UUID, common.BUlStr, "开始上传目录到哔哩源:", uploadPath)
+	submitFiles, uploadedFile, err := Biliup.FolderUpload(uploadPath, UUID)
 	if err != nil {
-		fmt.Printf("UploadFile file error:%s", err)
+		common.LogPrintf(UUID, common.BUlStr, "UploadFile file error:%s", err)
 		return "", nil, err
 	}
 	reqBody, err = Biliup.Submit(submitFiles)
 	if err != nil {
-		fmt.Printf("Submit file error:%s", err)
+		common.LogPrintf(UUID, common.BUlStr, "Submit file error:%s", err)
 		return "", nil, err
 	}
 	return reqBody, uploadedFile, nil
