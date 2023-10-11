@@ -592,7 +592,7 @@ func GetDirectoryJSON(directoryPath string) ([]common.FileInfo, error) {
 
 func CheckPort(port int) bool {
 	address := fmt.Sprintf(":%d", port)
-	conn, err := net.Dial("tcp", address)
+	conn, err := net.DialTimeout("tcp", address, time.Millisecond*100)
 	if err != nil {
 		return false
 	}

@@ -6,6 +6,7 @@ import (
 )
 
 func StartWebServer(port int, dataPath string, ffmpegPath string, ffprobePath string) {
+	common.MobileMode = true
 	common.MobileFFmpegPath = ffmpegPath
 	common.MobileFFprobePath = ffprobePath
 	utils.LumikaDataPathInit(dataPath)

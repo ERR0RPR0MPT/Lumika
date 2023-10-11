@@ -186,7 +186,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 
 			var FFmpegPath string
 			// 检测是否为 Android 平台方式定位 FFmpeg 可执行文件的位置
-			if common.MobileFFmpegPath != "" {
+			if common.MobileMode {
 				common.LogPrintln(UUID, common.EnStr, "使用通过 Android 平台方式定位的 FFmpeg 程序:", common.MobileFFmpegPath)
 				FFmpegPath = common.MobileFFmpegPath
 			} else {
