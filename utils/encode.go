@@ -187,16 +187,16 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 			var FFmpegPath string
 			// 检测是否为 Android 平台方式定位 FFmpeg 可执行文件的位置
 			if common.MobileFFmpegPath != "" {
-				common.LogPrintln(UUID, common.DeStr, "使用通过 Android 平台方式定位的 FFmpeg 程序:", common.MobileFFmpegPath)
+				common.LogPrintln(UUID, common.EnStr, "使用通过 Android 平台方式定位的 FFmpeg 程序:", common.MobileFFmpegPath)
 				FFmpegPath = common.MobileFFmpegPath
 			} else {
 				// 检查是否有 FFmpeg 在程序目录下
 				FFmpegPath = SearchFileNameInDir(common.EpPath, "ffmpeg")
 				if FFmpegPath == "" || FFmpegPath != "" && !strings.Contains(filepath.Base(FFmpegPath), "ffmpeg") {
-					common.LogPrintln(UUID, common.DeStr, "使用系统环境变量中的 FFmpeg")
+					common.LogPrintln(UUID, common.EnStr, "使用系统环境变量中的 FFmpeg")
 					FFmpegPath = "ffmpeg"
 				} else {
-					common.LogPrintln(UUID, common.DeStr, "使用找到 FFmpeg 程序:", FFmpegPath)
+					common.LogPrintln(UUID, common.EnStr, "使用找到 FFmpeg 程序:", FFmpegPath)
 				}
 			}
 
