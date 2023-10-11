@@ -149,19 +149,13 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 			common.LogPrintln(UUID, common.DeStr, "开始解码第", filePathIndex+1, "个编码文件:", filePath)
 
 			var FFprobePath string
-			// 检测是否为 Android 平台方式定位 FFprobe 可执行文件的位置
-			if common.MobileFFprobePath != "" {
-				common.LogPrintln(UUID, common.DeStr, "使用通过 Android 平台方式定位的 FFprobe 程序:", common.MobileFFprobePath)
-				FFprobePath = common.MobileFFprobePath
+			// 检查是否有 FFprobe 在程序目录下
+			FFprobePath = SearchFileNameInDir(common.EpPath, "ffprobe")
+			if FFprobePath == "" || FFprobePath != "" && !strings.Contains(filepath.Base(FFprobePath), "ffprobe") {
+				common.LogPrintln(UUID, common.DeStr, "使用系统环境变量中的 FFprobe")
+				FFprobePath = "ffprobe"
 			} else {
-				// 检查是否有 FFprobe 在程序目录下
-				FFprobePath = SearchFileNameInDir(common.EpPath, "ffprobe")
-				if FFprobePath == "" || FFprobePath != "" && !strings.Contains(filepath.Base(FFprobePath), "ffprobe") {
-					common.LogPrintln(UUID, common.DeStr, "使用系统环境变量中的 FFprobe")
-					FFprobePath = "ffprobe"
-				} else {
-					common.LogPrintln(UUID, common.DeStr, "使用找到 FFprobe 程序:", FFprobePath)
-				}
+				common.LogPrintln(UUID, common.DeStr, "使用找到 FFprobe 程序:", FFprobePath)
 			}
 
 			cmd := exec.Command(FFprobePath, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", filePath)
@@ -226,19 +220,13 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 			}
 
 			var FFmpegPath string
-			// 检测是否为 Android 平台方式定位 FFmpeg 可执行文件的位置
-			if common.MobileMode {
-				common.LogPrintln(UUID, common.DeStr, "使用通过 Android 平台方式定位的 FFmpeg 程序:", common.MobileFFmpegPath)
-				FFmpegPath = common.MobileFFmpegPath
+			// 检查是否有 FFmpeg 在程序目录下
+			FFmpegPath = SearchFileNameInDir(common.EpPath, "ffmpeg")
+			if FFmpegPath == "" || FFmpegPath != "" && !strings.Contains(filepath.Base(FFmpegPath), "ffmpeg") {
+				common.LogPrintln(UUID, common.DeStr, "使用系统环境变量中的 FFmpeg")
+				FFmpegPath = "ffmpeg"
 			} else {
-				// 检查是否有 FFmpeg 在程序目录下
-				FFmpegPath = SearchFileNameInDir(common.EpPath, "ffmpeg")
-				if FFmpegPath == "" || FFmpegPath != "" && !strings.Contains(filepath.Base(FFmpegPath), "ffmpeg") {
-					common.LogPrintln(UUID, common.DeStr, "使用系统环境变量中的 FFmpeg")
-					FFmpegPath = "ffmpeg"
-				} else {
-					common.LogPrintln(UUID, common.DeStr, "使用找到 FFmpeg 程序:", FFmpegPath)
-				}
+				common.LogPrintln(UUID, common.DeStr, "使用找到 FFmpeg 程序:", FFmpegPath)
 			}
 
 			FFmpegCmd := []string{
