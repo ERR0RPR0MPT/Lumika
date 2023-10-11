@@ -149,13 +149,19 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 			common.LogPrintln(UUID, common.DeStr, "开始解码第", filePathIndex+1, "个编码文件:", filePath)
 
 			var FFprobePath string
-			// 检查是否有 FFprobe 在程序目录下
-			FFprobePath = SearchFileNameInDir(common.EpPath, "ffprobe")
-			if FFprobePath == "" || FFprobePath != "" && !strings.Contains(filepath.Base(FFprobePath), "ffprobe") {
-				common.LogPrintln(UUID, common.DeStr, "使用系统环境变量中的 FFprobe")
-				FFprobePath = "ffprobe"
+			// 检测是否为 Android 平台方式定位 FFprobe 可执行文件的位置
+			if common.MobileFFprobePath != "" {
+				common.LogPrintln(UUID, common.DeStr, "使用通过 Android 平台方式定位的 FFprobe 程序:", common.MobileFFprobePath)
+				FFprobePath = common.MobileFFprobePath
 			} else {
-				common.LogPrintln(UUID, common.DeStr, "使用找到 FFprobe 程序:", FFprobePath)
+				// 检查是否有 FFprobe 在程序目录下
+				FFprobePath = SearchFileNameInDir(common.EpPath, "ffprobe")
+				if FFprobePath == "" || FFprobePath != "" && !strings.Contains(filepath.Base(FFprobePath), "ffprobe") {
+					common.LogPrintln(UUID, common.DeStr, "使用系统环境变量中的 FFprobe")
+					FFprobePath = "ffprobe"
+				} else {
+					common.LogPrintln(UUID, common.DeStr, "使用找到 FFprobe 程序:", FFprobePath)
+				}
 			}
 
 			cmd := exec.Command(FFprobePath, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", filePath)

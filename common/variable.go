@@ -58,6 +58,9 @@ var (
 	LumikaDecodePath       string
 	LumikaEncodeOutputPath string
 	LumikaDecodeOutputPath string
+	MobileMode             = false
+	MobileFFmpegPath       = ""
+	MobileFFprobePath      = ""
 	MobileInput            = ""
 	MobileOutput           = ""
 	UISubFiles             fs.FS
