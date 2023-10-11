@@ -13,3 +13,7 @@ db.json
 /biliuptest.go.bak
 /build_arm64.bat
 /ziptest.go
+/gomobile.exe
+/mobile.aar
+/mobile-sources.jar
+/build_gomobile.bat

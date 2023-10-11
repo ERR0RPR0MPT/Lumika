@@ -17,81 +17,6 @@ import (
 //go:embed ui/*
 var UIFiles embed.FS
 
-func LumikaDataPathInit(p string) {
-	common.LumikaWorkDirPath = filepath.Join(p, common.LumikaWorkDirName)
-	common.LumikaEncodePath = filepath.Join(p, common.LumikaWorkDirName, "encode")
-	common.LumikaDecodePath = filepath.Join(p, common.LumikaWorkDirName, "decode")
-	common.LumikaEncodeOutputPath = filepath.Join(p, common.LumikaWorkDirName, "encodeOutput")
-	common.LumikaDecodeOutputPath = filepath.Join(p, common.LumikaWorkDirName, "decodeOutput")
-	// 创建 Lumika 工作目录
-	if _, err := os.Stat(common.LumikaWorkDirPath); err == nil {
-		common.LogPrintln("", common.InitStr, "Lumika 工作目录已存在，跳过创建 Lumika 工作目录")
-		if _, err := os.Stat(common.LumikaEncodePath); err != nil {
-			common.LogPrintln("", common.InitStr, "创建 encode 工作目录")
-			err = os.Mkdir(common.LumikaEncodePath, 0755)
-			if err != nil {
-				common.LogPrintln("", common.InitStr, "创建 encode 目录失败:", err)
-				return
-			}
-		}
-		if _, err := os.Stat(common.LumikaDecodePath); err != nil {
-			common.LogPrintln("", common.InitStr, "创建 decode 工作目录")
-			err = os.Mkdir(common.LumikaDecodePath, 0755)
-			if err != nil {
-				common.LogPrintln("", common.InitStr, "创建 decode 目录失败:", err)
-				return
-			}
-		}
-		if _, err := os.Stat(common.LumikaEncodeOutputPath); err != nil {
-			common.LogPrintln("", common.InitStr, "创建 encodeOutput 工作目录")
-			err = os.Mkdir(common.LumikaEncodeOutputPath, 0755)
-			if err != nil {
-				common.LogPrintln("", common.InitStr, "创建 encodeOutput 目录失败:", err)
-				return
-			}
-		}
-		if _, err := os.Stat(common.LumikaDecodeOutputPath); err != nil {
-			common.LogPrintln("", common.InitStr, "创建 decodeOutput 工作目录")
-			err = os.Mkdir(common.LumikaDecodeOutputPath, 0755)
-			if err != nil {
-				common.LogPrintln("", common.InitStr, "创建 decodeOutput 目录失败:", err)
-				return
-			}
-		}
-	} else {
-		common.LogPrintln("", common.InitStr, "Lumika 工作目录不存在，创建 Lumika 工作目录")
-		err = os.Mkdir(common.LumikaWorkDirPath, 0755)
-		if err != nil {
-			common.LogPrintln("", common.InitStr, "创建 Lumika 工作目录失败:", err)
-			return
-		}
-		common.LogPrintln("", common.InitStr, "创建 encode 工作目录")
-		err = os.Mkdir(common.LumikaEncodePath, 0755)
-		if err != nil {
-			common.LogPrintln("", common.InitStr, "创建 encode 目录失败:", err)
-			return
-		}
-		common.LogPrintln("", common.InitStr, "创建 decode 工作目录")
-		err = os.Mkdir(common.LumikaDecodePath, 0755)
-		if err != nil {
-			common.LogPrintln("", common.InitStr, "创建 decode 目录失败:", err)
-			return
-		}
-		common.LogPrintln("", common.InitStr, "创建 encodeOutput 工作目录")
-		err = os.Mkdir(common.LumikaEncodeOutputPath, 0755)
-		if err != nil {
-			common.LogPrintln("", common.InitStr, "创建 encodeOutput 目录失败:", err)
-			return
-		}
-		common.LogPrintln("", common.InitStr, "创建 decodeOutput 工作目录")
-		err = os.Mkdir(common.LumikaDecodeOutputPath, 0755)
-		if err != nil {
-			common.LogPrintln("", common.InitStr, "创建 decodeOutput 目录失败:", err)
-			return
-		}
-	}
-}
-
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	est, err := os.Executable()
@@ -168,7 +93,7 @@ func main() {
 	webPath := webFlag.String("d", common.EpPath, "The dir path to save lumika data files")
 
 	if len(os.Args) < 2 {
-		LumikaDataPathInit(common.EpPath)
+		utils.LumikaDataPathInit(common.EpPath)
 		utils.WebServer(common.DefaultWebServerHost, common.DefaultWebServerPort)
 		return
 	}
@@ -183,7 +108,7 @@ func main() {
 		if *webPath != "" {
 			p = *webPath
 		}
-		LumikaDataPathInit(p)
+		utils.LumikaDataPathInit(p)
 		utils.WebServer(*webHost, *webPort)
 		return
 	case "a":
@@ -204,7 +129,7 @@ func main() {
 		if *addPath != "" {
 			p = *addPath
 		}
-		LumikaDataPathInit(p)
+		utils.LumikaDataPathInit(p)
 		utils.AddInput()
 		return
 	case "get":
@@ -217,7 +142,7 @@ func main() {
 		if *getPath != "" {
 			p = *getPath
 		}
-		LumikaDataPathInit(p)
+		utils.LumikaDataPathInit(p)
 		utils.GetInput()
 		return
 	case "dl":
@@ -234,7 +159,7 @@ func main() {
 		if *dlPath != "" {
 			p = *dlPath
 		}
-		LumikaDataPathInit(p)
+		utils.LumikaDataPathInit(p)
 		err = utils.BDl(os.Args[2], "encode", "")
 		if err != nil {
 			common.LogPrintln("", common.BDlStr, common.ErStr, "从哔哩源下载失败:", err)
@@ -251,7 +176,7 @@ func main() {
 		if *encodePath != "" {
 			p = *encodePath
 		}
-		LumikaDataPathInit(p)
+		utils.LumikaDataPathInit(p)
 		_, err = utils.Encode(*encodeInput, *encodeQrcodeSize, *encodeOutputFPS, *encodeMaxSeconds, *encodeMGValue, *encodeKGValue, *encodeThread, *encodeFFmpegMode, false, "")
 		if err != nil {
 			common.LogPrintln("", common.EnStr, common.ErStr, "编码失败:", err)
@@ -268,7 +193,7 @@ func main() {
 		if *decodePath != "" {
 			p = *decodePath
 		}
-		LumikaDataPathInit(p)
+		utils.LumikaDataPathInit(p)
 		err = utils.Decode(*decodeInputDir, 0, nil, *decodeMGValue, *decodeKGValue, *decodeThread, "")
 		if err != nil {
 			common.LogPrintln("", common.DeStr, common.ErStr, "解码失败:", err)

@@ -379,8 +379,8 @@ func DownloadFileFromAPI(c *gin.Context) {
 }
 
 func UnzipFromAPI(c *gin.Context) {
-	dir := c.Param("dir")
-	fileName := c.Param("file")
+	dir := c.PostForm("dir")
+	fileName := c.PostForm("file")
 	if dir != "encode" && dir != "encodeOutput" && dir != "decode" && dir != "decodeOutput" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "dir 参数错误：请指定正确的目录"})
 		return

@@ -7,7 +7,7 @@ import (
 
 const (
 	LumikaVersionNum                = 3
-	LumikaVersionString             = "v3.10.0"
+	LumikaVersionString             = "v3.11.0"
 	LumikaWorkDirName               = "lumika_data"
 	LumikaConfigFileName            = "lumika_config"
 	InitStr                         = "Init:"
@@ -58,6 +58,8 @@ var (
 	LumikaDecodePath       string
 	LumikaEncodeOutputPath string
 	LumikaDecodeOutputPath string
+	MobileFFmpegPath       = ""
+	MobileFFprobePath      = ""
 	UISubFiles             fs.FS
 )
 

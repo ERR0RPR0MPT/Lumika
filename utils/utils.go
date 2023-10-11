@@ -794,9 +794,40 @@ func GetSystemResourceUsage() (*common.SystemResourceUsage, error) {
 		}
 		percentCh <- percent
 	}()
-	memInfo, _ := mem.VirtualMemory()
-	parts, _ := disk.Partitions(true)
-	diskInfo, _ := disk.Usage(parts[0].Mountpoint)
+	var memInfoUsedPercent float64
+	var memInfoUsed uint64
+	var memInfoTotal uint64
+	memInfo, err := mem.VirtualMemory()
+	if err == nil {
+		memInfoUsedPercent = memInfo.UsedPercent
+		memInfoUsed = memInfo.Used
+		memInfoTotal = memInfo.Total
+	} else {
+		memInfoUsedPercent = 0
+		memInfoUsed = 0
+		memInfoTotal = 0
+	}
+	var diskInfoUsedPercent float64
+	var diskInfoUsed float64
+	var diskInfoTotal float64
+	parts, err := disk.Partitions(true)
+	if err == nil {
+		diskInfo, err := disk.Usage(parts[0].Mountpoint)
+		if err == nil {
+			diskInfoUsedPercent = diskInfo.UsedPercent
+			diskInfoUsed = float64(diskInfo.Used)
+			diskInfoTotal = float64(diskInfo.Total)
+		} else {
+			diskInfoUsedPercent = 0
+			diskInfoUsed = 0
+			diskInfoTotal = 0
+		}
+	} else {
+		diskInfoUsedPercent = 0
+		diskInfoUsed = 0
+		diskInfoTotal = 0
+	}
+
 	iface, err := GetDefaultNetworkInterface()
 	go func() {
 		if err != nil {
@@ -814,13 +845,21 @@ func GetSystemResourceUsage() (*common.SystemResourceUsage, error) {
 		networkDownloadSpeedCh <- downloadSpeed
 	}()
 	uploadTotal, downloadTotal, err := GetNetworkTotal(iface)
+	if err != nil {
+		uploadTotal = "未知"
+		downloadTotal = "未知"
+	}
+	percent := <-percentCh
+	if len(percent) == 0 {
+		percent = []float64{0}
+	}
 	usage := &common.SystemResourceUsage{
 		OSName:                runtime.GOOS,
-		CpuUsagePercent:       (<-percentCh)[0],
-		MemUsageTotalAndUsed:  FormatDataSize(int64(memInfo.Used)) + "/" + FormatDataSize(int64(memInfo.Total)),
-		MemUsagePercent:       memInfo.UsedPercent,
-		DiskUsageTotalAndUsed: FormatDataSize(int64(diskInfo.Used)) + "/" + FormatDataSize(int64(diskInfo.Total)),
-		DiskUsagePercent:      diskInfo.UsedPercent,
+		CpuUsagePercent:       percent[0],
+		MemUsageTotalAndUsed:  FormatDataSize(int64(memInfoUsed)) + "/" + FormatDataSize(int64(memInfoTotal)),
+		MemUsagePercent:       memInfoUsedPercent,
+		DiskUsageTotalAndUsed: FormatDataSize(int64(diskInfoUsed)) + "/" + FormatDataSize(int64(diskInfoTotal)),
+		DiskUsagePercent:      diskInfoUsedPercent,
 		NetworkInterfaceName:  iface,
 		UploadSpeed:           <-networkUploadSpeedCh,
 		DownloadSpeed:         <-networkDownloadSpeedCh,
