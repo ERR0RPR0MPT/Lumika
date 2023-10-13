@@ -198,7 +198,11 @@ func GetExec(fileDir string, base64Config string, decodeThread int, UUID string)
 	}
 
 	common.LogPrintln(UUID, common.GetStr, "开始解码")
-	err = Decode(fileDir, fecFileConfig.SegmentLength, fileDictList, fecFileConfig.MG, fecFileConfig.KG, decodeThread, UUID)
+	if !common.MobileMode {
+		err = Decode(fileDir, fecFileConfig.SegmentLength, fileDictList, fecFileConfig.MG, fecFileConfig.KG, decodeThread, UUID)
+	} else {
+		err = DecodeForAndroid(fileDir, fecFileConfig.SegmentLength, fileDictList, fecFileConfig.MG, fecFileConfig.KG, decodeThread, UUID)
+	}
 	if err != nil {
 		common.LogPrintln(UUID, common.GetStr, common.ErStr, "解码失败:", err)
 		return "", err

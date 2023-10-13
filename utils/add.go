@@ -351,10 +351,19 @@ func AddExec(fileNameList []string, defaultM int, defaultK int, MGValue int, KGV
 		common.LogPrintln(UUID, common.AddStr, ".fec 文件生成完成，耗时:", zfecDuration)
 
 		common.LogPrintln(UUID, common.AddStr, "开始进行编码")
-		segmentLength, err := Encode(defaultOutputDir, videoSize, outputFPS, encodeMaxSeconds, MGValue, KGValue, encodeThread, encodeFFmpegMode, true, UUID)
-		if err != nil {
-			common.LogPrintln(UUID, common.AddStr, common.ErStr, "编码失败:", err)
-			return &common.CommonError{Msg: "编码失败:" + err.Error()}
+		var segmentLength int64
+		if !common.MobileMode {
+			segmentLength, err = Encode(defaultOutputDir, videoSize, outputFPS, encodeMaxSeconds, MGValue, KGValue, encodeThread, encodeFFmpegMode, true, UUID)
+			if err != nil {
+				common.LogPrintln(UUID, common.AddStr, common.ErStr, "编码失败:", err)
+				return &common.CommonError{Msg: "编码失败:" + err.Error()}
+			}
+		} else {
+			segmentLength, err = EncodeForAndroid(defaultOutputDir, videoSize, outputFPS, encodeMaxSeconds, MGValue, KGValue, encodeThread, encodeFFmpegMode, true, UUID)
+			if err != nil {
+				common.LogPrintln(UUID, common.AddStr, common.ErStr, "编码失败:", err)
+				return &common.CommonError{Msg: "编码失败:" + err.Error()}
+			}
 		}
 
 		common.LogPrintln(UUID, common.AddStr, "编码完成，开始生成配置")

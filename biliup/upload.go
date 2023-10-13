@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	browser "github.com/EDDYCJY/fake-useragent"
 	"github.com/ERR0RPR0MPT/Lumika/common"
 	"github.com/google/go-querystring/query"
 	"github.com/tidwall/gjson"
@@ -33,8 +32,8 @@ const (
 var BilibiliLines = []string{Auto, Cos, CosInternal, Bda2, Ws, Qn}
 
 var DefaultHeader = http.Header{
-	"User-Agent": []string{browser.Random()},
-	"Referer":    []string{"https://www.bilibili.com"},
+	"User-Agent": []string{common.DefaultBiliDownloadUserAgent},
+	"Referer":    []string{common.DefaultBiliDownloadReferer},
 	"Connection": []string{"keep-alive"},
 }
 

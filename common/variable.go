@@ -1,54 +1,58 @@
 package common
 
 import (
+	"encoding/json"
 	"io/fs"
 	"strings"
 )
 
 const (
-	LumikaVersionNum                = 3
-	LumikaVersionString             = "v3.11.0"
-	LumikaWorkDirName               = "lumika_data"
-	LumikaConfigFileName            = "lumika_config"
-	InitStr                         = "Init:"
-	WebStr                          = "WebServer:"
-	DbStr                           = "Database:"
-	EnStr                           = "Encode:"
-	DeStr                           = "Decode:"
-	AddStr                          = "AddInput:"
-	GetStr                          = "GetInput:"
-	DlStr                           = "Dl:"
-	BDlStr                          = "BDl:"
-	BUlStr                          = "BUl:"
-	ArStr                           = "AutoRun:"
-	ErStr                           = "Error:"
-	AddMLevel                       = 90
-	AddKLevel                       = 81
-	AddMGLevel                      = 200
-	AddKGLevel                      = 130
-	EncodeVideoSizeLevel            = 32
-	EncodeOutputFPSLevel            = 24
-	EncodeMaxSecondsLevel           = 35990
-	EncodeFFmpegModeLevel           = "medium"
-	DefaultHashLength               = 7
-	DefaultBlankSeconds             = 3
-	DefaultBlankByte                = 85
-	DefaultBlankStartByte           = 86
-	DefaultBlankEndByte             = 87
-	DefaultDeleteFecFiles           = true
-	DefaultBiliDownloadReferer      = "https://www.bilibili.com"
-	DefaultDlMaxRetries             = 3
-	DefaultWebServerDebugMode       = false
-	DefaultWebServerHost            = ""
-	DefaultWebServerPort            = 7860
-	DefaultWebServerRandomPortMin   = 10000
-	DefaultWebServerRandomPortMax   = 65535
-	DefaultBiliDownloadGoRoutines   = 16
-	DefaultBiliDownloadsMaxQueueNum = 5
-	DefaultBiliUploadLines          = "ws"
-	DefaultBiliUploadThreads        = 10
-	DefaultTaskWorkerGoRoutines     = 5
-	DefaultDbCrontabSeconds         = 10
+	LumikaVersionNum                 = 3
+	LumikaVersionString              = "v3.11.0"
+	LumikaWorkDirName                = "lumika_data"
+	LumikaConfigFileName             = "lumika_config"
+	InitStr                          = "Init:"
+	WebStr                           = "WebServer:"
+	DbStr                            = "Database:"
+	EnStr                            = "Encode:"
+	DeStr                            = "Decode:"
+	AddStr                           = "AddInput:"
+	GetStr                           = "GetInput:"
+	DlStr                            = "Dl:"
+	BDlStr                           = "BDl:"
+	BUlStr                           = "BUl:"
+	ArStr                            = "AutoRun:"
+	ErStr                            = "Error:"
+	AddMLevel                        = 90
+	AddKLevel                        = 81
+	AddMGLevel                       = 200
+	AddKGLevel                       = 130
+	EncodeVideoSizeLevel             = 32
+	EncodeOutputFPSLevel             = 24
+	EncodeMaxSecondsLevel            = 35990
+	EncodeFFmpegModeLevel            = "medium"
+	DefaultHashLength                = 7
+	DefaultBlankSeconds              = 3
+	DefaultBlankByte                 = 85
+	DefaultBlankStartByte            = 86
+	DefaultBlankEndByte              = 87
+	DefaultDeleteFecFiles            = true
+	DefaultBiliDownloadReferer       = "https://www.bilibili.com"
+	DefaultBiliDownloadOrigin        = "https://www.bilibili.com"
+	DefaultBiliDownloadUserAgent     = "Mozilla/5.0 (Windows NT 10.0; WOW64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.5666.197 Safari/537.36"
+	DefaultDlMaxRetries              = 3
+	DefaultWebServerDebugMode        = false
+	DefaultWebServerHost             = ""
+	DefaultWebServerPort             = 7860
+	DefaultWebServerRandomPortMin    = 10000
+	DefaultWebServerRandomPortMax    = 65535
+	DefaultBiliDownloadMaxRetryTimes = 100
+	DefaultBiliDownloadGoRoutines    = 4
+	DefaultBiliDownloadsMaxQueueNum  = 25
+	DefaultBiliUploadLines           = "ws"
+	DefaultBiliUploadThreads         = 10
+	DefaultTaskWorkerGoRoutines      = 5
+	DefaultDbCrontabSeconds          = 10
 )
 
 var (
@@ -59,12 +63,77 @@ var (
 	LumikaEncodeOutputPath string
 	LumikaDecodeOutputPath string
 	MobileMode             = false
-	MobileFFmpegPath       = ""
-	MobileFFprobePath      = ""
-	MobileInput            = ""
-	MobileOutput           = ""
 	UISubFiles             fs.FS
 )
+
+type AndroidTaskInfo struct {
+	UUID    string `json:"uuid"`
+	Type    string `json:"type"`
+	Command string `json:"command"`
+	Output  string `json:"output"`
+}
+
+var AndroidInputTaskList map[string]*AndroidTaskInfo
+var AndroidOutputTaskList map[string]*AndroidTaskInfo
+
+// SetInput Go 进程设置任务，加入 map 中
+func SetInput(uuid, tp, cmd string) {
+	t := &AndroidTaskInfo{
+		UUID:    uuid,
+		Type:    tp,
+		Command: cmd,
+	}
+	AndroidInputTaskList[uuid] = t
+	return
+}
+
+// GetInput Android 进程获取任务，将任务从候选 map 中删除
+func GetInput() (jsonString string) {
+	var (
+		k string
+		v *AndroidTaskInfo
+	)
+	for k, v = range AndroidInputTaskList {
+		break
+	}
+	if k == "" || v == nil {
+		return ""
+	}
+	delete(AndroidInputTaskList, k)
+	jsonStr, err := json.Marshal(v)
+	if err != nil {
+		LogPrintln("", "GetInput:", ErStr, err)
+		return ""
+	}
+	return string(jsonStr)
+}
+
+// SetOutput Android 进程设置返回结果，加入输出任务 map 中
+func SetOutput(uuid, tp, output string) {
+	t := &AndroidTaskInfo{
+		UUID:   uuid,
+		Type:   tp,
+		Output: output,
+	}
+	AndroidOutputTaskList[uuid] = t
+	LogPrintln("", "SetOutput: 已保存:", uuid, tp, output)
+}
+
+// GetOutput Go 进程获取结果
+func GetOutput(uuid string) (jsonString string) {
+	v, ok := AndroidOutputTaskList[uuid]
+	if !ok {
+		return ""
+	}
+	LogPrintln("", "GetOutput: 编码进程拿到数据:", uuid, v.Type, v.Output)
+	delete(AndroidOutputTaskList, uuid)
+	jsonStr, err := json.Marshal(v)
+	if err != nil {
+		LogPrintln("", "GetOutput:", ErStr, err)
+		return ""
+	}
+	return string(jsonStr)
+}
 
 type CommonError struct {
 	Msg string
@@ -139,6 +208,7 @@ type DlTaskInfo struct {
 	Url        string `json:"url"`
 	FileName   string `json:"fileName"`
 	Referer    string `json:"referer"`
+	Origin     string `json:"origin"`
 	UserAgent  string `json:"userAgent"`
 	NumThreads int    `json:"numThreads"`
 }

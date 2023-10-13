@@ -203,6 +203,7 @@ func BDl(AVOrBVStr string, parentDir, UUID string) error {
 		}
 		aid = anum
 	}
+	refererURL := "https://www.bilibili.com/video/" + AVOrBVStr + "/"
 	b := bg.NewCommClient(&bg.CommSetting{})
 	info, err := b.VideoGetInfo(aid)
 	if err != nil {
@@ -250,7 +251,8 @@ func BDl(AVOrBVStr string, parentDir, UUID string) error {
 				<-semaphore // 协程释放信号量
 				wg.Done()
 			}()
-			for {
+			isSuccess := false
+			for i := 0; i < common.DefaultBiliDownloadMaxRetryTimes; i++ {
 				videoPlayURLResult, err := b.VideoGetPlayURL(aid, info.Pages[pi].CID, 16, 1)
 				if err != nil {
 					common.LogPrintln(UUID, common.BDlStr, "获取视频地址失败")
@@ -261,7 +263,12 @@ func BDl(AVOrBVStr string, parentDir, UUID string) error {
 				filePath := filepath.Join(common.LumikaWorkDirPath, parentDir, SuitableDirName, videoName)
 				common.LogPrintln(UUID, common.BDlStr, "视频地址:", durl)
 				common.LogPrintln(UUID, common.BDlStr, "尝试下载视频...")
-				err = Dl(durl, filePath, common.DefaultBiliDownloadReferer, "", common.VarSettingsVariable.DefaultBiliDownloadGoRoutines, "")
+				//if !common.MobileMode {
+				//	err = Dl(durl, filePath, refererURL, common.DefaultBiliDownloadOrigin, "", common.VarSettingsVariable.DefaultBiliDownloadGoRoutines, "")
+				//} else {
+				//	err = DlForAndroid(durl, filePath, refererURL, common.DefaultBiliDownloadOrigin, "", common.VarSettingsVariable.DefaultBiliDownloadGoRoutines, "")
+				//}
+				err = Dl(durl, filePath, refererURL, common.DefaultBiliDownloadOrigin, "", common.VarSettingsVariable.DefaultBiliDownloadGoRoutines, "")
 				if err != nil {
 					common.LogPrintln(UUID, common.BDlStr, "下载视频("+videoName+")失败，准备重试:", err)
 					continue
@@ -278,7 +285,11 @@ func BDl(AVOrBVStr string, parentDir, UUID string) error {
 						return
 					}
 				}
+				isSuccess = true
 				break
+			}
+			if !isSuccess {
+				common.LogPrintln(UUID, common.BDlStr, "下载视频("+strconv.Itoa(pi+1)+")失败，跳过下载")
 			}
 		}(pi)
 	}

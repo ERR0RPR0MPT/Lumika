@@ -29,7 +29,7 @@ func (pw *progressBarWriter) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-func DlAddTask(url string, filePath string, referer string, userAgent string, numThreads int) {
+func DlAddTask(url string, filePath string, referer string, origin string, userAgent string, numThreads int) {
 	uuidd := uuid.New().String()
 	dt := &common.DlTaskListData{
 		UUID:      uuidd,
@@ -38,6 +38,7 @@ func DlAddTask(url string, filePath string, referer string, userAgent string, nu
 			Url:        url,
 			FileName:   filePath,
 			Referer:    referer,
+			Origin:     origin,
 			UserAgent:  userAgent,
 			NumThreads: numThreads,
 		},
@@ -60,7 +61,7 @@ func DlTaskWorker(id int) {
 		}
 		common.DlTaskList[task.UUID].Status = "正在执行"
 		common.DlTaskList[task.UUID].StatusMsg = "正在执行"
-		err := Dl(task.TaskInfo.Url, task.TaskInfo.FileName, task.TaskInfo.Referer, task.TaskInfo.UserAgent, task.TaskInfo.NumThreads, task.UUID)
+		err := Dl(task.TaskInfo.Url, task.TaskInfo.FileName, task.TaskInfo.Referer, task.TaskInfo.Origin, task.TaskInfo.UserAgent, task.TaskInfo.NumThreads, task.UUID)
 		_, exist = common.DlTaskList[task.UUID]
 		if !exist {
 			common.LogPrintf(task.UUID, "DlTaskWorker %d 编码任务被用户删除\n", id)
@@ -98,9 +99,12 @@ func DlTaskWorkerInit() {
 	}
 }
 
-func Dl(url string, filePath string, referer string, userAgent string, numThreads int, UUID string) error {
+func Dl(url string, filePath string, referer string, origin string, userAgent string, numThreads int, UUID string) error {
 	if userAgent == "" {
 		userAgent = browser.Random()
+		if userAgent == "" {
+			userAgent = common.DefaultBiliDownloadUserAgent
+		}
 	}
 
 	client := &http.Client{}
@@ -111,6 +115,7 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 	}
 
 	req.Header.Set("Referer", referer)
+	req.Header.Set("Origin", origin)
 	req.Header.Set("User-Agent", userAgent)
 
 	var totalSize int64
@@ -124,7 +129,13 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 
 		statusCode := resp.StatusCode
 		if (statusCode/100) != 2 && (statusCode/100) != 3 {
-			common.LogPrintln(UUID, common.DlStr, "请求异常，出现非正常返回码:", statusCode, "，等待 1 秒后重试")
+			common.LogPrintln(UUID, common.DlStr, "请求1异常，出现非正常返回码:", statusCode, "，等待 1 秒后重试")
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				common.LogPrintln(UUID, common.DlStr, "读取响应正文信息时发生错误:", err)
+			} else {
+				common.LogPrintln(UUID, common.DlStr, "请求异常信息:", string(body))
+			}
 			time.Sleep(time.Second)
 			continue
 		}
@@ -136,7 +147,7 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 		break
 	}
 	if !isOK {
-		return &common.CommonError{Msg: "请求异常，出现非正常返回码"}
+		return &common.CommonError{Msg: "请求异常1，出现非正常返回码"}
 	}
 
 	// 创建临时文件和线程信息
@@ -196,6 +207,7 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 				rangeHeader := fmt.Sprintf("bytes=%d-%d", thread.StartOffset, thread.EndOffset)
 				req2.Header.Set("Range", rangeHeader)
 				req2.Header.Set("Referer", referer)
+				req2.Header.Set("Origin", origin)
 				req2.Header.Set("User-Agent", userAgent)
 
 				resp2, err := client.Do(req2)
@@ -206,7 +218,13 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 
 				statusCode := resp2.StatusCode
 				if (statusCode/100) != 2 && (statusCode/100) != 3 {
-					common.LogPrintln(UUID, common.DlStr, "请求异常，出现非正常返回码:", statusCode, "，等待 1 秒后重试")
+					common.LogPrintln(UUID, common.DlStr, "请求2异常，出现非正常返回码:", statusCode, "，等待 1 秒后重试")
+					body, err := io.ReadAll(resp2.Body)
+					if err != nil {
+						common.LogPrintln(UUID, common.DlStr, "读取响应正文信息时发生错误:", err)
+					} else {
+						common.LogPrintln(UUID, common.DlStr, "请求异常信息:", string(body))
+					}
 					time.Sleep(time.Second)
 					continue
 				}
@@ -236,7 +254,7 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 			}
 
 			if !isOK {
-				return &common.CommonError{Msg: "请求异常，出现非正常返回码"}
+				return &common.CommonError{Msg: "请求2异常，出现非正常返回码"}
 			}
 
 			if UUID != "" {
@@ -312,3 +330,61 @@ func Dl(url string, filePath string, referer string, userAgent string, numThread
 	}
 	return nil
 }
+
+//func DlForAndroid(url string, filePath string, referer string, origin string, userAgent string, numThreads int, UUID string) error {
+//	if userAgent == "" {
+//		userAgent = browser.Random()
+//		if userAgent == "" {
+//			userAgent = common.DefaultBiliDownloadUserAgent
+//		}
+//	}
+//
+//	// 创建一个uuid号标识本次任务
+//	outputTempDirName := uuid.New().String()
+//	k := struct {
+//		Url        string `json:"url"`
+//		FilePath   string `json:"filePath"`
+//		Referer    string `json:"referer"`
+//		Origin     string `json:"origin"`
+//		UserAgent  string `json:"userAgent"`
+//		NumThreads int    `json:"numThreads"`
+//	}{
+//		Url:        url,
+//		FilePath:   filePath,
+//		Referer:    referer,
+//		Origin:     origin,
+//		UserAgent:  userAgent,
+//		NumThreads: numThreads,
+//	}
+//	jsonString, err := json.Marshal(k)
+//	if err != nil {
+//		common.LogPrintln(UUID, common.EnStr, common.ErStr, "无法解析 JSON，跳过本次解析:", err)
+//		return &common.CommonError{Msg: "无法解析 JSON，跳过本次解析:" + err.Error()}
+//	}
+//	// 发送任务到 Android 进行 OkHttp3 调用
+//	common.SetInput(outputTempDirName, "dlFunc", string(jsonString))
+//	// 等待 OkHttp3 处理完成
+//	common.LogPrintln(UUID, common.EnStr, "开始等待 OkHttp3 子进程执行完毕")
+//	for {
+//		jsonString := common.GetOutput(outputTempDirName)
+//		if jsonString == "" {
+//			time.Sleep(time.Millisecond * 200)
+//			continue
+//		}
+//		common.LogPrintln(UUID, common.EnStr, "OkHttp3 子进程输出:", jsonString)
+//		var t common.AndroidTaskInfo
+//		err := json.Unmarshal([]byte(jsonString), &t)
+//		if err != nil {
+//			common.LogPrintln(UUID, common.EnStr, common.ErStr, "无法解析 JSON，跳过本次解析:", err)
+//			time.Sleep(time.Millisecond * 200)
+//			continue
+//		}
+//		if t.Output != "success" {
+//			common.LogPrintln(UUID, common.EnStr, "OkHttp3 子进程执行失败:", t.Output)
+//			return &common.CommonError{Msg: "OkHttp3 子进程执行失败:" + t.Output}
+//		}
+//		common.LogPrintln(UUID, common.EnStr, "OkHttp3 子进程执行成功")
+//		break
+//	}
+//	return nil
+//}

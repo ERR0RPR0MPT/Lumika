@@ -5,26 +5,20 @@ import (
 	"github.com/ERR0RPR0MPT/Lumika/utils"
 )
 
-func StartWebServer(port int, dataPath string, ffmpegPath string, ffprobePath string) {
+func StartWebServer(port int, dataPath string) {
 	common.MobileMode = true
-	common.MobileFFmpegPath = ffmpegPath
-	common.MobileFFprobePath = ffprobePath
 	utils.LumikaDataPathInit(dataPath)
+	common.AndroidInputTaskList = make(map[string]*common.AndroidTaskInfo)
+	common.AndroidOutputTaskList = make(map[string]*common.AndroidTaskInfo)
 	utils.WebServer("", port)
 }
 
-func SetInput(input string) {
-	common.MobileInput = input
+// GetInput 暴露接口
+func GetInput() (jsonString string) {
+	return common.GetInput()
 }
 
-func GetInput() string {
-	return common.MobileInput
-}
-
-func SetOutput(output string) {
-	common.MobileOutput = output
-}
-
-func GetOutput() string {
-	return common.MobileOutput
+// SetOutput 暴露接口
+func SetOutput(uuid, tp, output string) {
+	common.SetOutput(uuid, tp, output)
 }

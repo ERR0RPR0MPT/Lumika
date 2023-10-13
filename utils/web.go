@@ -22,7 +22,6 @@ func UploadEncode(c *gin.Context) {
 		return
 	}
 	parentDir := c.PostForm("parentDir")
-	common.LogPrintln("", "读取到 parentDir:", parentDir)
 	if parentDir != "encode" && parentDir != "encodeOutput" && parentDir != "decode" && parentDir != "decodeOutput" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "父目录参数不正确"})
 		return
@@ -115,7 +114,7 @@ func GetFileFromURL(c *gin.Context) {
 	}
 	fileName = ReplaceInvalidCharacters(fileName, '-')
 	filePath := filepath.Join(common.LumikaWorkDirPath, parentDir, fileName)
-	go DlAddTask(urla, filePath, "", "", gor)
+	go DlAddTask(urla, filePath, "", "", "", gor)
 	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("成功添加下载任务: %s, 使用线程数: %d", fileName, gor)})
 }
 
@@ -281,13 +280,30 @@ func DeleteFileFromAPI(c *gin.Context) {
 		return
 	}
 	if fileInfo.IsDir() {
-		err = os.RemoveAll(filePath)
+		osFile, err := os.Open(filePath)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "删除目录失败"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "打开目录失败"})
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"message": "目录删除成功"})
-		return
+		defer osFile.Close()
+		_, err = osFile.Readdir(1)
+		if err == nil {
+			err = os.RemoveAll(filePath)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "删除目录失败"})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"message": "目录删除成功"})
+			return
+		} else {
+			err = os.Remove(filePath)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "删除目录失败"})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"message": "目录删除成功"})
+			return
+		}
 	} else {
 		err = os.Remove(filePath)
 		if err != nil {
