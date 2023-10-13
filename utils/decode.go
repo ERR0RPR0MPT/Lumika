@@ -984,7 +984,7 @@ func DecodeForAndroid(videoFileDir string, segmentLength int64, filePathList []s
 			}
 
 			var output []byte
-			FFprobeCmd := []string{"-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", filePath}
+			FFprobeCmd := []string{"-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", "\"" + filePath + "\""}
 			// 发送任务到 Android 进行 FFprobe 调用
 			common.SetInput(outputTempDirName, "ffprobe", strings.Join(FFprobeCmd, " "))
 			// 等待 FFprobe 处理完成
@@ -1032,7 +1032,7 @@ func DecodeForAndroid(videoFileDir string, segmentLength int64, filePathList []s
 				return
 			}
 
-			FFprobeCmd = []string{"-v", "error", "-select_streams", "v:0", "-show_entries", "stream=nb_frames", "-of", "default=nokey=1:noprint_wrappers=1", filePath}
+			FFprobeCmd = []string{"-v", "error", "-select_streams", "v:0", "-show_entries", "stream=nb_frames", "-of", "default=nokey=1:noprint_wrappers=1", "\"" + filePath + "\""}
 			// 发送任务到 Android 进行 FFprobe 调用
 			common.SetInput(outputTempDirName, "ffprobe", strings.Join(FFprobeCmd, " "))
 			// 等待 FFprobe 处理完成
@@ -1082,9 +1082,9 @@ func DecodeForAndroid(videoFileDir string, segmentLength int64, filePathList []s
 			common.LogPrintln(UUID, common.DeStr, "  ---------------------------")
 
 			FFmpegCmd := []string{
-				"-i", filePath,
+				"-i", "\"" + filePath + "\"",
 				"-pix_fmt", "rgb24",
-				filepath.Join(outputTempDir, "i_%09d.png"),
+				"\"" + filepath.Join(outputTempDir, "i_%09d.png") + "\"",
 			}
 			// 发送任务到 Android 进行 FFmpeg 调用
 			common.SetInput(outputTempDirName, "ffmpeg", strings.Join(FFmpegCmd, " "))

@@ -999,12 +999,12 @@ func EncodeForAndroid(fileDir string, videoSize int, outputFPS int, maxSeconds i
 				"-y",
 				"-vcodec", "png",
 				"-r", fmt.Sprintf("%d", outputFPS),
-				"-i", filepath.Join(outputTempDir, "i_%09d.png"),
+				"-i", "\"" + filepath.Join(outputTempDir, "i_%09d.png") + "\"",
 				"-c:v", "libx264",
 				"-preset", encodeFFmpegMode,
 				"-crf", "18",
 				"-s", strconv.Itoa(videoSize) + "x" + strconv.Itoa(videoSize),
-				outputFilePath,
+				"\"" + outputFilePath + "\"",
 			}
 
 			// 发送任务到 Android 进行 FFmpeg 调用
