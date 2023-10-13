@@ -211,12 +211,12 @@ func Dl(url string, filePath string, referer string, origin string, userAgent st
 				rangeHeader := fmt.Sprintf("bytes=%d-%d", thread.StartOffset, thread.EndOffset)
 				req2.Header.Set("Range", rangeHeader)
 				if referer != "" {
-					req.Header.Set("Referer", referer)
+					req2.Header.Set("Referer", referer)
 				}
 				if origin != "" {
-					req.Header.Set("Origin", origin)
+					req2.Header.Set("Origin", origin)
 				}
-				req.Header.Set("User-Agent", userAgent)
+				req2.Header.Set("User-Agent", userAgent)
 
 				resp2, err := client.Do(req2)
 				if err != nil {
