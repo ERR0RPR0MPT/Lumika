@@ -8,10 +8,14 @@ import (
 
 const (
 	LumikaVersionNum                 = 3
-	LumikaVersionString              = "v3.12.0"
+	LumikaVersionString              = "v3.13.0"
+	LumikaGithubRepo                 = "err0rpr0mpt/lumika"
+	LumikaWebGithubRepo              = "err0rpr0mpt/lumika-web"
+	LumikaAndroidGithubRepo          = "err0rpr0mpt/lumika-android"
 	LumikaWorkDirName                = "lumika_data"
 	LumikaConfigFileName             = "lumika_config"
 	InitStr                          = "Init:"
+	UpdateStr                        = "Update:"
 	WebStr                           = "WebServer:"
 	DbStr                            = "Database:"
 	EnStr                            = "Encode:"
@@ -56,6 +60,7 @@ const (
 )
 
 var (
+	EpDir                  string
 	EpPath                 string
 	LumikaWorkDirPath      string
 	LumikaEncodePath       string
@@ -192,6 +197,7 @@ type FileInfo struct {
 
 type SystemResourceUsage struct {
 	OSName                string  `json:"osName"`
+	ExecuteTime           string  `json:"executeTime"`
 	CpuUsagePercent       float64 `json:"cpuUsagePercent"`
 	MemUsageTotalAndUsed  string  `json:"memUsageTotalAndUsed"`
 	MemUsagePercent       float64 `json:"memUsagePercent"`
@@ -335,6 +341,8 @@ type BUlTaskListData struct {
 	StatusMsg    string       `json:"statusMsg"`
 	Duration     string       `json:"duration"`
 }
+
+var StartTimestamp int64
 
 var DatabaseVariable Database
 

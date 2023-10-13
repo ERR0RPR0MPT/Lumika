@@ -154,7 +154,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 
 			var FFprobePath string
 			// 检查是否有 FFprobe 在程序目录下
-			FFprobePath = SearchFileNameInDir(common.EpPath, "ffprobe")
+			FFprobePath = SearchFileNameInDir(common.EpDir, "ffprobe")
 			if FFprobePath == "" || FFprobePath != "" && !strings.Contains(filepath.Base(FFprobePath), "ffprobe") {
 				common.LogPrintln(UUID, common.DeStr, "使用系统环境变量中的 FFprobe")
 				FFprobePath = "ffprobe"
@@ -225,7 +225,7 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 
 			var FFmpegPath string
 			// 检查是否有 FFmpeg 在程序目录下
-			FFmpegPath = SearchFileNameInDir(common.EpPath, "ffmpeg")
+			FFmpegPath = SearchFileNameInDir(common.EpDir, "ffmpeg")
 			if FFmpegPath == "" || FFmpegPath != "" && !strings.Contains(filepath.Base(FFmpegPath), "ffmpeg") {
 				common.LogPrintln(UUID, common.DeStr, "使用系统环境变量中的 FFmpeg")
 				FFmpegPath = "ffmpeg"
@@ -1839,7 +1839,7 @@ func DecodeWithoutPipe(videoFileDir string, segmentLength int64, filePathList []
 
 			var FFprobePath string
 			// 检查是否有 FFprobe 在程序目录下
-			FFprobePath = SearchFileNameInDir(common.EpPath, "ffprobe")
+			FFprobePath = SearchFileNameInDir(common.EpDir, "ffprobe")
 			if FFprobePath == "" || FFprobePath != "" && !strings.Contains(filepath.Base(FFprobePath), "ffprobe") {
 				common.LogPrintln(UUID, common.DeStr, "使用系统环境变量中的 FFprobe")
 				FFprobePath = "ffprobe"
@@ -1910,7 +1910,7 @@ func DecodeWithoutPipe(videoFileDir string, segmentLength int64, filePathList []
 
 			var FFmpegPath string
 			// 检查是否有 FFmpeg 在程序目录下
-			FFmpegPath = SearchFileNameInDir(common.EpPath, "ffmpeg")
+			FFmpegPath = SearchFileNameInDir(common.EpDir, "ffmpeg")
 			if FFmpegPath == "" || FFmpegPath != "" && !strings.Contains(filepath.Base(FFmpegPath), "ffmpeg") {
 				common.LogPrintln(UUID, common.DeStr, "使用系统环境变量中的 FFmpeg")
 				FFmpegPath = "ffmpeg"

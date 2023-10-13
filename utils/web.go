@@ -10,7 +10,9 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"time"
 )
@@ -349,6 +351,105 @@ func ReNameFileFromAPI(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "重命名成功"})
 }
 
+func zipFileFromAPI(c *gin.Context) {
+	if runtime.GOOS != "linux" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "当前系统不支持压缩"})
+		return
+	}
+	dir := c.PostForm("dir")
+	if dir != "encode" && dir != "encodeOutput" && dir != "decode" && dir != "decodeOutput" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "dir 参数错误：请指定正确的目录"})
+		return
+	}
+	name := c.PostForm("name")
+	if name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "originName 参数错误：请输入正确的文件/目录名"})
+		return
+	}
+	zipsSize := c.PostForm("zipsSize")
+	if zipsSize == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "zipsSize 参数错误：请输入正确的文件/目录名"})
+		return
+	}
+	zipPwd := c.PostForm("zipPwd")
+	filePath := filepath.Join(common.LumikaWorkDirPath, dir, name)
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "文件不存在"})
+		return
+	}
+
+	zipFilePath := filePath + ".zip"
+	if _, err := os.Stat(zipFilePath); os.IsExist(err) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "压缩文件已存在，请先删除后重试"})
+		return
+	}
+	if zipPwd == "" {
+		zipCommand := exec.Command("zip", "-r", "-s", fmt.Sprintf("%v", zipsSize), zipFilePath, filepath.Base(filePath))
+		zipCommand.Dir = filepath.Dir(filePath)
+		err := zipCommand.Run()
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "压缩失败"})
+			return
+		}
+	} else {
+		zipCommand := exec.Command("zip", "-r", "-s", fmt.Sprintf("%v", zipsSize), "-P", zipPwd, zipFilePath, filepath.Base(filePath))
+		zipCommand.Dir = filepath.Dir(filePath)
+		err := zipCommand.Run()
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "压缩失败"})
+			return
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "压缩成功"})
+}
+
+func CopyToOtherFolderFromAPI(c *gin.Context) {
+	name := c.PostForm("name")
+	if name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "name 参数错误：请输入正确的文件/目录名"})
+		return
+	}
+	sourceDir := c.PostForm("sourceDir")
+	if sourceDir != "encode" && sourceDir != "encodeOutput" && sourceDir != "decode" && sourceDir != "decodeOutput" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "sourceDir 参数错误：请指定正确的目录"})
+		return
+	}
+	targetDir := c.PostForm("targetDir")
+	if targetDir != "encode" && targetDir != "encodeOutput" && targetDir != "decode" && targetDir != "decodeOutput" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "targetDir 参数错误：请指定正确的目录"})
+		return
+	}
+	filePath := filepath.Join(common.LumikaWorkDirPath, sourceDir, name)
+	targetFilePath := filepath.Join(common.LumikaWorkDirPath, targetDir, name)
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "文件不存在"})
+		return
+	}
+	if _, err := os.Stat(targetFilePath); os.IsExist(err) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "文件已存在，请先删除后重试"})
+		return
+	}
+	sourceInfo, err := os.Stat(filePath)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "文件信息读取失败"})
+		return
+	}
+	if sourceInfo.IsDir() {
+		err = CopyDir(filePath, targetFilePath)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "复制目录出现错误"})
+			return
+		}
+	} else {
+		err = CopyFile(filePath, targetFilePath)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "复制文件出现错误"})
+			return
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "压缩成功"})
+}
+
 func DownloadFileFromAPI(c *gin.Context) {
 	dir := c.Param("dir")
 	fileName := c.Param("file")
@@ -392,6 +493,16 @@ func DownloadFileFromAPI(c *gin.Context) {
 		c.File(zipFilePath)
 		return
 	}
+}
+
+func UpdateFromAPI(c *gin.Context) {
+	latestVersion, latestVersionSummary := GetUpdateDaemon(false)
+	c.JSON(http.StatusOK, gin.H{"latestVersion": latestVersion, "latestVersionSummary": latestVersionSummary})
+}
+
+func UpdateRequestFromAPI(c *gin.Context) {
+	go GetUpdateDaemon(true)
+	c.JSON(http.StatusOK, gin.H{"message": "已发送更新请求，请稍后查看更新日志"})
 }
 
 func UnzipFromAPI(c *gin.Context) {
@@ -783,6 +894,7 @@ func Cors() gin.HandlerFunc {
 func WebServerInit(host string, port int) {
 	DbInit()
 	TaskWorkerInit()
+	GetUpdate()
 	GetSystemResourceUsageInit()
 	if !common.DefaultWebServerDebugMode {
 		gin.SetMode(gin.ReleaseMode)
@@ -808,6 +920,8 @@ func WebServerInit(host string, port int) {
 	r.GET("/api/get-logcat", GetLogCat)
 	r.POST("/api/delete-file", DeleteFileFromAPI)
 	r.POST("/api/rename-file", ReNameFileFromAPI)
+	r.POST("/api/zip-file", zipFileFromAPI)
+	r.POST("/api/copy-to-other-folder", CopyToOtherFolderFromAPI)
 	r.POST("/api/unzip", UnzipFromAPI)
 	r.GET("/api/dl/:dir/:file", DownloadFileFromAPI)
 	r.GET("/api/clear-logcat", ClearLogCat)
@@ -831,6 +945,8 @@ func WebServerInit(host string, port int) {
 	r.GET("/api/version", GetVersion)
 	r.POST("/api/set-var-settings-config", SetVarSettingsConfig)
 	r.GET("/api/get-var-settings-config", GetVarSettingsConfig)
+	r.POST("/api/get-update", UpdateFromAPI)
+	r.POST("/api/update", UpdateRequestFromAPI)
 
 	p := port
 	for {

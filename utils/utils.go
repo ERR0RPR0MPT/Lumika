@@ -12,12 +12,14 @@ import (
 	"github.com/shirou/gopsutil/disk"
 	"github.com/shirou/gopsutil/mem"
 	psnet "github.com/shirou/gopsutil/net"
+	"github.com/tidwall/gjson"
 	"image"
 	"image/color"
 	"io"
 	"io/fs"
 	"math"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -32,8 +34,7 @@ import (
 )
 
 func RestartProgram() error {
-	executablePath, _ := os.Executable()
-	err := syscall.Exec(executablePath, os.Args, os.Environ())
+	err := syscall.Exec(common.EpPath, os.Args, os.Environ())
 	if err != nil {
 		common.LogPrintln("", "RestartProgram:", common.ErStr, "重启程序失败:", err)
 		return err
@@ -775,8 +776,18 @@ func InterfaceToBytes(value interface{}) ([]byte, error) {
 	return bytes, nil
 }
 
+func FormatSeconds(seconds int64) string {
+	d := seconds / (60 * 60 * 24)   // 天数
+	h := (seconds / (60 * 60)) % 24 // 小时数
+	m := (seconds / 60) % 60        // 分钟数
+	s := seconds % 60               // 秒数
+	formattedTime := fmt.Sprintf("%dd %dh %dm %ds", d, h, m, s)
+	return formattedTime
+}
+
 func GetSystemResourceUsageInit() {
 	go func() {
+		common.StartTimestamp = time.Now().Unix()
 		_, _ = GetSystemResourceUsage()
 	}()
 }
@@ -855,6 +866,7 @@ func GetSystemResourceUsage() (*common.SystemResourceUsage, error) {
 	}
 	usage := &common.SystemResourceUsage{
 		OSName:                runtime.GOOS,
+		ExecuteTime:           FormatSeconds(time.Now().Unix() - common.StartTimestamp),
 		CpuUsagePercent:       percent[0],
 		MemUsageTotalAndUsed:  FormatDataSize(int64(memInfoUsed)) + "/" + FormatDataSize(int64(memInfoTotal)),
 		MemUsagePercent:       memInfoUsedPercent,
@@ -1007,4 +1019,238 @@ func GetNetworkSpeed(interfaceName string) (string, string, error) {
 		time.Since(startTime).Seconds()
 
 	return FormatBytesPerSecond(uploadSpeed), FormatBytesPerSecond(downloadSpeed), nil
+}
+
+func CopyFile(sourcePath, destinationPath string) error {
+	sourceFile, err := os.Open(sourcePath)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+	destinationFile, err := os.Create(destinationPath)
+	if err != nil {
+		return err
+	}
+	defer destinationFile.Close()
+	_, err = io.Copy(destinationFile, sourceFile)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func CopyDir(sourceDir, destinationDir string) error {
+	err := os.MkdirAll(destinationDir, 0755)
+	if err != nil {
+		return err
+	}
+	err = filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+		destinationPath := filepath.Join(destinationDir, info.Name())
+		if info.IsDir() {
+			err := os.MkdirAll(destinationPath, info.Mode())
+			if err != nil {
+				return err
+			}
+		} else {
+			err := CopyFile(path, destinationPath)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func LumikaDataPathInit(p string) {
+	common.LumikaWorkDirPath = filepath.Join(p, common.LumikaWorkDirName)
+	common.LumikaEncodePath = filepath.Join(p, common.LumikaWorkDirName, "encode")
+	common.LumikaDecodePath = filepath.Join(p, common.LumikaWorkDirName, "decode")
+	common.LumikaEncodeOutputPath = filepath.Join(p, common.LumikaWorkDirName, "encodeOutput")
+	common.LumikaDecodeOutputPath = filepath.Join(p, common.LumikaWorkDirName, "decodeOutput")
+	// 创建 Lumika 工作目录
+	if _, err := os.Stat(common.LumikaWorkDirPath); err == nil {
+		common.LogPrintln("", common.InitStr, "Lumika 工作目录已存在，跳过创建 Lumika 工作目录")
+		if _, err := os.Stat(common.LumikaEncodePath); err != nil {
+			common.LogPrintln("", common.InitStr, "创建 encode 工作目录")
+			err = os.Mkdir(common.LumikaEncodePath, 0755)
+			if err != nil {
+				common.LogPrintln("", common.InitStr, "创建 encode 目录失败:", err)
+				return
+			}
+		}
+		if _, err := os.Stat(common.LumikaDecodePath); err != nil {
+			common.LogPrintln("", common.InitStr, "创建 decode 工作目录")
+			err = os.Mkdir(common.LumikaDecodePath, 0755)
+			if err != nil {
+				common.LogPrintln("", common.InitStr, "创建 decode 目录失败:", err)
+				return
+			}
+		}
+		if _, err := os.Stat(common.LumikaEncodeOutputPath); err != nil {
+			common.LogPrintln("", common.InitStr, "创建 encodeOutput 工作目录")
+			err = os.Mkdir(common.LumikaEncodeOutputPath, 0755)
+			if err != nil {
+				common.LogPrintln("", common.InitStr, "创建 encodeOutput 目录失败:", err)
+				return
+			}
+		}
+		if _, err := os.Stat(common.LumikaDecodeOutputPath); err != nil {
+			common.LogPrintln("", common.InitStr, "创建 decodeOutput 工作目录")
+			err = os.Mkdir(common.LumikaDecodeOutputPath, 0755)
+			if err != nil {
+				common.LogPrintln("", common.InitStr, "创建 decodeOutput 目录失败:", err)
+				return
+			}
+		}
+	} else {
+		common.LogPrintln("", common.InitStr, "Lumika 工作目录不存在，创建 Lumika 工作目录")
+		err = os.Mkdir(common.LumikaWorkDirPath, 0755)
+		if err != nil {
+			common.LogPrintln("", common.InitStr, "创建 Lumika 工作目录失败:", err)
+			return
+		}
+		common.LogPrintln("", common.InitStr, "创建 encode 工作目录")
+		err = os.Mkdir(common.LumikaEncodePath, 0755)
+		if err != nil {
+			common.LogPrintln("", common.InitStr, "创建 encode 目录失败:", err)
+			return
+		}
+		common.LogPrintln("", common.InitStr, "创建 decode 工作目录")
+		err = os.Mkdir(common.LumikaDecodePath, 0755)
+		if err != nil {
+			common.LogPrintln("", common.InitStr, "创建 decode 目录失败:", err)
+			return
+		}
+		common.LogPrintln("", common.InitStr, "创建 encodeOutput 工作目录")
+		err = os.Mkdir(common.LumikaEncodeOutputPath, 0755)
+		if err != nil {
+			common.LogPrintln("", common.InitStr, "创建 encodeOutput 目录失败:", err)
+			return
+		}
+		common.LogPrintln("", common.InitStr, "创建 decodeOutput 工作目录")
+		err = os.Mkdir(common.LumikaDecodeOutputPath, 0755)
+		if err != nil {
+			common.LogPrintln("", common.InitStr, "创建 decodeOutput 目录失败:", err)
+			return
+		}
+	}
+}
+
+func ReplaceExecutableBinary(binaryPath string) error {
+	currentExecutable, err := os.Executable()
+	if err != nil {
+		common.LogPrintln("", common.InitStr, common.UpdateStr, "更新失败:", "无法获取当前可执行文件路径:", err)
+		return err
+	}
+	err = os.Rename(currentExecutable, currentExecutable+"."+common.LumikaVersionString+".old")
+	if err != nil {
+		common.LogPrintln("", common.InitStr, common.UpdateStr, "更新失败:", "无法重命名当前可执行文件:", err)
+		return err
+	}
+	source, err := os.Open(binaryPath)
+	if err != nil {
+		common.LogPrintln("", common.InitStr, common.UpdateStr, "更新失败:", "无法打开复制文件:", err)
+		return err
+	}
+	defer source.Close()
+	destination, err := os.OpenFile(currentExecutable, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
+	if err != nil {
+		common.LogPrintln("", common.InitStr, common.UpdateStr, "更新失败:", "无法打开复制文件:", err)
+		return err
+	}
+	defer destination.Close()
+	_, err = io.Copy(destination, source)
+	if err != nil {
+		common.LogPrintln("", common.InitStr, common.UpdateStr, "更新失败:", "无法复制文件:", err)
+		return err
+	}
+	return nil
+}
+
+func GetUpdate() {
+}
+
+func UpdateToLatestVersion(latestVersion string) {
+	common.LogPrintln("", common.InitStr, common.UpdateStr, "开始更新 Lumika")
+	lurl := fmt.Sprintf("https://github.com/%s/releases/download/%s/lumika_%s_%s", common.LumikaGithubRepo, latestVersion, runtime.GOOS, runtime.GOARCH)
+	if runtime.GOOS == "windows" {
+		lurl += ".exe"
+	}
+	filePath := filepath.Join(common.LumikaEncodePath, "lumika_"+runtime.GOOS+"_"+runtime.GOARCH)
+	if runtime.GOOS == "windows" {
+		filePath += ".exe"
+	}
+	common.LogPrintln("", common.InitStr, common.UpdateStr, "下载地址:", lurl)
+	err := Dl(lurl, filePath, "", "", "", 1, "")
+	if err != nil {
+		common.LogPrintln("", common.InitStr, common.UpdateStr, "更新失败:", "无法下载文件:", err)
+		return
+	}
+	err = ReplaceExecutableBinary(filePath)
+	if err != nil {
+		common.LogPrintln("", common.InitStr, common.UpdateStr, "更新出错:", "无法替换可执行文件，请手动重启程序:", err)
+		return
+	}
+	if runtime.GOOS == "linux" {
+		err = RestartProgram()
+		if err != nil {
+			common.LogPrintln("", common.InitStr, common.UpdateStr, "更新成功，重启 Lumika 失败，请手动重启 Lumika")
+			return
+		}
+	} else {
+		common.LogPrintln("", common.InitStr, common.UpdateStr, "更新成功，请手动重启 Lumika")
+	}
+}
+
+func GetUpdateDaemon(update bool) (string, string) {
+	var lgp = ""
+	if runtime.GOOS != "android" {
+		lgp = common.LumikaGithubRepo
+	} else {
+		lgp = common.LumikaAndroidGithubRepo
+	}
+	common.LogPrintln("", common.InitStr, common.UpdateStr, "软件包更新检查地址:", lgp, "检查更新中")
+	latestVersion, latestVersionSummary, err := GetGithubLatestVersion(lgp)
+	if err != nil {
+		common.LogPrintln("", common.InitStr, "获取 Lumika 版本失败:", err)
+		return "", ""
+	}
+	if latestVersion != common.LumikaVersionString {
+		common.LogPrintln("", common.InitStr, common.UpdateStr, "发现新版本:", latestVersion)
+		common.LogPrintln("", common.InitStr, common.UpdateStr, "当前版本:", common.LumikaVersionString)
+		if latestVersionSummary != "" {
+			common.LogPrintln("", common.InitStr, common.UpdateStr, "更新内容:", latestVersionSummary)
+			if runtime.GOOS != "android" {
+				common.LogPrintln("", common.InitStr, common.UpdateStr, "请在设置页面中检查更新并获取最新版本")
+			} else {
+				common.LogPrintln("", common.InitStr, common.UpdateStr, "请手动到 GitHub 下载最新版本安装包")
+			}
+		}
+	} else {
+		common.LogPrintln("", common.InitStr, common.UpdateStr, "当前已是最新版本")
+	}
+	if runtime.GOOS != "android" && update && latestVersion != common.LumikaVersionString {
+		go UpdateToLatestVersion(latestVersion)
+	}
+	return latestVersion, latestVersionSummary
+}
+
+func GetGithubLatestVersion(repoURL string) (string, string, error) {
+	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/releases/latest", repoURL)
+	resp, err := http.Get(apiURL)
+	if err != nil {
+		return "", "", err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", "", err
+	}
+	TagName := gjson.Get(string(body), "tag_name").String()
+	BodyStr := gjson.Get(string(body), "body").String()
+	return TagName, BodyStr, nil
 }

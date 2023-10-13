@@ -24,7 +24,8 @@ func main() {
 		common.LogPrintln("", common.InitStr, "工作目录获取失败")
 		return
 	}
-	common.EpPath = filepath.Dir(est)
+	common.EpPath = est
+	common.EpDir = filepath.Dir(est)
 	UISubFiles, err := fs.Sub(UIFiles, "ui")
 	if err != nil {
 		fmt.Println("静态文件加载失败:", err)
@@ -69,31 +70,31 @@ func main() {
 	encodeKGValue := encodeFlag.Int("k", common.AddKGLevel, "The output video frame data shards(default="+strconv.Itoa(common.AddKGLevel)+"), 2-256")
 	encodeThread := encodeFlag.Int("t", common.VarSettingsVariable.DefaultMaxThreads, "Set Runtime Go routines number to process the task(default="+strconv.Itoa(runtime.NumCPU())+"), 1-128")
 	encodeFFmpegMode := encodeFlag.String("m", common.EncodeFFmpegModeLevel, "FFmpeg mode(default="+common.EncodeFFmpegModeLevel+"): ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow, placebo")
-	encodePath := encodeFlag.String("d", common.EpPath, "The dir path to save lumika data files")
+	encodePath := encodeFlag.String("d", common.EpDir, "The dir path to save lumika data files")
 
 	decodeFlag := flag.NewFlagSet("decode", flag.ExitOnError)
 	decodeInputDir := decodeFlag.String("i", "", "The input dir include video segments to decode")
 	decodeMGValue := decodeFlag.Int("m", common.AddMGLevel, "The output video frame all shards(default="+strconv.Itoa(common.AddMGLevel)+"), 2-256")
 	decodeKGValue := decodeFlag.Int("k", common.AddKGLevel, "The output video frame data shards(default="+strconv.Itoa(common.AddKGLevel)+"), 2-256")
 	decodeThread := decodeFlag.Int("t", common.VarSettingsVariable.DefaultMaxThreads, "Set Runtime Go routines number to process the task(default="+strconv.Itoa(runtime.NumCPU())+"), 1-128")
-	decodePath := decodeFlag.String("d", common.EpPath, "The dir path to save lumika data files")
+	decodePath := decodeFlag.String("d", common.EpDir, "The dir path to save lumika data files")
 
 	addFlag := flag.NewFlagSet("add", flag.ExitOnError)
-	addPath := addFlag.String("d", common.EpPath, "The dir path to save lumika data files")
+	addPath := addFlag.String("d", common.EpDir, "The dir path to save lumika data files")
 
 	getFlag := flag.NewFlagSet("get", flag.ExitOnError)
-	getPath := getFlag.String("d", common.EpPath, "The dir path to save lumika data files")
+	getPath := getFlag.String("d", common.EpDir, "The dir path to save lumika data files")
 
 	dlFlag := flag.NewFlagSet("dl", flag.ExitOnError)
-	dlPath := dlFlag.String("d", common.EpPath, "The dir path to save lumika data files")
+	dlPath := dlFlag.String("d", common.EpDir, "The dir path to save lumika data files")
 
 	webFlag := flag.NewFlagSet("web", flag.ExitOnError)
 	webHost := webFlag.String("h", common.DefaultWebServerHost, "The host to listen on")
 	webPort := webFlag.Int("p", common.DefaultWebServerPort, "The port to listen on")
-	webPath := webFlag.String("d", common.EpPath, "The dir path to save lumika data files")
+	webPath := webFlag.String("d", common.EpDir, "The dir path to save lumika data files")
 
 	if len(os.Args) < 2 {
-		utils.LumikaDataPathInit(common.EpPath)
+		utils.LumikaDataPathInit(common.EpDir)
 		utils.WebServer(common.DefaultWebServerHost, common.DefaultWebServerPort)
 		return
 	}
@@ -104,7 +105,7 @@ func main() {
 			common.LogPrintln("", common.WebStr, common.ErStr, "参数解析错误")
 			return
 		}
-		p := common.EpPath
+		p := common.EpDir
 		if *webPath != "" {
 			p = *webPath
 		}
@@ -125,7 +126,7 @@ func main() {
 			common.LogPrintln("", common.AddStr, common.ErStr, "参数解析错误")
 			return
 		}
-		p := common.EpPath
+		p := common.EpDir
 		if *addPath != "" {
 			p = *addPath
 		}
@@ -138,7 +139,7 @@ func main() {
 			common.LogPrintln("", common.GetStr, common.ErStr, "参数解析错误")
 			return
 		}
-		p := common.EpPath
+		p := common.EpDir
 		if *getPath != "" {
 			p = *getPath
 		}
@@ -155,7 +156,7 @@ func main() {
 			common.LogPrintln("", common.BDlStr, common.ErStr, "参数解析错误，请输入正确的av/BV号")
 			return
 		}
-		p := common.EpPath
+		p := common.EpDir
 		if *dlPath != "" {
 			p = *dlPath
 		}
@@ -172,7 +173,7 @@ func main() {
 			common.LogPrintln("", common.EnStr, common.ErStr, "参数解析错误")
 			return
 		}
-		p := common.EpPath
+		p := common.EpDir
 		if *encodePath != "" {
 			p = *encodePath
 		}
@@ -189,7 +190,7 @@ func main() {
 			common.LogPrintln("", common.DeStr, common.ErStr, "参数解析错误")
 			return
 		}
-		p := common.EpPath
+		p := common.EpDir
 		if *decodePath != "" {
 			p = *decodePath
 		}

@@ -8,6 +8,7 @@ import (
 	"github.com/google/go-querystring/query"
 	"github.com/tidwall/gjson"
 	"io"
+	"math/rand"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -418,12 +419,24 @@ func UploadFolderWithSubmit(uploadPath string, Biliup Bilibili, UUID string) (re
 	common.LogPrintf(UUID, common.BUlStr, "开始上传目录到哔哩源:", uploadPath)
 	submitFiles, uploadedFile, err := Biliup.FolderUpload(uploadPath, UUID)
 	if err != nil {
-		common.LogPrintf(UUID, common.BUlStr, "UploadFile file error:%s", err)
+		common.LogPrintf(UUID, common.BUlStr, "视频上传失败:%s", err)
 		return "", nil, err
 	}
-	reqBody, err = Biliup.Submit(submitFiles)
-	if err != nil {
-		common.LogPrintf(UUID, common.BUlStr, "Submit file error:%s", err)
+	// 避免同一时间提交多个稿件
+	isSuccess := false
+	for i := 0; i < BilibiliMaxRetryTimes; i++ {
+		reqBody, err = Biliup.Submit(submitFiles)
+		if err != nil {
+			rand.Seed(time.Now().UnixNano())
+			delayTime := rand.Intn(60) + 1
+			common.LogPrintf(UUID, common.BUlStr, "视频提交失败，准备在", delayTime, "秒后重试:%s", err)
+			time.Sleep(time.Duration(delayTime) * time.Second)
+			continue
+		}
+		isSuccess = true
+		break
+	}
+	if !isSuccess {
 		return "", nil, err
 	}
 	return reqBody, uploadedFile, nil

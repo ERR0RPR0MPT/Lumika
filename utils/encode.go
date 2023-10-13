@@ -188,7 +188,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 
 			var FFmpegPath string
 			// 检查是否有 FFmpeg 在程序目录下
-			FFmpegPath = SearchFileNameInDir(common.EpPath, "ffmpeg")
+			FFmpegPath = SearchFileNameInDir(common.EpDir, "ffmpeg")
 			if FFmpegPath == "" || FFmpegPath != "" && !strings.Contains(filepath.Base(FFmpegPath), "ffmpeg") {
 				common.LogPrintln(UUID, common.EnStr, "使用系统环境变量中的 FFmpeg")
 				FFmpegPath = "ffmpeg"
@@ -1543,7 +1543,7 @@ func EncodeWithoutPipe(fileDir string, videoSize int, outputFPS int, maxSeconds 
 			// 存储所有图片序列到目录后调用 FFmpeg
 			var FFmpegPath string
 			// 检查是否有 FFmpeg 在程序目录下
-			FFmpegPath = SearchFileNameInDir(common.EpPath, "ffmpeg")
+			FFmpegPath = SearchFileNameInDir(common.EpDir, "ffmpeg")
 			if FFmpegPath == "" || FFmpegPath != "" && !strings.Contains(filepath.Base(FFmpegPath), "ffmpeg") {
 				common.LogPrintln(UUID, common.EnStr, "使用系统环境变量中的 FFmpeg")
 				FFmpegPath = "ffmpeg"
