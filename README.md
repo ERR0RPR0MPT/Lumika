@@ -1,6 +1,6 @@
 # Lumika
 
-![](https://raw.githubusercontent.com/ERR0RPR0MPT/Lumika/main/static/cover.png)
+![](https://raw.githubusercontent.com/ERR0RPR0MPT/Lumika/main/static/cover.jpg)
 
 Lumika 是用于将 **任意数据** 转换为 **视频** 形式的编解码转换工具；
 支持多线程, 支持帧级别的数据纠错, 可一键编解码文件、自定义分割编码视频长度；
