@@ -432,7 +432,7 @@ func zipFileFromAPI(c *gin.Context) {
 		return
 	}
 	if zipPwd == "" || zipPwd == "undefined" {
-		zipCommand := exec.Command("/bin/sh", "-c", strings.Join([]string{"-r", "-s", fmt.Sprintf("%v", zipsSize), zipFilePath, filepath.Base(filePath)}, " "))
+		zipCommand := exec.Command("/bin/sh", "-c", strings.Join([]string{"$(which zip)", "-r", "-s", fmt.Sprintf("%v", zipsSize), zipFilePath, filepath.Base(filePath)}, " "))
 		zipCommand.Dir = filepath.Dir(filePath)
 		err := zipCommand.Run()
 		if err != nil {
@@ -441,7 +441,7 @@ func zipFileFromAPI(c *gin.Context) {
 			return
 		}
 	} else {
-		zipCommand := exec.Command("/bin/sh", "-c", strings.Join([]string{"-r", "-s", fmt.Sprintf("%v", zipsSize), "-P", zipPwd, zipFilePath, filepath.Base(filePath)}, " "))
+		zipCommand := exec.Command("/bin/sh", "-c", strings.Join([]string{"$(which zip)", "-r", "-s", fmt.Sprintf("%v", zipsSize), "-P", zipPwd, zipFilePath, filepath.Base(filePath)}, " "))
 		zipCommand.Dir = filepath.Dir(filePath)
 		err := zipCommand.Run()
 		if err != nil {
