@@ -4,7 +4,7 @@ EXPOSE 7860
 WORKDIR /temp
 
 RUN apt update && \
-        apt install ffmpeg git -y && \
+        apt install ffmpeg git zip -y && \
         mkdir -p /app && \
         git clone https://github.com/ERR0RPR0MPT/Lumika.git && \
         cd Lumika && \
