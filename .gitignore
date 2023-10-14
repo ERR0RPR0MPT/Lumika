@@ -17,3 +17,4 @@ db.json
 /mobile.aar
 /mobile-sources.jar
 /build_gomobile.bat
+/build_amd64.bat
