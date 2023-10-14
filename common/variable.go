@@ -8,7 +8,7 @@ import (
 
 const (
 	LumikaVersionNum                 = 3
-	LumikaVersionString              = "v3.13.2.beta4"
+	LumikaVersionString              = "v3.13.2"
 	LumikaGithubRepo                 = "err0rpr0mpt/lumika"
 	LumikaWebGithubRepo              = "err0rpr0mpt/lumika-web"
 	LumikaAndroidGithubRepo          = "err0rpr0mpt/lumika-android"
