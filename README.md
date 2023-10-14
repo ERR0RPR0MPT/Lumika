@@ -91,7 +91,11 @@ apt install ffmpeg
 
 ## 教程
 
-新版暂时还没有教程, ~~请自行看前端摸索~~.
+[Lumika](https://www.bilibili.com/video/BV1V34y1g78f/)
+
+[Lumika Android](https://www.bilibili.com/video/BV1QQ4y1W7Gp/)
+
+推荐使用 Lumika Web 进行操作.
 
 > 这是旧版的视频教程, 使用命令行执行, 不推荐参考.
 > [BiliBili](https://www.bilibili.com/video/BV1CN4y1X7GQ/)
