@@ -38,7 +38,7 @@ apt install ffmpeg
 
 这是项目最新版本的运行示例, 部署在 HuggingFace Space, 各项功能可正常使用.
 
-[点此进入](https://weclont-lumika.hf.space/ui/#/)
+[点此进入](https://weclont-lumika1.hf.space/ui/#/)
 
 ### Colab
 
@@ -93,7 +93,7 @@ apt install ffmpeg
 
 [Lumika](https://www.bilibili.com/video/BV1V34y1g78f/)
 
-[Lumika Android](https://www.bilibili.com/video/BV1QQ4y1W7Gp/)
+[Lumika Android](https://www.bilibili.com/video/BV1MN4y1C7h8/)
 
 推荐使用 Lumika Web 进行操作.
 
