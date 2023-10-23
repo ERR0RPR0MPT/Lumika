@@ -331,6 +331,11 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 							}
 							// 对数据进行排序等操作
 							sortShards := ProcessSlices(recordData, MGValue)
+							if sortShards == nil {
+								common.LogPrintln(UUID, common.DeStr, common.ErStr, "ProcessSlices 时出现未知错误，停止解码")
+								errorChan <- &common.CommonError{Msg: "ProcessSlices 时出现未知错误，停止解码"}
+								return
+							}
 							// 删除记录数据
 							recordData = make([][]byte, 0)
 							var dataShards [][]byte
@@ -555,6 +560,11 @@ func Decode(videoFileDir string, segmentLength int64, filePathList []string, MGV
 						}
 						// 对数据进行排序等操作
 						sortShards := ProcessSlices(recordData, MGValue)
+						if sortShards == nil {
+							common.LogPrintln(UUID, common.DeStr, common.ErStr, "ProcessSlices 时出现未知错误，停止解码")
+							errorChan <- &common.CommonError{Msg: "ProcessSlices 时出现未知错误，停止解码"}
+							return
+						}
 						// 删除记录数据
 						recordData = make([][]byte, 0)
 						var dataShards [][]byte
@@ -1187,6 +1197,11 @@ func DecodeForAndroid(videoFileDir string, segmentLength int64, filePathList []s
 							}
 							// 对数据进行排序等操作
 							sortShards := ProcessSlices(recordData, MGValue)
+							if sortShards == nil {
+								common.LogPrintln(UUID, common.DeStr, common.ErStr, "ProcessSlices 时出现未知错误，停止解码")
+								errorChan <- &common.CommonError{Msg: "ProcessSlices 时出现未知错误，停止解码"}
+								return
+							}
 							// 删除记录数据
 							recordData = make([][]byte, 0)
 							var dataShards [][]byte
@@ -1411,6 +1426,11 @@ func DecodeForAndroid(videoFileDir string, segmentLength int64, filePathList []s
 						}
 						// 对数据进行排序等操作
 						sortShards := ProcessSlices(recordData, MGValue)
+						if sortShards == nil {
+							common.LogPrintln(UUID, common.DeStr, common.ErStr, "ProcessSlices 时出现未知错误，停止解码")
+							errorChan <- &common.CommonError{Msg: "ProcessSlices 时出现未知错误，停止解码"}
+							return
+						}
 						// 删除记录数据
 						recordData = make([][]byte, 0)
 						var dataShards [][]byte
@@ -2003,6 +2023,11 @@ func DecodeWithoutPipe(videoFileDir string, segmentLength int64, filePathList []
 							}
 							// 对数据进行排序等操作
 							sortShards := ProcessSlices(recordData, MGValue)
+							if sortShards == nil {
+								common.LogPrintln(UUID, common.DeStr, common.ErStr, "ProcessSlices 时出现未知错误，停止解码")
+								errorChan <- &common.CommonError{Msg: "ProcessSlices 时出现未知错误，停止解码"}
+								return
+							}
 							// 删除记录数据
 							recordData = make([][]byte, 0)
 							var dataShards [][]byte
@@ -2227,6 +2252,11 @@ func DecodeWithoutPipe(videoFileDir string, segmentLength int64, filePathList []
 						}
 						// 对数据进行排序等操作
 						sortShards := ProcessSlices(recordData, MGValue)
+						if sortShards == nil {
+							common.LogPrintln(UUID, common.DeStr, common.ErStr, "ProcessSlices 时出现未知错误，停止解码")
+							errorChan <- &common.CommonError{Msg: "ProcessSlices 时出现未知错误，停止解码"}
+							return
+						}
 						// 删除记录数据
 						recordData = make([][]byte, 0)
 						var dataShards [][]byte

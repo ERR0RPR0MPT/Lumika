@@ -20,8 +20,8 @@ import (
 )
 
 func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValue int, KGValue int, encodeThread int, encodeFFmpegMode string, auto bool,
-	UUID string) (segmentLength int64, err error) {
-	if videoSize%8 != 0 {
+	ver int, ver5ColorGA int, ver5ColorBA int, ver5ColorGB int, ver5ColorBB int, UUID string) (segmentLength int64, err error) {
+	if (videoSize*videoSize)%8 != 0 {
 		common.LogPrintln(UUID, common.EnStr, common.ErStr, "视频大小必须是8的倍数")
 		return 0, &common.CommonError{Msg: "视频大小必须是8的倍数"}
 	}
@@ -228,7 +228,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 			for j := 0; j < dataSliceLen; j++ {
 				blankData[j] = common.DefaultBlankByte
 			}
-			imgBlank := Data2Image(blankData, videoSize)
+			imgBlank := Data2Image(blankData, videoSize, ver, ver5ColorGA, ver5ColorBA, ver5ColorGB, ver5ColorBB)
 			allBlankFrameNum := 0
 
 			// 生成起始帧
@@ -236,14 +236,14 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 			for j := 0; j < dataSliceLen; j++ {
 				blankStartData[j] = common.DefaultBlankStartByte
 			}
-			imgBlankStart := Data2Image(blankStartData, videoSize)
+			imgBlankStart := Data2Image(blankStartData, videoSize, ver, ver5ColorGA, ver5ColorBA, ver5ColorGB, ver5ColorBB)
 
 			// 生成终止帧
 			blankEndData := make([]byte, dataSliceLen)
 			for j := 0; j < dataSliceLen; j++ {
 				blankEndData[j] = common.DefaultBlankEndByte
 			}
-			imgBlankEnd := Data2Image(blankEndData, videoSize)
+			imgBlankEnd := Data2Image(blankEndData, videoSize, ver, ver5ColorGA, ver5ColorBA, ver5ColorGB, ver5ColorBB)
 
 			i := 0
 			// 启动进度条
@@ -349,7 +349,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 						// 遍历 allShards
 						for _, shardData := range allShards {
 							// 生成带数据的图像
-							img := Data2Image(shardData, videoSize)
+							img := Data2Image(shardData, videoSize, ver, ver5ColorGA, ver5ColorBA, ver5ColorGB, ver5ColorBB)
 							err := png.Encode(imageBuffer, img)
 							if err != nil {
 								errorChan <- &common.CommonError{Msg: "无法生成带数据的图像:" + err.Error()}
@@ -424,7 +424,7 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 					// 遍历 allShards
 					for _, shardData := range allShards {
 						// 生成带数据的图像
-						img := Data2Image(shardData, videoSize)
+						img := Data2Image(shardData, videoSize, ver, ver5ColorGA, ver5ColorBA, ver5ColorGB, ver5ColorBB)
 						err := png.Encode(imageBuffer, img)
 						if err != nil {
 							errorChan <- &common.CommonError{Msg: "无法生成带数据的图像:" + err.Error()}
@@ -540,8 +540,8 @@ func Encode(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValu
 }
 
 func EncodeForAndroid(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValue int, KGValue int, encodeThread int, encodeFFmpegMode string, auto bool,
-	UUID string) (segmentLength int64, err error) {
-	if videoSize%8 != 0 {
+	ver int, ver5ColorGA int, ver5ColorBA int, ver5ColorGB int, ver5ColorBB int, UUID string) (segmentLength int64, err error) {
+	if (videoSize*videoSize)%8 != 0 {
 		common.LogPrintln(UUID, common.EnStr, common.ErStr, "视频大小必须是8的倍数")
 		return 0, &common.CommonError{Msg: "视频大小必须是8的倍数"}
 	}
@@ -721,7 +721,7 @@ func EncodeForAndroid(fileDir string, videoSize int, outputFPS int, maxSeconds i
 			for j := 0; j < dataSliceLen; j++ {
 				blankData[j] = common.DefaultBlankByte
 			}
-			imgBlank := Data2Image(blankData, videoSize)
+			imgBlank := Data2Image(blankData, videoSize, ver, ver5ColorGA, ver5ColorBA, ver5ColorGB, ver5ColorBB)
 			allBlankFrameNum := 0
 
 			// 生成起始帧
@@ -729,14 +729,14 @@ func EncodeForAndroid(fileDir string, videoSize int, outputFPS int, maxSeconds i
 			for j := 0; j < dataSliceLen; j++ {
 				blankStartData[j] = common.DefaultBlankStartByte
 			}
-			imgBlankStart := Data2Image(blankStartData, videoSize)
+			imgBlankStart := Data2Image(blankStartData, videoSize, ver, ver5ColorGA, ver5ColorBA, ver5ColorGB, ver5ColorBB)
 
 			// 生成终止帧
 			blankEndData := make([]byte, dataSliceLen)
 			for j := 0; j < dataSliceLen; j++ {
 				blankEndData[j] = common.DefaultBlankEndByte
 			}
-			imgBlankEnd := Data2Image(blankEndData, videoSize)
+			imgBlankEnd := Data2Image(blankEndData, videoSize, ver, ver5ColorGA, ver5ColorBA, ver5ColorGB, ver5ColorBB)
 
 			i := 0
 			// 启动进度条
@@ -842,7 +842,7 @@ func EncodeForAndroid(fileDir string, videoSize int, outputFPS int, maxSeconds i
 						// 遍历 allShards
 						for _, shardData := range allShards {
 							// 生成带数据的图像
-							img := Data2Image(shardData, videoSize)
+							img := Data2Image(shardData, videoSize, ver, ver5ColorGA, ver5ColorBA, ver5ColorGB, ver5ColorBB)
 							filename := fmt.Sprintf("i_%09d.png", i)
 							outputPath := filepath.Join(outputTempDir, filename)
 							file, err := os.Create(outputPath)
@@ -926,7 +926,7 @@ func EncodeForAndroid(fileDir string, videoSize int, outputFPS int, maxSeconds i
 					// 遍历 allShards
 					for _, shardData := range allShards {
 						// 生成带数据的图像
-						img := Data2Image(shardData, videoSize)
+						img := Data2Image(shardData, videoSize, ver, ver5ColorGA, ver5ColorBA, ver5ColorGB, ver5ColorBB)
 						filename := fmt.Sprintf("i_%09d.png", i)
 						outputPath := filepath.Join(outputTempDir, filename)
 						file, err := os.Create(outputPath)
@@ -1085,8 +1085,8 @@ func EncodeForAndroid(fileDir string, videoSize int, outputFPS int, maxSeconds i
 }
 
 func EncodeWithoutPipe(fileDir string, videoSize int, outputFPS int, maxSeconds int, MGValue int, KGValue int, encodeThread int, encodeFFmpegMode string, auto bool,
-	UUID string) (segmentLength int64, err error) {
-	if videoSize%8 != 0 {
+	ver int, ver5ColorGA int, ver5ColorBA int, ver5ColorGB int, ver5ColorBB int, UUID string) (segmentLength int64, err error) {
+	if (videoSize*videoSize)%8 != 0 {
 		common.LogPrintln(UUID, common.EnStr, common.ErStr, "视频大小必须是8的倍数")
 		return 0, &common.CommonError{Msg: "视频大小必须是8的倍数"}
 	}
@@ -1266,7 +1266,7 @@ func EncodeWithoutPipe(fileDir string, videoSize int, outputFPS int, maxSeconds 
 			for j := 0; j < dataSliceLen; j++ {
 				blankData[j] = common.DefaultBlankByte
 			}
-			imgBlank := Data2Image(blankData, videoSize)
+			imgBlank := Data2Image(blankData, videoSize, ver, ver5ColorGA, ver5ColorBA, ver5ColorGB, ver5ColorBB)
 			allBlankFrameNum := 0
 
 			// 生成起始帧
@@ -1274,14 +1274,14 @@ func EncodeWithoutPipe(fileDir string, videoSize int, outputFPS int, maxSeconds 
 			for j := 0; j < dataSliceLen; j++ {
 				blankStartData[j] = common.DefaultBlankStartByte
 			}
-			imgBlankStart := Data2Image(blankStartData, videoSize)
+			imgBlankStart := Data2Image(blankStartData, videoSize, ver, ver5ColorGA, ver5ColorBA, ver5ColorGB, ver5ColorBB)
 
 			// 生成终止帧
 			blankEndData := make([]byte, dataSliceLen)
 			for j := 0; j < dataSliceLen; j++ {
 				blankEndData[j] = common.DefaultBlankEndByte
 			}
-			imgBlankEnd := Data2Image(blankEndData, videoSize)
+			imgBlankEnd := Data2Image(blankEndData, videoSize, ver, ver5ColorGA, ver5ColorBA, ver5ColorGB, ver5ColorBB)
 
 			i := 0
 			// 启动进度条
@@ -1387,7 +1387,7 @@ func EncodeWithoutPipe(fileDir string, videoSize int, outputFPS int, maxSeconds 
 						// 遍历 allShards
 						for _, shardData := range allShards {
 							// 生成带数据的图像
-							img := Data2Image(shardData, videoSize)
+							img := Data2Image(shardData, videoSize, ver, ver5ColorGA, ver5ColorBA, ver5ColorGB, ver5ColorBB)
 							filename := fmt.Sprintf("i_%09d.png", i)
 							outputPath := filepath.Join(outputTempDir, filename)
 							file, err := os.Create(outputPath)
@@ -1471,7 +1471,7 @@ func EncodeWithoutPipe(fileDir string, videoSize int, outputFPS int, maxSeconds 
 					// 遍历 allShards
 					for _, shardData := range allShards {
 						// 生成带数据的图像
-						img := Data2Image(shardData, videoSize)
+						img := Data2Image(shardData, videoSize, ver, ver5ColorGA, ver5ColorBA, ver5ColorGB, ver5ColorBB)
 						filename := fmt.Sprintf("i_%09d.png", i)
 						outputPath := filepath.Join(outputTempDir, filename)
 						file, err := os.Create(outputPath)

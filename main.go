@@ -7,11 +7,13 @@ import (
 	"github.com/ERR0RPR0MPT/Lumika/common"
 	"github.com/ERR0RPR0MPT/Lumika/utils"
 	"io/fs"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 )
 
 //go:embed ui/*
@@ -19,6 +21,7 @@ var UIFiles embed.FS
 
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
+	rand.Seed(time.Now().UnixNano())
 	est, err := os.Executable()
 	if err != nil {
 		common.LogPrintln("", common.InitStr, "工作目录获取失败")
@@ -70,6 +73,11 @@ func main() {
 	encodeKGValue := encodeFlag.Int("k", common.AddKGLevel, "The output video frame data shards(default="+strconv.Itoa(common.AddKGLevel)+"), 2-256")
 	encodeThread := encodeFlag.Int("t", common.VarSettingsVariable.DefaultMaxThreads, "Set Runtime Go routines number to process the task(default="+strconv.Itoa(runtime.NumCPU())+"), 1-128")
 	encodeFFmpegMode := encodeFlag.String("m", common.EncodeFFmpegModeLevel, "FFmpeg mode(default="+common.EncodeFFmpegModeLevel+"): ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow, placebo")
+	encodeEncodeVersion := encodeFlag.Int("v", common.EncodeVersion, "The encode function version(default="+strconv.Itoa(common.EncodeVersion)+"), 3, 4")
+	encodeEncodeVer5ColorGA := encodeFlag.Int("v5ga", common.EncodeVer5ColorGA, "The encode function version 5 color GA channel(default="+strconv.Itoa(common.EncodeVer5ColorGA)+"), 0-255")
+	encodeEncodeVer5ColorBA := encodeFlag.Int("v5ba", common.EncodeVer5ColorBA, "The encode function version 5 color BA channel(default="+strconv.Itoa(common.EncodeVer5ColorBA)+"), 0-255")
+	encodeEncodeVer5ColorGB := encodeFlag.Int("v5gb", common.EncodeVer5ColorGB, "The encode function version 5 color GB channel(default="+strconv.Itoa(common.EncodeVer5ColorGB)+"), 0-255")
+	encodeEncodeVer5ColorBB := encodeFlag.Int("v5bb", common.EncodeVer5ColorBB, "The encode function version 5 color BB channel(default="+strconv.Itoa(common.EncodeVer5ColorBB)+"), 0-255")
 	encodePath := encodeFlag.String("d", common.EpDir, "The dir path to save lumika data files")
 
 	decodeFlag := flag.NewFlagSet("decode", flag.ExitOnError)
@@ -178,7 +186,8 @@ func main() {
 			p = *encodePath
 		}
 		utils.LumikaDataPathInit(p)
-		_, err = utils.Encode(*encodeInput, *encodeQrcodeSize, *encodeOutputFPS, *encodeMaxSeconds, *encodeMGValue, *encodeKGValue, *encodeThread, *encodeFFmpegMode, false, "")
+		_, err = utils.Encode(*encodeInput, *encodeQrcodeSize, *encodeOutputFPS, *encodeMaxSeconds, *encodeMGValue, *encodeKGValue, *encodeThread, *encodeFFmpegMode, false,
+			*encodeEncodeVersion, *encodeEncodeVer5ColorGA, *encodeEncodeVer5ColorBA, *encodeEncodeVer5ColorGB, *encodeEncodeVer5ColorBB, "")
 		if err != nil {
 			common.LogPrintln("", common.EnStr, common.ErStr, "编码失败:", err)
 			return

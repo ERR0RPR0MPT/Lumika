@@ -18,6 +18,7 @@ import (
 	"io"
 	"io/fs"
 	"math"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
@@ -165,7 +166,11 @@ func ProcessSlices(slices [][]byte, MGValue int) [][]byte {
 		}
 		// 获取真实数据的索引
 		dataIndex := ByteArrayToInt(slices[i][:4])
-		result[dataIndex] = slices[i]
+		if dataIndex >= 0 && int(dataIndex) < MGValue {
+			result[dataIndex] = slices[i]
+		} else {
+			return nil
+		}
 	}
 	return result
 }
@@ -291,7 +296,7 @@ func TruncateFile(dataLength int64, filePath string) error {
 	return nil
 }
 
-func Data2Image(data []byte, size int) image.Image {
+func Data2ImageV3(data []byte, size int) image.Image {
 	// 计算最大可表示的数据长度
 	maxDataLength := size * size / 8
 	// 检查数据长度是否匹配，如果不匹配则进行填充
@@ -318,6 +323,106 @@ func Data2Image(data []byte, size int) image.Image {
 			}
 			x := (i*8 + j) % size
 			y := (i*8 + j) / size
+			img.SetRGBA(x, y, c)
+		}
+	}
+	return img
+}
+
+// Image2DataV3 从图像中恢复数据
+// 类型：
+// 0: 数据帧
+// 1: 空白帧
+// 2: 空白起始帧
+// 3: 空白终止帧
+func Image2DataV3(img image.Image) (dataR []byte, t int) {
+	bounds := img.Bounds()
+	size := bounds.Size().X
+	dataLength := size * size / 8
+	data := make([]byte, dataLength)
+	// 遍历图像像素并提取数据
+	// 检查是否为空白帧
+	isBlank := true
+	// 检查是否为空白起始帧
+	isBlankStart := true
+	// 检查是否为空白终止帧
+	isBlankEnd := true
+	for i := 0; i < dataLength; i++ {
+		b := byte(0)
+		for j := 0; j < 8; j++ {
+			x := (i*8 + j) % size
+			y := (i*8 + j) / size
+			r, _, _, _ := img.At(x, y).RGBA()
+			if r > 0x7FFF {
+				b |= 1 << uint(7-j)
+			}
+		}
+		if b != common.DefaultBlankByte {
+			isBlank = false
+		}
+		if b != common.DefaultBlankStartByte {
+			isBlankStart = false
+		}
+		if b != common.DefaultBlankEndByte {
+			isBlankEnd = false
+		}
+		data[i] = b
+	}
+	if isBlank {
+		return nil, 1
+	}
+	if isBlankStart {
+		return nil, 2
+	}
+	if isBlankEnd {
+		return nil, 3
+	}
+	return data, 0
+}
+
+func Data2Image(data []byte, size, ver, ver5ColorGA, ver5ColorBA, ver5ColorGB, ver5ColorBB int) image.Image {
+	// 计算最大可表示的数据长度
+	maxDataLength := size * size / 8
+	// 检查数据长度是否匹配，如果不匹配则进行填充
+	if len(data) < maxDataLength {
+		paddingLength := maxDataLength - len(data)
+		padding := make([]byte, paddingLength)
+		data = append(data, padding...)
+	} else if len(data) > maxDataLength {
+		common.LogPrintln("", "Data2Image:", common.ErStr, "警告: 数据过长，将进行截断")
+		data = data[:maxDataLength]
+	}
+	// 创建新的RGBA图像对象
+	img := image.NewRGBA(image.Rect(0, 0, size, size))
+	// 遍历数据并设置像素颜色
+	for i := 0; i < maxDataLength; i++ {
+		b := data[i]
+		for j := 0; j < 8; j++ {
+			bit := (b >> uint(7-j)) & 1
+			x := (i*8 + j) % size
+			y := (i*8 + j) / size
+			var c color.RGBA
+			if bit == 0 {
+				if ver == 3 {
+					c = color.RGBA{A: 255} // 黑色
+				} else if ver == 4 {
+					c = color.RGBA{R: 0, G: uint8(rand.Intn(255)), B: uint8(rand.Intn(255)), A: 255}
+				} else if ver == 5 {
+					c = color.RGBA{R: 0, G: uint8(ver5ColorGA), B: uint8(ver5ColorBA), A: 255}
+				} else {
+					c = color.RGBA{A: 255} // 黑色
+				}
+			} else {
+				if ver == 3 {
+					c = color.RGBA{R: 255, G: 255, B: 255, A: 255} // 白色
+				} else if ver == 4 {
+					c = color.RGBA{R: 255, G: uint8(rand.Intn(255)), B: uint8(rand.Intn(255)), A: 255}
+				} else if ver == 5 {
+					c = color.RGBA{R: 255, G: uint8(ver5ColorGB), B: uint8(ver5ColorBB), A: 255}
+				} else {
+					c = color.RGBA{R: 255, G: 255, B: 255, A: 255} // 白色
+				}
+			}
 			img.SetRGBA(x, y, c)
 		}
 	}

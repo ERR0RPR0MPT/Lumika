@@ -15,23 +15,28 @@ import (
 	"time"
 )
 
-func AddAddTask(fileNameList []string, defaultM int, defaultK int, MGValue int, KGValue int, videoSize int, outputFPS int, encodeMaxSeconds int, encodeThread int, encodeFFmpegMode string, defaultSummary string) {
+func AddAddTask(fileNameList []string, defaultM int, defaultK int, MGValue int, KGValue int, videoSize int, outputFPS int, encodeMaxSeconds int, encodeThread int, encodeVersion int, encodeVer5ColorGA int, encodeVer5ColorBA int, encodeVer5ColorGB int, encodeVer5ColorBB int, encodeFFmpegMode string, defaultSummary string) {
 	uuidd := uuid.New().String()
 	dt := &common.AddTaskListData{
 		UUID:      uuidd,
 		TimeStamp: time.Now().Format("2006-01-02 15:04:05"),
 		TaskInfo: &common.AddTaskInfo{
-			FileNameList:     fileNameList,
-			DefaultM:         defaultM,
-			DefaultK:         defaultK,
-			MGValue:          MGValue,
-			KGValue:          KGValue,
-			VideoSize:        videoSize,
-			OutputFPS:        outputFPS,
-			EncodeMaxSeconds: encodeMaxSeconds,
-			EncodeThread:     encodeThread,
-			EncodeFFmpegMode: encodeFFmpegMode,
-			DefaultSummary:   defaultSummary,
+			FileNameList:      fileNameList,
+			DefaultM:          defaultM,
+			DefaultK:          defaultK,
+			MGValue:           MGValue,
+			KGValue:           KGValue,
+			VideoSize:         videoSize,
+			OutputFPS:         outputFPS,
+			EncodeMaxSeconds:  encodeMaxSeconds,
+			EncodeThread:      encodeThread,
+			EncodeVersion:     encodeVersion,
+			EncodeVer5ColorGA: encodeVer5ColorGA,
+			EncodeVer5ColorGB: encodeVer5ColorGB,
+			EncodeVer5ColorBA: encodeVer5ColorBA,
+			EncodeVer5ColorBB: encodeVer5ColorBB,
+			EncodeFFmpegMode:  encodeFFmpegMode,
+			DefaultSummary:    defaultSummary,
 		},
 		ProgressRate: 0,
 		Duration:     "",
@@ -51,7 +56,10 @@ func AddTaskWorker(id int) {
 		}
 		common.AddTaskList[task.UUID].Status = "正在执行"
 		common.AddTaskList[task.UUID].StatusMsg = "正在执行"
-		err := AddExec(task.TaskInfo.FileNameList, task.TaskInfo.DefaultM, task.TaskInfo.DefaultK, task.TaskInfo.MGValue, task.TaskInfo.KGValue, task.TaskInfo.VideoSize, task.TaskInfo.OutputFPS, task.TaskInfo.EncodeMaxSeconds, task.TaskInfo.EncodeThread, task.TaskInfo.EncodeFFmpegMode, task.TaskInfo.DefaultSummary, task.UUID)
+		err := AddExec(task.TaskInfo.FileNameList, task.TaskInfo.DefaultM, task.TaskInfo.DefaultK, task.TaskInfo.MGValue, task.TaskInfo.KGValue, task.TaskInfo.VideoSize,
+			task.TaskInfo.OutputFPS, task.TaskInfo.EncodeMaxSeconds, task.TaskInfo.EncodeThread, task.TaskInfo.EncodeFFmpegMode, task.TaskInfo.DefaultSummary,
+			task.TaskInfo.EncodeVersion, task.TaskInfo.EncodeVer5ColorGA, task.TaskInfo.EncodeVer5ColorBA, task.TaskInfo.EncodeVer5ColorGB, task.TaskInfo.EncodeVer5ColorBB,
+			task.UUID)
 		_, exist = common.AddTaskList[task.UUID]
 		if !exist {
 			common.LogPrintf(task.UUID, "AddTaskWorker %d 编码任务被用户删除\n", id)
@@ -266,18 +274,83 @@ func AddInput() {
 		encodeThread = common.VarSettingsVariable.DefaultMaxThreads
 	}
 
+	// 设置编码方法版本
+	common.LogPrintln("", common.AddStr, "请输入编码方法版本号。默认：\""+strconv.Itoa(common.EncodeVersion)+"\"")
+	encodeVersion, err := strconv.Atoi(GetUserInput(""))
+	if err != nil {
+		common.LogPrintln("", common.AddStr, "自动设置编码方法版本号为", common.EncodeVersion)
+		encodeVersion = common.EncodeVersion
+	}
+	if encodeVersion != 3 && encodeVersion != 4 && encodeVersion != 5 {
+		common.LogPrintln("", common.AddStr, common.ErStr, "错误: 编码方法版本号只能设置为3, 4或5，自动设置处理使用的线程数量为", common.EncodeVersion)
+		encodeVersion = common.EncodeVersion
+	}
+
+	ver5ColorGA := common.EncodeVer5ColorGA
+	ver5ColorBA := common.EncodeVer5ColorBA
+	ver5ColorGB := common.EncodeVer5ColorGB
+	ver5ColorBB := common.EncodeVer5ColorBB
+
+	if encodeVersion == 5 {
+		// 设置ver5ColorGA
+		common.LogPrintln("", common.AddStr, "请输入 ver5ColorGA。默认：\""+strconv.Itoa(common.EncodeVer5ColorGA)+"\"")
+		ver5ColorGA, err = strconv.Atoi(GetUserInput(""))
+		if err != nil {
+			common.LogPrintln("", common.AddStr, "自动设置 ver5ColorGA 为", common.EncodeVer5ColorGA)
+			ver5ColorGA = common.EncodeVer5ColorGA
+		}
+		if ver5ColorGA < 0 || ver5ColorGA > 255 {
+			common.LogPrintln("", common.AddStr, common.ErStr, "错误: 0<=ver5ColorGA<=255，自动设置 ver5ColorGA 为", common.EncodeVer5ColorGA)
+			ver5ColorGA = common.EncodeVer5ColorGA
+		}
+		// 设置ver5ColorBA
+		common.LogPrintln("", common.AddStr, "请输入 ver5ColorBA。默认：\""+strconv.Itoa(common.EncodeVer5ColorBA)+"\"")
+		ver5ColorBA, err = strconv.Atoi(GetUserInput(""))
+		if err != nil {
+			common.LogPrintln("", common.AddStr, "自动设置 ver5ColorBA 为", common.EncodeVer5ColorBA)
+			ver5ColorBA = common.EncodeVer5ColorBA
+		}
+		if ver5ColorBA < 0 || ver5ColorBA > 255 {
+			common.LogPrintln("", common.AddStr, common.ErStr, "错误: 0<=ver5ColorBA<=255，自动设置 ver5ColorBA 为", common.EncodeVer5ColorBA)
+			ver5ColorBA = common.EncodeVer5ColorBA
+		}
+		// 设置ver5ColorGB
+		common.LogPrintln("", common.AddStr, "请输入 ver5ColorGB。默认：\""+strconv.Itoa(common.EncodeVer5ColorGB)+"\"")
+		ver5ColorGB, err = strconv.Atoi(GetUserInput(""))
+		if err != nil {
+			common.LogPrintln("", common.AddStr, "自动设置 ver5ColorGB 为", common.EncodeVer5ColorGB)
+			ver5ColorGB = common.EncodeVer5ColorGB
+		}
+		if ver5ColorGB < 0 || ver5ColorGB > 255 {
+			common.LogPrintln("", common.AddStr, common.ErStr, "错误: 0<=ver5ColorGB<=255，自动设置 ver5ColorGB 为", common.EncodeVer5ColorGB)
+			ver5ColorGB = common.EncodeVer5ColorGB
+		}
+		// 设置ver5ColorBB
+		common.LogPrintln("", common.AddStr, "请输入 ver5ColorBB。默认：\""+strconv.Itoa(common.EncodeVer5ColorBB)+"\"")
+		ver5ColorBB, err = strconv.Atoi(GetUserInput(""))
+		if err != nil {
+			common.LogPrintln("", common.AddStr, "自动设置 ver5ColorBB 为", common.EncodeVer5ColorBB)
+			ver5ColorBB = common.EncodeVer5ColorBB
+		}
+		if ver5ColorBB < 0 || ver5ColorBB > 255 {
+			common.LogPrintln("", common.AddStr, common.ErStr, "错误: 0<=ver5ColorBB<=255，自动设置 ver5ColorBB 为", common.EncodeVer5ColorBB)
+			ver5ColorBB = common.EncodeVer5ColorBB
+		}
+	}
+
 	// 设置默认的摘要
 	common.LogPrintln("", common.AddStr, "请输入摘要，可以作为文件内容的简介。例如：\"这是一个相册的压缩包\"")
 	defaultSummary := GetUserInput("")
 
-	err = AddExec(fileNameList, defaultM, defaultK, MGValue, KGValue, videoSize, outputFPS, encodeMaxSeconds, encodeThread, encodeFFmpegMode, defaultSummary, "")
+	err = AddExec(fileNameList, defaultM, defaultK, MGValue, KGValue, videoSize, outputFPS, encodeMaxSeconds, encodeThread, encodeFFmpegMode, defaultSummary, encodeVersion, ver5ColorGA, ver5ColorBA, ver5ColorGB, ver5ColorBB, "")
 	if err != nil {
 		common.LogPrintln("", common.AddStr, common.ErStr, "添加任务失败:", err)
 		return
 	}
 }
 
-func AddExec(fileNameList []string, defaultM int, defaultK int, MGValue int, KGValue int, videoSize int, outputFPS int, encodeMaxSeconds int, encodeThread int, encodeFFmpegMode string, defaultSummary string, UUID string) error {
+func AddExec(fileNameList []string, defaultM int, defaultK int, MGValue int, KGValue int, videoSize int, outputFPS int, encodeMaxSeconds int, encodeThread int,
+	encodeFFmpegMode string, defaultSummary string, ver int, ver5ColorGA int, ver5ColorBA int, ver5ColorGB int, ver5ColorBB int, UUID string) error {
 	fileDir := common.LumikaWorkDirPath
 	fileEncodeDir := common.LumikaEncodePath
 	fileEncodeOutputDir := common.LumikaEncodeOutputPath
@@ -353,13 +426,13 @@ func AddExec(fileNameList []string, defaultM int, defaultK int, MGValue int, KGV
 		common.LogPrintln(UUID, common.AddStr, "开始进行编码")
 		var segmentLength int64
 		if !common.MobileMode {
-			segmentLength, err = Encode(defaultOutputDir, videoSize, outputFPS, encodeMaxSeconds, MGValue, KGValue, encodeThread, encodeFFmpegMode, true, UUID)
+			segmentLength, err = Encode(defaultOutputDir, videoSize, outputFPS, encodeMaxSeconds, MGValue, KGValue, encodeThread, encodeFFmpegMode, true, ver, ver5ColorGA, ver5ColorBA, ver5ColorGB, ver5ColorBB, UUID)
 			if err != nil {
 				common.LogPrintln(UUID, common.AddStr, common.ErStr, "编码失败:", err)
 				return &common.CommonError{Msg: "编码失败:" + err.Error()}
 			}
 		} else {
-			segmentLength, err = EncodeForAndroid(defaultOutputDir, videoSize, outputFPS, encodeMaxSeconds, MGValue, KGValue, encodeThread, encodeFFmpegMode, true, UUID)
+			segmentLength, err = EncodeForAndroid(defaultOutputDir, videoSize, outputFPS, encodeMaxSeconds, MGValue, KGValue, encodeThread, encodeFFmpegMode, true, ver, ver5ColorGA, ver5ColorBA, ver5ColorGB, ver5ColorBB, UUID)
 			if err != nil {
 				common.LogPrintln(UUID, common.AddStr, common.ErStr, "编码失败:", err)
 				return &common.CommonError{Msg: "编码失败:" + err.Error()}

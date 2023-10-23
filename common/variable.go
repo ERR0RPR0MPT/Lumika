@@ -8,7 +8,7 @@ import (
 
 const (
 	LumikaVersionNum                 = 3
-	LumikaVersionString              = "v3.13.3"
+	LumikaVersionString              = "v3.14.0"
 	LumikaGithubRepo                 = "err0rpr0mpt/lumika"
 	LumikaWebGithubRepo              = "err0rpr0mpt/lumika-web"
 	LumikaAndroidGithubRepo          = "err0rpr0mpt/lumika-android"
@@ -31,8 +31,13 @@ const (
 	AddKLevel                        = 81
 	AddMGLevel                       = 200
 	AddKGLevel                       = 130
-	EncodeVideoSizeLevel             = 32
-	EncodeOutputFPSLevel             = 24
+	EncodeVersion                    = 5
+	EncodeVer5ColorGA                = 0
+	EncodeVer5ColorBA                = 0
+	EncodeVer5ColorGB                = 255
+	EncodeVer5ColorBB                = 255
+	EncodeVideoSizeLevel             = 224
+	EncodeOutputFPSLevel             = 1
 	EncodeMaxSecondsLevel            = 35990
 	EncodeFFmpegModeLevel            = "medium"
 	DefaultHashLength                = 7
@@ -253,17 +258,22 @@ type BDlTaskListData struct {
 }
 
 type AddTaskInfo struct {
-	FileNameList     []string `json:"fileNameList"`
-	DefaultM         int      `json:"defaultM"`
-	DefaultK         int      `json:"defaultK"`
-	MGValue          int      `json:"mgValue"`
-	KGValue          int      `json:"kgValue"`
-	VideoSize        int      `json:"videoSize"`
-	OutputFPS        int      `json:"outputFPS"`
-	EncodeMaxSeconds int      `json:"encodeMaxSeconds"`
-	EncodeThread     int      `json:"encodeThread"`
-	EncodeFFmpegMode string   `json:"encodeFFmpegMode"`
-	DefaultSummary   string   `json:"defaultSummary"`
+	FileNameList      []string `json:"fileNameList"`
+	DefaultM          int      `json:"defaultM"`
+	DefaultK          int      `json:"defaultK"`
+	MGValue           int      `json:"mgValue"`
+	KGValue           int      `json:"kgValue"`
+	VideoSize         int      `json:"videoSize"`
+	OutputFPS         int      `json:"outputFPS"`
+	EncodeMaxSeconds  int      `json:"encodeMaxSeconds"`
+	EncodeThread      int      `json:"encodeThread"`
+	EncodeVersion     int      `json:"encodeVersion"`
+	EncodeVer5ColorGA int      `json:"encodeVer5ColorGA"`
+	EncodeVer5ColorBA int      `json:"encodeVer5ColorBA"`
+	EncodeVer5ColorGB int      `json:"encodeVer5ColorGB"`
+	EncodeVer5ColorBB int      `json:"encodeVer5ColorBB"`
+	EncodeFFmpegMode  string   `json:"encodeFFmpegMode"`
+	DefaultSummary    string   `json:"defaultSummary"`
 }
 
 type AddTaskListData struct {

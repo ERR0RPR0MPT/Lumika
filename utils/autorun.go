@@ -32,7 +32,7 @@ func AutoRun() {
 			break
 		} else if input == "3" {
 			clearScreen()
-			_, err := Encode("", common.EncodeVideoSizeLevel, common.EncodeOutputFPSLevel, common.EncodeMaxSecondsLevel, common.AddMGLevel, common.AddKGLevel, common.VarSettingsVariable.DefaultMaxThreads, common.EncodeFFmpegModeLevel, false, "")
+			_, err := Encode("", common.EncodeVideoSizeLevel, common.EncodeOutputFPSLevel, common.EncodeMaxSecondsLevel, common.AddMGLevel, common.AddKGLevel, common.VarSettingsVariable.DefaultMaxThreads, common.EncodeFFmpegModeLevel, false, common.EncodeVersion, common.EncodeVer5ColorGA, common.EncodeVer5ColorBA, common.EncodeVer5ColorGB, common.EncodeVer5ColorBB, "")
 			if err != nil {
 				common.LogPrintln("", common.ArStr, common.ErStr, "错误: 编码失败:", err)
 				break

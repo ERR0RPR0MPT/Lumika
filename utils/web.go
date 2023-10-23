@@ -240,7 +240,27 @@ func AddEncodeTask(c *gin.Context) {
 		common.LogPrintln("", common.AddStr, common.ErStr, "错误: 处理使用的线程数量不能小于等于 0，自动设置处理使用的线程数量为", common.VarSettingsVariable.DefaultMaxThreads)
 		ed.EncodeThread = common.VarSettingsVariable.DefaultMaxThreads
 	}
-	go AddAddTask(ed.FileNameList, ed.DefaultM, ed.DefaultK, ed.MGValue, ed.KGValue, ed.VideoSize, ed.OutputFPS, ed.EncodeMaxSeconds, ed.EncodeThread, ed.EncodeFFmpegMode, ed.DefaultSummary)
+	if ed.EncodeVersion != 3 && ed.EncodeVersion != 4 && ed.EncodeVersion != 5 {
+		common.LogPrintln("", common.AddStr, common.ErStr, "错误: 编码方法版本号只能设置为3, 4或5，自动设置处理使用的线程数量为", common.EncodeVersion)
+		ed.EncodeVersion = common.EncodeVersion
+	}
+	if ed.EncodeVer5ColorGA < 0 || ed.EncodeVer5ColorGA > 255 {
+		common.LogPrintln("", common.AddStr, common.ErStr, "错误: 编码方法版本5的颜色GA通道值只能设置为0-255，自动设置为", common.EncodeVer5ColorGA)
+		ed.EncodeVer5ColorGA = common.EncodeVer5ColorGA
+	}
+	if ed.EncodeVer5ColorBA < 0 || ed.EncodeVer5ColorBA > 255 {
+		common.LogPrintln("", common.AddStr, common.ErStr, "错误: 编码方法版本5的颜色BA通道值只能设置为0-255，自动设置为", common.EncodeVer5ColorBA)
+		ed.EncodeVer5ColorBA = common.EncodeVer5ColorBA
+	}
+	if ed.EncodeVer5ColorGB < 0 || ed.EncodeVer5ColorGB > 255 {
+		common.LogPrintln("", common.AddStr, common.ErStr, "错误: 编码方法版本5的颜色GA通道值只能设置为0-255，自动设置为", common.EncodeVer5ColorGB)
+		ed.EncodeVer5ColorGB = common.EncodeVer5ColorGB
+	}
+	if ed.EncodeVer5ColorBB < 0 || ed.EncodeVer5ColorBB > 255 {
+		common.LogPrintln("", common.AddStr, common.ErStr, "错误: 编码方法版本5的颜色B通道值只能设置为0-255，自动设置为", common.EncodeVer5ColorBB)
+		ed.EncodeVer5ColorBB = common.EncodeVer5ColorBB
+	}
+	go AddAddTask(ed.FileNameList, ed.DefaultM, ed.DefaultK, ed.MGValue, ed.KGValue, ed.VideoSize, ed.OutputFPS, ed.EncodeMaxSeconds, ed.EncodeThread, ed.EncodeVersion, ed.EncodeVer5ColorGA, ed.EncodeVer5ColorBA, ed.EncodeVer5ColorGB, ed.EncodeVer5ColorBB, ed.EncodeFFmpegMode, ed.DefaultSummary)
 	c.JSON(http.StatusOK, gin.H{"msg": fmt.Sprintf("成功添加编码任务")})
 	common.LogPrintln("", common.AddStr, "成功添加编码任务")
 }

@@ -244,8 +244,8 @@ func GetExec(fileDir string, base64Config string, decodeThread int, UUID string)
 	if findNum >= fecFileConfig.K {
 		common.LogPrintln(UUID, common.GetStr, "提示：可以成功恢复数据")
 	} else {
-		common.LogPrintln(UUID, common.GetStr, "警告：无法成功恢复数据，请按下回车键来确定")
-		GetUserInput("请按回车键继续...")
+		common.LogPrintln(UUID, common.GetStr, "警告：数据损坏，无法成功恢复数据")
+		return "", &common.CommonError{Msg: "警告：数据损坏，无法成功恢复数据"}
 	}
 
 	// 生成原始文件
