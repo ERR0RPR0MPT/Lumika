@@ -5,6 +5,7 @@ main_zfec.go.bak
 main_old1.go.bak
 build.bat
 /lumika.exe
+/lumika_windows_amd64.exe
 /lumika_data
 db.json
 /build_2.bat
