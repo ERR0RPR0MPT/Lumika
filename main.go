@@ -21,7 +21,7 @@ var UIFiles embed.FS
 
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
-	rand.Seed(time.Now().UnixNano())
+	rand.NewSource(time.Now().UnixNano())
 	est, err := os.Executable()
 	if err != nil {
 		common.LogPrintln("", common.InitStr, "工作目录获取失败")

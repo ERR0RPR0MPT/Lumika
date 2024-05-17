@@ -194,7 +194,11 @@ func BDl(AVOrBVStr string, parentDir, UUID string) error {
 			common.LogPrintln(UUID, common.BDlStr, "未知的视频编号:", AVOrBVStr)
 			return &common.CommonError{Msg: "未知的视频编号"}
 		}
-		aid = bg.BV2AV(AVOrBVStr)
+		aidDecoded, err := BV2AV(AVOrBVStr)
+		if err != nil {
+			return err
+		}
+		aid = aidDecoded
 	} else {
 		anum, err := strconv.ParseInt(AVOrBVStr[2:], 10, 64)
 		if err != nil {

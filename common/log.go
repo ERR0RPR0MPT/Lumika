@@ -43,7 +43,7 @@ func LogPrintln(UUID string, a ...any) {
 			BUlTaskList[UUID].LogCat += result + "\n"
 		}
 	}
-	fmt.Println("", result)
+	fmt.Println(result)
 }
 
 func LogPrintf(UUID string, format string, a ...any) {
